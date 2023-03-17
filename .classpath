@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry including="**/*.java" kind="src" path="src/main/java"/>
+	<classpathentry kind="var" path="M2_REPO/javax/activation/activation/1.1.1/activation-1.1.1.jar" sourcepath="M2_REPO/javax/activation/activation/1.1.1/activation-1.1.1-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/javax/xml/bind/jaxb-api/2.3.1/jaxb-api-2.3.1.jar" sourcepath="M2_REPO/javax/xml/bind/jaxb-api/2.3.1/jaxb-api-2.3.1-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/javax/activation/javax.activation-api/1.2.0/javax.activation-api-1.2.0.jar" sourcepath="M2_REPO/javax/activation/javax.activation-api/1.2.0/javax.activation-api-1.2.0-sources.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="var" path="M2_REPO/junit/junit/4.13.1/junit-4.13.1.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar" sourcepath="M2_REPO/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/slf4j/slf4j-simple/1.7.32/slf4j-simple-1.7.32.jar" sourcepath="M2_REPO/org/slf4j/slf4j-simple/1.7.32/slf4j-simple-1.7.32-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/slf4j/slf4j-api/1.7.32/slf4j-api-1.7.32.jar"/>
+	<classpathentry kind="var" path="M2_REPO/jakarta/servlet/jakarta.servlet-api/6.0.0/jakarta.servlet-api-6.0.0.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trix/2.4.4/rdf4j-rio-trix-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trix/2.4.4/rdf4j-rio-trix-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model/2.4.4/rdf4j-model-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model/2.4.4/rdf4j-model-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-util/2.4.4/rdf4j-util-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-util/2.4.4/rdf4j-util-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-api/2.4.4/rdf4j-rio-api-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-api/2.4.4/rdf4j-rio-api-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-datatypes/2.4.4/rdf4j-rio-datatypes-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-datatypes/2.4.4/rdf4j-rio-datatypes-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-languages/2.4.4/rdf4j-rio-languages-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-languages/2.4.4/rdf4j-rio-languages-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/commons-io/commons-io/2.5/commons-io-2.5.jar" sourcepath="M2_REPO/commons-io/commons-io/2.5/commons-io-2.5-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-nquads/2.4.4/rdf4j-rio-nquads-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-nquads/2.4.4/rdf4j-rio-nquads-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-ntriples/2.4.4/rdf4j-rio-ntriples-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-ntriples/2.4.4/rdf4j-rio-ntriples-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-jsonld/2.4.4/rdf4j-rio-jsonld-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-jsonld/2.4.4/rdf4j-rio-jsonld-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/github/jsonld-java/jsonld-java/0.12.0/jsonld-java-0.12.0.jar" sourcepath="M2_REPO/com/github/jsonld-java/jsonld-java/0.12.0/jsonld-java-0.12.0-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.9.6/jackson-core-2.9.6.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.9.6/jackson-core-2.9.6-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.9.5/jackson-databind-2.9.5.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.9.5/jackson-databind-2.9.5-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.9.0/jackson-annotations-2.9.0.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.9.0/jackson-annotations-2.9.0-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/slf4j/jcl-over-slf4j/1.7.25/jcl-over-slf4j-1.7.25.jar" sourcepath="M2_REPO/org/slf4j/jcl-over-slf4j/1.7.25/jcl-over-slf4j-1.7.25-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient/4.5.5/httpclient-4.5.5.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpclient/4.5.5/httpclient-4.5.5-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpcore/4.4.16/httpcore-4.4.16.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient-cache/4.5.5/httpclient-cache-4.5.5.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpclient-cache/4.5.5/httpclient-cache-4.5.5-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/nanopub/nanopub/1.45/nanopub-1.45.jar" sourcepath="M2_REPO/org/nanopub/nanopub/1.45/nanopub-1.45-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trig/2.4.4/rdf4j-rio-trig-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trig/2.4.4/rdf4j-rio-trig-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-turtle/2.4.4/rdf4j-rio-turtle-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-turtle/2.4.4/rdf4j-rio-turtle-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-sparql/2.4.4/rdf4j-repository-sparql-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-sparql/2.4.4/rdf4j-repository-sparql-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-api/2.4.4/rdf4j-repository-api-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-api/2.4.4/rdf4j-repository-api-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-query/2.4.4/rdf4j-query-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-query/2.4.4/rdf4j-query-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-http-client/2.4.4/rdf4j-http-client-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-http-client/2.4.4/rdf4j-http-client-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-http-protocol/2.4.4/rdf4j-http-protocol-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-http-protocol/2.4.4/rdf4j-http-protocol-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-api/2.4.4/rdf4j-queryresultio-api-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-api/2.4.4/rdf4j-queryresultio-api-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/commons-codec/commons-codec/1.11/commons-codec-1.11.jar" sourcepath="M2_REPO/commons-codec/commons-codec/1.11/commons-codec-1.11-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-api/2.4.4/rdf4j-queryparser-api-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-api/2.4.4/rdf4j-queryparser-api-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryalgebra-model/2.4.4/rdf4j-queryalgebra-model-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryalgebra-model/2.4.4/rdf4j-queryalgebra-model-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-sparql/2.4.4/rdf4j-queryparser-sparql-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-sparql/2.4.4/rdf4j-queryparser-sparql-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/2.4.4/rdf4j-queryresultio-sparqlxml-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/2.4.4/rdf4j-queryresultio-sparqlxml-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/guava/guava/31.1-jre/guava-31.1-jre.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/guava/listenablefuture/9999.0-empty-to-avoid-conflict-with-guava/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/checkerframework/checker-qual/3.12.0/checker-qual-3.12.0.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/errorprone/error_prone_annotations/2.11.0/error_prone_annotations-2.11.0.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/j2objc/j2objc-annotations/1.3/j2objc-annotations-1.3.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/beust/jcommander/1.32/jcommander-1.32.jar" sourcepath="M2_REPO/com/beust/jcommander/1.32/jcommander-1.32-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/commonjava/mimeparse/mimeparse/0.1.3.3/mimeparse-0.1.3.3.jar" sourcepath="M2_REPO/org/commonjava/mimeparse/mimeparse/0.1.3.3/mimeparse-0.1.3.3-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/commons-lang/commons-lang/2.4/commons-lang-2.4.jar" sourcepath="M2_REPO/commons-lang/commons-lang/2.4/commons-lang-2.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/net/trustyuri/trustyuri/1.16/trustyuri-1.16.jar" sourcepath="M2_REPO/net/trustyuri/trustyuri/1.16/trustyuri-1.16-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/commons-logging/commons-logging/1.2/commons-logging-1.2.jar" sourcepath="M2_REPO/commons-logging/commons-logging/1.2/commons-logging-1.2-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-rdfxml/2.4.4/rdf4j-rio-rdfxml-2.4.4.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-rdfxml/2.4.4/rdf4j-rio-rdfxml-2.4.4-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1.jar" sourcepath="M2_REPO/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/com/google/code/externalsortinginjava/externalsortinginjava/0.1.9/externalsortinginjava-0.1.9.jar" sourcepath="M2_REPO/com/google/code/externalsortinginjava/externalsortinginjava/0.1.9/externalsortinginjava-0.1.9-sources.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/mongodb/mongo-java-driver/3.12.12/mongo-java-driver-3.12.12.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar" sourcepath="M2_REPO/org/apache/commons/commons-compress/1.21/commons-compress-1.21-sources.jar"/>
+	<classpathentry kind="output" path="target/nanopub-registry/WEB-INF/classes"/>
+</classpath>
