@@ -1,0 +1,9 @@
+/.*
+/data
+/target
+/scratch
+/load
+/classpath.txt
+*.log
+/docker-compose.override.yml
+/bin/
