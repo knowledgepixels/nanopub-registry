@@ -18,7 +18,11 @@ public class RegistryServlet extends HttpServlet {
 		try {
 			setGeneralHeaders(resp);
 			ServerRequest r = new ServerRequest(req);
-			MainPage.show(r, resp);
+			if (r.isEmpty()) {
+				MainPage.show(r, resp);
+			} else if (r.getFullRequest().equals("/style/plain.css")) {
+				ResourcePage.show(r, resp, "style.css", "text/css");
+			}
 		} finally {
 			resp.getOutputStream().close();
 			req.getInputStream().close();
