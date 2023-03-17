@@ -34,7 +34,7 @@ public class MainPage extends Page {
 		} else {
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
-			println("<p>work in progres... abc</p>");
+			println("<p>work in progres...</p>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {
