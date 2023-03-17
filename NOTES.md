@@ -1,4 +1,6 @@
-### Data Structure Sketch
+# Nanopub Registry Notes
+
+## Data Structure Sketch
 
 Core part (to be developed first):
 
@@ -31,3 +33,8 @@ Setting/quota support (to be developed later):
     - 10000: *
     - 100000: John-Doe, Jane-Smith
     - 1000000: Sue-Rich
+
+## Update Dependencies
+
+    $ mvn versions:use-latest-versions
+    $ mvn versions:update-properties
