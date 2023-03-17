@@ -7,7 +7,7 @@ export MAVEN_OPTS="--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.
 mvn clean package
 
 echo "-------------------------------------"
-echo "Starting up at http://localhost:8081/"
+echo "Starting up at http://localhost:9292/"
 echo "-------------------------------------"
 
-docker run -v "$(pwd)/target/nanopub-registry/":/usr/local/tomcat/webapps/ROOT -p 8081:8080 tomcat:9.0
+docker run -v "$(pwd)/target/nanopub-registry/":/usr/local/tomcat/webapps/ROOT -p 9292:8080 tomcat:9.0
