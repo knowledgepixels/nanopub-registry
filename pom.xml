@@ -83,15 +83,6 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-war-plugin</artifactId>
         <version>3.3.2</version>
-      <configuration>
-        <archive>
-          <manifest>
-            <addClasspath>true</addClasspath>
-            <classpathPrefix>lib/</classpathPrefix>
-            <mainClass>com.knowdledgepixels.registry.RegistryServlet</mainClass>
-          </manifest>
-        </archive>
-      </configuration>
       </plugin>
       <plugin>
         <inherited>true</inherited>
