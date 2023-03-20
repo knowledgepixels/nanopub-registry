@@ -38,3 +38,4 @@ Setting/quota support (to be developed later):
 
     $ mvn versions:use-latest-versions
     $ mvn versions:update-properties
+
