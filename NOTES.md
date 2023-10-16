@@ -4,7 +4,8 @@
 
 Core part (to be developed first):
 
-    state: 1332309348 / 1423293 (installation ID / state ID)
+    setup ID: 1332309348
+    state counter: 1423293
     last-uptodate: 20230317-...
     last-update: 20230316-...
     main log (latest first):
@@ -12,11 +13,11 @@ Core part (to be developed first):
     - 20230316-... e77 4521 RA...
     - ...
     per-key registry:
-    - a83: (key:4e8d9s..., count:1537, checksum:XX..., complete:true)
+    - a83: (full-key:4e8d9s..., count:1537, checksum:XX..., complete:true)
       - np: (0:RA..., 1:RA..., ..., 1536:RA...)
-    - b55: (key:b89029..., count:234 checksum:XX..., complete:true)
+    - b55: (full-key:b89029..., count:234 checksum:XX..., complete:true)
       - np: (0:RA..., 1:RA..., ..., 233:RA...)
-    - c04: (key:f382ac..., count:9543, checksum:XX..., complete:false)
+    - c04: (full-key:f382ac..., count:9543, checksum:XX..., complete:false)
       - np: (0:RA..., 1:RA..., ..., 9542:RA...)
     - ...
 
