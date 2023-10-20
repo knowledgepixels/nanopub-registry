@@ -10,4 +10,4 @@ echo "-------------------------------------"
 echo "Starting up at http://localhost:9292/"
 echo "-------------------------------------"
 
-docker run -v "$(pwd)/target/nanopub-registry/":/usr/local/tomcat/webapps/ROOT -p 9292:8080 tomcat:10
+docker compose up

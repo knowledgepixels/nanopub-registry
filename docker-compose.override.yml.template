@@ -1,0 +1,5 @@
+version: '2'
+services:
+  registry:
+    volumes:
+      - ./target/nanopub-registry/:/usr/local/tomcat/webapps/ROOT
