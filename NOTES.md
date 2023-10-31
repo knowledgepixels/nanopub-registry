@@ -13,12 +13,18 @@ Core part (to be developed first):
     - 20230316-... e77 4521 RA...
     - ...
     per-key registry:
-    - a83: (full-key:4e8d9s..., count:1537, checksum:XX..., complete:true)
-      - np: (0:RA..., 1:RA..., ..., 1536:RA...)
+    - a83: full-key:4e8d9s...
+      - intro: (count:11, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 10:RA...)
+      - approval: (count:143, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 142:RA...)
+      - all: (count:1537, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 1536:RA...)
     - b55: (full-key:b89029..., count:234 checksum:XX..., complete:true)
-      - np: (0:RA..., 1:RA..., ..., 233:RA...)
+      - intro: (count:1, checksum:XX..., complete:true, 0:RA..., 1:RA...)
+      - approval: (count:12, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 11:RA...)
+      - all: (count:1537, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 233:RA...)
     - c04: (full-key:f382ac..., count:9543, checksum:XX..., complete:false)
-      - np: (0:RA..., 1:RA..., ..., 9542:RA...)
+      - intro: (count:8, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 7:RA...)
+      - approval: (count:55, checksum:XX..., complete:true, 0:RA..., 1:RA..., ..., 54:RA...)
+      - all: (count:1537, checksum:XX..., complete:false, 0:RA..., 1:RA..., ..., 9542:RA...)
     - ...
 
 Setting/quota support (to be developed later):
