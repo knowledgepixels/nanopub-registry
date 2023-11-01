@@ -43,10 +43,10 @@
         - ratio paths:
           - a83: (@:0.1, @b55:0.02, @d32-e83-f02:0.0001)
           - b55: ...
-    quota:
+    quota (s = global quota * ratio):
     - *: 10 (anyone, with limited new users per hour)
-    - ?: r*1 ? (any approved user)
-    - John-Doe: r*10
+    - ?: s*1 ? (any approved user)
+    - John-Doe: s*10
     - Sue-Rich: 1000000
 
 ## Update Dependencies
