@@ -2,8 +2,6 @@
 
 ## Data Structure Sketch
 
-Core part (to be developed first):
-
     setup ID: 1332309348
     state counter: 1423293
     last-update: 20230316-...
