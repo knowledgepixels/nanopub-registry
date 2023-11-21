@@ -49,8 +49,3 @@
     - John-Doe: s*10
     - Sue-Rich: 1000000
 
-## Update Dependencies
-
-    $ mvn versions:use-latest-versions
-    $ mvn versions:update-properties
-
