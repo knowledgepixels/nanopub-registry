@@ -2,10 +2,11 @@
 
 ## Data Structure Sketch
 
-    - setup ID: 1332309348
-    - state counter: 1423293
+    - setup-ID: 1332309348
+    - state-counter: 1423293
     - last-update: 20230316-...
     - last-uptodate: 20230317-...
+    - covered-types: *
     - global-quota: 1000000
     - log:
       - 1423293: 20230316-... a83 1536 RA...
@@ -18,19 +19,33 @@
           - _all_:
             - count: 1537
             - complete: true
-            - np: (0:RA..., 1:RA..., ..., 1536:RA...)
-            - checksums: (0:XX..., 1:XX..., ..., 1536:XX...)
+            - list:
+              - 0: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[])
+              - 1: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[2])
+              - 2: (id:RA..., checksum:XX..., invalidates:[1], invalidated-by:[])
+              - ...
+            - id-lookup:
+              - RA...: 354
+              - ...
+            - checksum-lookup:
+              - XX...: 1063
+              - ...
           - intro:
             - count:11
             - complete:true
-            - np: (0:RA..., 1:RA..., ..., 10:RA...)
-            - checksums: (0:XX..., 1:XX..., ..., 10:XX...)
+            - list:
+              - 0: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[2])
+              - 1: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[])
+              - 2: (id:RA..., checksum:XX..., invalidates:[0], invalidated-by:[], flag:secondary)
+              - ...
+            - id-lookup:
+              - RA...: 5
+              - ...
+            - checksum-lookup:
+              - XX...: 7
+              - ...
           - approval:
             - ...
-          - ...
-        - invalidated:
-          - RA...:[RA...,RA...]
-          - RA...:[RA...]
           - ...
       - b55:
         - ...
