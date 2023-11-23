@@ -19,27 +19,27 @@
           - _all_:
             - count: 1537
             - complete: true
-            - list:
-              - 0: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[])
-              - 1: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[2])
-              - 2: (id:RA..., checksum:XX..., invalidates:[1], invalidated-by:[])
+            - positions:
+              - 0: (id:RA..., checksum:XX...)
+              - 1: (id:RA..., checksum:XX...)
+              - 2: (id:RA..., checksum:XX...)
               - ...
-            - id-lookup:
-              - RA...: 354
-              - ...
-            - checksum-lookup:
-              - XX...: 1063
+            - ids:
+              - RA...: (position:354, invalidated-by:[RA...])
+              - RA...: (position:928, invalidated-by:[])
+              - RA...: (invalidated-by:[RA...])
               - ...
           - intro:
             - count:11
             - complete:true
-            - list:
-              - 0: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[2])
-              - 1: (id:RA..., checksum:XX..., invalidates:[], invalidated-by:[])
-              - 2: (id:RA..., checksum:XX..., invalidates:[0], invalidated-by:[], flag:secondary)
+            - positions:
+              - 0: (id:RA..., checksum:XX...)
+              - 1: (id:RA..., checksum:XX...)
+              - 2: (id:RA..., checksum:XX..., flag:secondary)
               - ...
-            - id-lookup:
-              - RA...: 5
+            - ids:
+              - RA...: (position:5, invalidated-by:[])
+              - RA...: (position:2, invalidated-by:[RA...])
               - ...
             - checksum-lookup:
               - XX...: 7
