@@ -4,10 +4,19 @@
 
     - setup-ID: 1332309348
     - state-counter: 1423293
+    - status: ready
     - last-update: 20230316-...
     - last-uptodate: 20230317-...
-    - covered-types: *
-    - global-quota: 1000000
+    - coverage:
+      - agents: _via-setting_
+      - types: *
+      - dates: *
+    - quotas:
+      - _global_: 1000000
+      - _anyone_: 10
+      - _approved_: global * ratio
+      - JohnDoe: global * ratio * 10
+      - SueRich: 1000000
     - log:
       - 1423293: 20230316-... a83 1536 RA...
       - 1423292: 20230316-... e77 4521 RA...
@@ -18,7 +27,7 @@
         - lists:
           - _all_:
             - count: 1537
-            - complete: true
+            - status: updating
             - positions:
               - 0: (id:RA..., checksum:XX...)
               - 1: (id:RA..., checksum:XX...)
@@ -29,9 +38,12 @@
               - RA...: (position:928, invalidated-by:[])
               - RA...: (invalidated-by:[RA...])
               - ...
+            - checksums:
+              - XX...: (id:RA..., position:324)
+              - ...
           - intro:
             - count:11
-            - complete:true
+            - status: complete
             - positions:
               - 0: (id:RA..., checksum:XX...)
               - 1: (id:RA..., checksum:XX...)
@@ -41,25 +53,28 @@
               - RA...: (position:5, invalidated-by:[])
               - RA...: (position:2, invalidated-by:[RA...])
               - ...
-            - checksum-lookup:
-              - XX...: 7
+            - checksums:
+              - XX...: (id:RA..., position:5)
               - ...
-          - approval:
+          - endorsement:
+            - ...
+          - service-info:
+            - ...
+          - typex:
             - ...
           - ...
       - b55:
         - ...
-    - peers:
+    - agents:
+      - JohnDoe: a83,d28,c32
+      - ...
+    - services:
       - ...
     - setting:
+      - original: ...
       - current: ...
       - last-update: ...
       - status: completed
-      - agents:
-        - JohnDoe: a83,d28,c32
-        - ...
-      - services:
-        - ...
       - trust network:
         - edges: (JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...)
         - link-threshold: 0.000001
@@ -72,9 +87,12 @@
             - ...
           - SueRich/b55:
             - ...
-    - quota (s = global quota * ratio):
-      - _anyone_: 10
-      - _approved_: s*1
-      - JohnDoe: s*10
-      - SueRich: 1000000
+    - nanopubs:
+      - RA...: '@prefix ...'
+      - ...
+    - tasks (private):
+      - 20230317-...: (type:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0)
+      - 20230317-...: ...
+      - ...
+      - 20240229-...: ...
 
