@@ -94,7 +94,7 @@
       - RA...: '@prefix ...'
       - ...
     - tasks:
-      - 20230317-...: (action:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0)
+      - 20230317-...: [ (action:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0) ]
       - 20230317-...: ...
       - ...
       - 20240229-...: ...
@@ -116,7 +116,7 @@ Process started:
     - setting: _empty_
     - content: _empty_
     - tasks:
-      - 20230317-...: (action:load-config)
+      - 20230317-...: [ (action:load-config), (action:load-setting) ]
 
 Config loaded:
 
@@ -140,7 +140,7 @@ Config loaded:
     - setting: _empty_
     - content: _empty_
     - tasks:
-      - 20230317-...: (action:load-setting)
+      - 20230317-...: [ (action:load-setting) ]
 
 Setting definition loaded:
 
@@ -184,5 +184,5 @@ Setting definition loaded:
     - content:
       - RA123...: '@prefix ...'
     - tasks:
-      - 20230317-...: (action:load-core-types, agent:JohnDoe/a83)
+      - 20230317-...: [ (action:load-base-agent, agent:JohnDoe/a83), (action:load-base-agent, agent:EveBlue/c43), ..., (action:make-trust-network) ]
 
