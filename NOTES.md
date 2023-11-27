@@ -184,5 +184,5 @@ Setting definition loaded:
     - content:
       - RA123...: '@prefix ...'
     - tasks:
-      - 20230317-...: [ (action:load-base-agent, agent:JohnDoe/a83), (action:load-base-agent, agent:EveBlue/c43), ..., (action:make-trust-network) ]
+      - 20230317-...: [ (action:load-agent-core, agent:JohnDoe/a83, path:@), (action:load-agent-core, agent:EveBlue/c43, path:@), ..., (action:finalize-trust-network) ]
 
