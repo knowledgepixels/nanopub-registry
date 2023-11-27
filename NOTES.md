@@ -3,31 +3,31 @@
 ## Data Structure Sketch
 
     - setup-ID: 1332309348
-    - state-counter: 1423293
     - status: ready
     - last-update: 20230316-...
     - last-uptodate: 20230317-...
     - coverage:
       - agents: _via-setting_
-      - types: *
-      - dates: *
+      - types: _all_
+      - dates: _all_
     - quotas:
       - _global_: 1000000
       - _anyone_: 10
       - _approved_: global * ratio
       - JohnDoe: global * ratio * 10
       - SueRich: 1000000
-    - log:
-      - 1423293: 20230316-... a83 1536 RA...
-      - 1423292: 20230316-... e77 4521 RA...
-      - 1423291: ...
+    - registry-state-counter: 1423293
+    - registry-log:
+      - 1423293: (timestamp:20230316-..., action:add, key:a83, position:1536, id:RA...)
+      - 1423292: ...
     - registry:
       - a83:
         - full-key: 4e8d9s...
+        - status: loading
         - lists:
           - _all_:
             - count: 1537
-            - status: updating
+            - status: loading
             - positions:
               - 0: (id:RA..., checksum:XX...)
               - 1: (id:RA..., checksum:XX...)
@@ -39,7 +39,7 @@
               - RA...: (invalidated-by:[RA...])
               - ...
             - checksums:
-              - XX...: (id:RA..., position:324)
+              - XX...: 324
               - ...
           - intro:
             - count:11
@@ -54,7 +54,7 @@
               - RA...: (position:2, invalidated-by:[RA...])
               - ...
             - checksums:
-              - XX...: (id:RA..., position:5)
+              - XX...: 5
               - ...
           - endorsement:
             - ...
@@ -65,19 +65,22 @@
           - ...
       - b55:
         - ...
-    - agents:
-      - JohnDoe: a83,d28,c32
-      - ...
-    - services:
-      - ...
     - setting:
-      - original: ...
-      - current: ...
-      - last-update: ...
+      - original: RA123...
+      - current: RA...
+      - last-update: 20230316-...
       - status: completed
+      - link-threshold: 0.000001
+      - bootstrap-services:
+        - ...
+      - services:
+        - ...
+      - agents:
+        - JohnDoe: a83,d28,c32
+        - ...
+      - base-agents: (JohnDoe/a83, EveBlue/c43, ...)
       - trust network:
-        - edges: (JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...)
-        - link-threshold: 0.000001
+        - edges: [@-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...]
         - ratio-paths:
           - John-Doe/a83:
             - @: 0.1
@@ -87,12 +90,99 @@
             - ...
           - SueRich/b55:
             - ...
-    - nanopubs:
+    - content:
       - RA...: '@prefix ...'
       - ...
-    - tasks (private):
-      - 20230317-...: (type:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0)
+    - tasks:
+      - 20230317-...: (action:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0)
       - 20230317-...: ...
       - ...
       - 20240229-...: ...
+
+
+## Process
+
+Process started:
+
+    - setup-ID: 1332309348
+    - status: launching
+    - last-update: _none_
+    - last-uptodate: _none_
+    - coverage: _empty_
+    - quotas: _empty_
+    - registry-state-counter: 0
+    - registry-log: _empty_
+    - registry: _empty_
+    - setting: _empty_
+    - content: _empty_
+    - tasks:
+      - 20230317-...: (action:load-config)
+
+Config loaded:
+
+    - setup-ID: 1332309348
+    - status: launching
+    - last-update: _none_
+    - last-uptodate: _none_
+    - coverage:
+      - agents: _via-setting_
+      - types: _all_
+      - dates: _all_
+    - quotas:
+      - _global_: 1000000
+      - _anyone_: 10
+      - _approved_: global * ratio
+      - JohnDoe: global * ratio * 10
+      - SueRich: 1000000
+    - registry-state-counter: 0
+    - registry-log: _empty_
+    - registry: _empty_
+    - setting: _empty_
+    - content: _empty_
+    - tasks:
+      - 20230317-...: (action:load-setting)
+
+Setting definition loaded:
+
+    - setup-ID: 1332309348
+    - status: launching
+    - last-update: _none_
+    - last-uptodate: _none_
+    - coverage:
+      - agents: _via-setting_
+      - types: _all_
+      - dates: _all_
+    - quotas:
+      - _global_: 1000000
+      - _anyone_: 10
+      - _approved_: global * ratio
+      - JohnDoe: global * ratio * 10
+      - SueRich: 1000000
+    - registry-state-counter: 0
+    - registry-log: _empty_
+    - registry: _empty_
+    - setting:
+      - original: RA123...
+      - current: RA123...
+      - last-update: _none_
+      - status: initializing
+      - link-threshold: 0.000001 
+      - bootstrap-services:
+        - https://...
+        - ...
+      - services: _empty_
+      - agents: _empty_
+      - base-agents: [JohnDoe/a83, EveBlue/c43, ...]
+      - trust network:
+        - edges: [@-JohnDoe/a83, @-EveBlue/c43, ...]
+        - ratio-paths:
+          - John-Doe/a83:
+            - @: 0.1
+          - EveBlue/c43:
+            - @: 0.1
+          - ...
+    - content:
+      - RA123...: '@prefix ...'
+    - tasks:
+      - 20230317-...: (action:load-core-types, agent:JohnDoe/a83)
 
