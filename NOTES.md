@@ -19,14 +19,14 @@ Content store:
 Identifier lists:
 
 - Each registry keeps various public add-only lists of identifiers that refer to nanopublications in its store
-- Each list covers just one pubkey, and can cover either one specific type (e.g. BiodivNanopubs) or all types (_all_)
-- To efficently synchronize them, these lists keep at each position a checksum of the set of contained identifiers, which can be used to identify identical sets even when list ordering is different
+- Each list covers just one pubkey, and can cover either one specific type (e.g. BiodivNanopubs) or all types
+- To efficently synchronize them, these lists keep at each position a checksum of the set of contained identifiers up to that point, which can be used to identify identical sets even when list ordering is different
 - Per list, a key-value lookup is provided with the checksum as key and the list position as value
 
 Invalidations (retractions, new versions):
 
-- If a nanopublication invalidates another nanopublication, then the types of the other nanopublications also apply, so it is added also to all the lists where the invalidated nanopublication belongs
-- Registries provide backlink lookup to find such invalidating nanopublications
+- If a nanopublication invalidates another nanopublication, then the types of the latter also apply to the former, so an invalidating nanopublication is added also to all the lists where the invalidated nanopublication belongs
+- Registries provide backlink lookup to find such invalidating nanopublications for a given nanopublication identifier
 
 Trusted agents:
 
