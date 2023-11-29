@@ -1,14 +1,16 @@
 # Nanopub Registry Notes
 
-## Principles
+## General Considerations
 
-- Nanopublications are distributed and decentrally stored in registries
-- Registries discriminate which nanopublications to store based on the creator/pubkey (firstly) and their types (secondly)
-- Registries apply quotas per creator/pubkey, which can be automatically set or manually configured
+### Principles
+
+- Registries discriminate which nanopublications to store based on the creator/pubkey and their types
+- Registries are configured with quotas per creator/pubkey
 - Registries publicly communicate which creator/pubkey and which types they cover, and the applied quotas
+- Registries regularly check other registries, and load any nanopublications that have a matching creator/pubkey/type and have available quota
 
 
-## General Behavior
+### General Behavior
 
 Content store:
 
@@ -16,9 +18,15 @@ Content store:
 
 Identifier lists:
 
-- Each registry keeps multiple add-only lists of identifiers that refer to nanopublications in its store
+- Each registry keeps various public add-only lists of identifiers that refer to nanopublications in its store
 - Each list covers just one pubkey, and can cover either one specific type (e.g. BiodivNanopubs) or all types (_all_)
 - To efficently synchronize them, these lists keep at each position a checksum of the set of contained identifiers, which can be used to identify identical sets even when list ordering is different
+- Per list, a key-value lookup is provided with the checksum as key and the list position as value
+
+Invalidations (retractions, new versions):
+
+- If a nanopublication invalidates another nanopublication, then the types of the other nanopublications also apply, so it is added also to all the lists where the invalidated nanopublication belongs
+- Registries provide backlink lookup to find such invalidating nanopublications
 
 Trusted agents:
 
@@ -34,6 +42,31 @@ Quotas:
 - For any trusted agent, if the number of nanopublications found on other registries is smaller than the agent's quota, all nanopublications are loaded
 
 
+### Complexity
+
+- Storing nanopublications in the key-value-based content store is _linear_ with respect to the number of nanopubliations
+- Retrieval time of a single nanopublication by ID is _constant_
+- Checking for other registries that host the nanopublications of a particular creator/pubkey/type is _linear_ with respect to the number of registries in the network, and _constant_ with proper local caching
+- Loading all nanopublications of a given creator/pubkey/type from a registry is _linear_ with respect to the number of nanopublications to be loaded
+- Checking whether a nanopublication list of given creator/pubkey/type is different from that of another registry (except for ordering) is _constant_ due to checksum
+- Determining the difference of the list of given creator/pubkey/type with that of another registry is _linear_ with respect to the lengths of the lists in the worst case, and likely _sub-linear_ in practice with the use of checksums
+
+
+### Scalability
+
+- Registries can restrict themselves to small subsets of creators/pubkeys and/or types, and therefore the global set of nanopublications can be distributed across as many servers as needed
+- Any subset defined by creator/pubkey/type can be efficiently located and loaded (by registries, query services, and other tools)
+- Approval of new trusted agents can be done by any existing trusted agent (with sufficiently strong trust chains), and therefore doesn't depend on a single bottleneck
+- Arbitrarily large datasets can be published, by setting up dedicated registry instances and using dedicated pubkeys if quotas of existing general registries don't suffice
+
+
+### Robustness
+
+- Inclusion in a registry requires signature with a pubkey that is considered trusted, which prevents flooding with nanopublications that are not signed with one of these pubkeys
+- If a pubkey is compromised, the quota limits the possible flooding
+- Once a compromised pubkey is identified as such, the respective nanopublications can be efficiently unloaded from a registry, as all lists are clearly separated by pubkey
+
+
 ## Complete Data Structure
 
     - setup-ID: 1332309348
@@ -47,8 +80,8 @@ Quotas:
       - _global_: 1000000
       - _anyone_: 10
       - _approved_: global * ratio
-      - JohnDoe: global * ratio * 10
-      - SueRich: 1000000
+      - JohnDoe/a83: global * ratio * 10
+      - SueRich/b55: 1000000
     - registry-state-counter: 1423293
     - registry-log:
       - 1423293: (timestamp:20230316-..., action:add, key:a83, position:1536, id:RA...)
@@ -164,8 +197,8 @@ Config loaded:
       - _global_: 1000000
       - _anyone_: 10
       - _approved_: global * ratio
-      - JohnDoe: global * ratio * 10
-      - SueRich: 1000000
+      - JohnDoe/a83: global * ratio * 10
+      - SueRich/b55: 1000000
     - registry-state-counter: 0
     - registry-log: _empty_
     - registry: _empty_
@@ -187,8 +220,8 @@ Setting definition loaded:
       - _global_: 1000000
       - _anyone_: 10
       - _approved_: global * ratio
-      - JohnDoe: global * ratio * 10
-      - SueRich: 1000000
+      - JohnDoe/a83: global * ratio * 10
+      - SueRich/b55: 1000000
     - registry-state-counter: 0
     - registry-log: _empty_
     - registry: _empty_
@@ -216,4 +249,6 @@ Setting definition loaded:
       - RA123...: '@prefix ...'
     - tasks:
       - 20230317-...: [ (action:load-agent-core, agent:JohnDoe/a83, path:@), (action:load-agent-core, agent:EveBlue/c43, path:@), ..., (action:finalize-trust-network) ]
+
+_to be continued..._
 
