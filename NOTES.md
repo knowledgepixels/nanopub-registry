@@ -84,7 +84,7 @@ Quotas:
       - SueRich/b55: 1000000
     - registry-state-counter: 1423293
     - registry-log:
-      - 1423293: (timestamp:20230316-..., action:add, key:a83, position:1536, id:RA...)
+      - 1423293: (timestamp:20230316-..., action:add, id:RA..., key:a83)
       - 1423292: ...
     - registry:
       - a83:
@@ -139,12 +139,17 @@ Quotas:
       - link-threshold: 0.000001
       - bootstrap-services:
         - ...
-      - services:
-        - ...
+      - base-agents: [JohnDoe/a83, EveBlue/c43, ...]
       - agents:
-        - JohnDoe: a83,d28,c32
+        - JohnDoe:
+          - a83:
+            - ratio: 0.1362
+            - paths: 3
+            - independent-paths: 3
+            - quota: 1362000
+          - d28:
+            ...
         - ...
-      - base-agents: (JohnDoe/a83, EveBlue/c43, ...)
       - trust network:
         - edges: [@-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...]
         - ratio-paths:
@@ -186,10 +191,7 @@ Process started:
 
 Config loaded:
 
-    - setup-ID: 1332309348
-    - status: launching
-    - last-update: _none_
-    - last-uptodate: _none_
+    ...
     - coverage:
       - agents: _via-setting_
       - types: _all_
@@ -199,32 +201,12 @@ Config loaded:
       - _approved_: global * ratio
       - JohnDoe/a83: global * ratio * 10
       - SueRich/b55: 1000000
-    - registry-state-counter: 0
-    - registry-log: _empty_
-    - registry: _empty_
-    - setting: _empty_
-    - content: _empty_
     - tasks:
       - 20230317-...: [ (action:load-setting) ]
 
 Setting definition loaded:
 
-    - setup-ID: 1332309348
-    - status: launching
-    - last-update: _none_
-    - last-uptodate: _none_
-    - coverage:
-      - agents: _via-setting_
-      - types: _all_
-    - quotas:
-      - _global_: 1000000
-      - _anyone_: 10
-      - _approved_: global * ratio
-      - JohnDoe/a83: global * ratio * 10
-      - SueRich/b55: 1000000
-    - registry-state-counter: 0
-    - registry-log: _empty_
-    - registry: _empty_
+    ...
     - setting:
       - original: RA123...
       - current: RA123...
@@ -234,9 +216,8 @@ Setting definition loaded:
       - bootstrap-services:
         - https://...
         - ...
-      - services: _empty_
-      - agents: _empty_
       - base-agents: [JohnDoe/a83, EveBlue/c43, ...]
+      - agents: _empty_
       - trust network:
         - edges: [@-JohnDoe/a83, @-EveBlue/c43, ...]
         - ratio-paths:
@@ -248,7 +229,74 @@ Setting definition loaded:
     - content:
       - RA123...: '@prefix ...'
     - tasks:
-      - 20230317-...: [ (action:load-agent-core, agent:JohnDoe/a83, path:@), (action:load-agent-core, agent:EveBlue/c43, path:@), ..., (action:finalize-trust-network) ]
+      - 20230317-...: [ (action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1), (action:load-agent-core, agent:EveBlue/c43, path:@, ratio:0.1), ..., (action:calculate-trust-network) ]
+
+Agent core info loaded:
+
+    ...
+    - registry-state-counter: 132
+    - registry-log:
+      - 132: (timestamp:20230316-..., action:add-core, id:RA..., key:a83)
+      - 131: ...
+    - registry:
+      - a83:
+        - full-key: 4e8d9s...
+        - status: core-loaded
+        - lists:
+          - intro:
+            - count:11
+            - status: complete
+            - positions:
+              - 0: (id:RA..., checksum:XX...)
+              - 1: (id:RA..., checksum:XX...)
+              - 2: (id:RA..., checksum:XX..., flag:secondary)
+              - ...
+            - ids:
+              - RA...: (position:5, invalidated-by:[])
+              - RA...: (position:2, invalidated-by:[RA...])
+              - ...
+            - checksums:
+              - XX...: 5
+              - ...
+          - endorsement:
+            - ...
+      - b55:
+        - ...
+    - setting:
+      - trust network:
+        - edges: [@-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...]
+        - ratio-paths:
+          - John-Doe/a83:
+            - @: 0.1
+            - @-SueRich/b55: 0.02
+            - @-BillSmith/d32-JoeBold/e83-AmyBaker/f02: 0.0001
+          - John-Doe/d28:
+            - ...
+          - SueRich/b55:
+            - ...
+    - content:
+      - ...
+      - RA123...: '@prefix ...'
+      - ...
+    - tasks:
+      - 20230317-...: [ (action:calculate-trust-network) ]
+
+Trust network calculated:
+
+    ...
+    - setting:
+      - agents:
+        - JohnDoe:
+          - a83:
+            - ratio: 0.1362
+            - paths: 3
+            - independent-paths: 3
+            - quota: 1362000
+          - d28:
+            ...
+        - ...
+    - tasks:
+      - 20230317-...: [ (action:load-content) ]
 
 _to be continued..._
 
