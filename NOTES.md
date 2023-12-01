@@ -20,8 +20,8 @@ Identifier lists:
 
 - Each registry keeps various public add-only lists of identifiers that refer to nanopublications in its store
 - Each list covers just one pubkey, and can cover either one specific type (e.g. BiodivNanopubs) or all types
-- To efficently synchronize them, these lists keep at each position a checksum of the set of contained identifiers up to that point, which can be used to identify identical sets even when list ordering is different
-- Per list, a key-value lookup is provided with the checksum as key and the list position as value
+- To efficiently synchronize them, these lists keep at each position a checksum of the set of contained identifiers up to that point, which can be used to identify identical sets even when list ordering is different
+- Each lists provides hashtable-based lookup on positions (get n-th position in list), identifier (get position of RA... in list), and checksum (get position with checksum XX...)
 
 Invalidations (retractions, new versions):
 
@@ -55,7 +55,7 @@ Quotas:
 ### Scalability
 
 - Registries can restrict themselves to small subsets of creators/pubkeys and/or types, and therefore the global set of nanopublications can be distributed across as many servers as needed
-- Any subset defined by creator/pubkey/type can be efficiently located and loaded (by registries, query services, and other tools)
+- Any subset defined by creator/pubkey/type can be efficiently located and loaded (from other registries, query services, and other tools)
 - Approval of new trusted agents can be done by any existing trusted agent (with sufficiently strong trust chains), and therefore doesn't depend on a single bottleneck
 - Arbitrarily large datasets can be published, by setting up dedicated registry instances and using dedicated pubkeys if quotas of existing general registries don't suffice
 
