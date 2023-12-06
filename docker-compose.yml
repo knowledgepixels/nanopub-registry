@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     ports:
       - 9292:8080
-  db:
+  mongodb:
     image: mongo:7
     restart: unless-stopped
     volumes:
