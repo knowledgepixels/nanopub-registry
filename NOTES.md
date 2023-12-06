@@ -161,18 +161,9 @@ Quotas:
             - ...
           - SueRich/b55:
             - ...
-    - prefixes:
-      - RA1234AB*: [RA1234AB..., RA1234AB...]
-      - http://example.org/np/RAA*: [RAAa..., RAAab...]
     - content:
-      - RA...: '@prefix ...'
+      - RA...: (content:'@prefix ...', code-prefix:'RA12', id-prefix:'http://example.org/np/')
       - ...
-    - content-trie:
-      - RA12*:
-        - RA1234*:
-          - RA123456*
-            - RA12345678*: [RA12345678...]
-            ...
     - tasks:
       - 20230317-...: [ (action:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0) ]
       - 20230317-...: ...
