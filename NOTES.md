@@ -162,7 +162,7 @@ Quotas:
           - SueRich/b55:
             - ...
     - content:
-      - RA...: (content:'@prefix ...', code-prefix:'RA12', id-prefix:'http://example.org/np/')
+      - RA...: (content:'@prefix ...', code-prefix-1:'RA1', code-prefix-2:'RA1', ..., id-prefix:'http://example.org/np/')
       - ...
     - tasks:
       - 20230317-...: [ (action:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0) ]
