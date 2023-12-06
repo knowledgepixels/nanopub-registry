@@ -75,9 +75,9 @@ Field type legend: primary# / unique* / indexed^
     status: ready
     last-update: 20230316-...
     last-uptodate: 20230317-...
-    coverage: { agents: _via-setting_, types: _all_ }
+    coverage: { agents:_via-setting_, types:_all_ }
     global-quota: 1000000
-    quotas: { _anyone_: 10, _approved_: 'global*ratio', JohnDoe/a83: 'global*ratio*10', SueRich/b55: 1000000 }
+    quotas: { _anyone_:10, _approved_:'global*ratio', JohnDoe/a83:'global*ratio*10', SueRich/b55:1000000 }
     registry-state-counter: 1423293
     registry-log:
       { counter#:1423293, timestamp:20230316-..., action:add, id:RA..., key:a83)
@@ -136,7 +136,7 @@ Field type legend: primary# / unique* / indexed^
           { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
           ...
     content:
-      { id#:RA12..., content:'@prefix ...', code-prefix^:RA1, code-prefix^:RA12, id-prefix^:'http://example.org/np/' }
+      { id#:RA12..., content:'@prefix ...', id-prefix^:RA1, id-prefix^:RA12, uri-prefix^:'http://example.org/np/' }
       ...
     tasks:
       { not-before^:20230317-..., action:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
