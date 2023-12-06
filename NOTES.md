@@ -67,108 +67,82 @@ Quotas:
 - Once a compromised pubkey is identified as such, the respective nanopublications can be efficiently unloaded from a registry, as all lists are clearly separated by pubkey
 
 
-## Complete Data Structure
+## Data Structure
 
-    - setup-ID: 1332309348
-    - status: ready
-    - last-update: 20230316-...
-    - last-uptodate: 20230317-...
-    - coverage:
-      - agents: _via-setting_
-      - types: _all_
-    - quotas:
-      - _global_: 1000000
-      - _anyone_: 10
-      - _approved_: global * ratio
-      - JohnDoe/a83: global * ratio * 10
-      - SueRich/b55: 1000000
-    - registry-state-counter: 1423293
-    - registry-log:
-      - 1423293: (timestamp:20230316-..., action:add, id:RA..., key:a83)
-      - 1423292: ...
-    - registry:
-      - a83:
-        - full-key: 4e8d9s...
-        - status: loading
-        - lists:
-          - _all_:
-            - count: 1537
-            - status: loading
-            - positions:
-              - 0: (id:RA..., checksum:XX...)
-              - 1: (id:RA..., checksum:XX...)
-              - 2: (id:RA..., checksum:XX...)
-              - ...
-            - ids:
-              - RA...: (position:354, invalidated-by:[RA...])
-              - RA...: (position:928, invalidated-by:[])
-              - RA...: (invalidated-by:[RA...])
-              - ...
-            - checksums:
-              - XX...: 324
-              - ...
-          - intro:
-            - count:11
-            - status: complete
-            - positions:
-              - 0: (id:RA..., checksum:XX...)
-              - 1: (id:RA..., checksum:XX...)
-              - 2: (id:RA..., checksum:XX..., flag:secondary)
-              - ...
-            - ids:
-              - RA...: (position:5, invalidated-by:[])
-              - RA...: (position:2, invalidated-by:[RA...])
-              - ...
-            - checksums:
-              - XX...: 5
-              - ...
-          - endorsement:
-            - ...
-          - service-info:
-            - ...
-          - typex:
-            - ...
-          - ...
-      - b55:
-        - ...
-    - setting:
-      - original: RA123...
-      - current: RA...
-      - last-update: 20230316-...
-      - status: completed
-      - link-threshold: 0.000001
-      - bootstrap-services:
-        - ...
-      - base-agents: [JohnDoe/a83, EveBlue/c43, ...]
-      - agents:
-        - JohnDoe:
-          - a83:
-            - ratio: 0.1362
-            - paths: 3
-            - independent-paths: 3
-            - quota: 1362000
-          - d28:
-            ...
-        - ...
-      - trust network:
-        - edges: [@-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...]
-        - ratio-paths:
-          - John-Doe/a83:
-            - @: 0.1
-            - @-SueRich/b55: 0.02
-            - @-BillSmith/d32-JoeBold/e83-AmyBaker/f02: 0.0001
-          - John-Doe/d28:
-            - ...
-          - SueRich/b55:
-            - ...
-    - content:
-      - RA...: (content:'@prefix ...', code-prefix-1:'RA1', code-prefix-2:'RA1', ..., id-prefix:'http://example.org/np/')
-      - ...
-    - tasks:
-      - 20230317-...: [ (action:check-np, peer:https://example.com/peer, type:_all_, position:1538, retry-count:0) ]
-      - 20230317-...: ...
-      - ...
-      - 20240229-...: ...
+Field type legend: primary# / unique* / indexed^
+
+    setup-ID: 1332309348
+    status: ready
+    last-update: 20230316-...
+    last-uptodate: 20230317-...
+    coverage: { agents: _via-setting_, types: _all_ }
+    global-quota: 1000000
+    quotas: { _anyone_: 10, _approved_: 'global*ratio', JohnDoe/a83: 'global*ratio*10', SueRich/b55: 1000000 }
+    registry-state-counter: 1423293
+    registry-log:
+      { counter#:1423293, timestamp:20230316-..., action:add, id:RA..., key:a83)
+      { counter#:1423292, ... }
+      ...
+    registry:
+      a83:
+        full-key: 4e8d9s...
+        status: loading
+        lists:
+          _all_:
+            count: 1537
+            status: loading
+            content:
+              { id#:RA..., position*:0, checksum*:XX..., invalidated-by:[] }
+              { id#:RA..., position*:1, checksum*:XX..., invalidated-by:[] }
+              { id#:RA..., position*:2, checksum*:XX..., invalidated-by:[RA...] }
+              ...
+              { id#:RA..., invalidated-by:[RA...] }
+              ...
+          intro:
+            count:11
+            status: complete
+            content:
+              { id#:RA..., position*:0, checksum*:XX..., invalidated-by:[] }
+              { id#:RA..., position*:1, checksum*:XX..., invalidated-by:[] }
+              { id#:RA..., position*:2, checksum*:XX..., invalidated-by:[], flag:secondary }
+              ...
+              { id#:RA..., invalidated-by:[RA...] }
+              ...
+          endorsement: ...
+          service-info: ...
+          typex: ...
+          ...
+        b55: ...
+        ...
+    setting:
+      original: RA123...
+      current: RA...
+      last-update: 20230316-...
+      status: completed
+      link-threshold: 0.000001
+      bootstrap-services:
+        ...
+      base-agents: [ JohnDoe/a83, EveBlue/c43, ... ]
+      agents:
+        { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
+        { key#:d28, agent^:JohnDoe, ... }
+        ...
+      trust network:
+        edges: [ @-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ... ]
+        ratio-paths:
+          { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+          ...
+    content:
+      { id#:RA12..., content:'@prefix ...', code-prefix^:RA1, code-prefix^:RA12, id-prefix^:'http://example.org/np/' }
+      ...
+    tasks:
+      { not-before^:20230317-..., action:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
+      { not-before^:20230317-..., ... }
+      ...
+      { not-before^:20240229-..., ... }
 
 
 ## Process
