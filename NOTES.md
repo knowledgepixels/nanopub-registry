@@ -69,7 +69,7 @@ Quotas:
 
 ## Data Structure
 
-Field type legend: primary# / unique* / indexed^
+Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
 
     setup-ID: 1332309348
     status: ready
