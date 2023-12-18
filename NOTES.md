@@ -55,7 +55,7 @@ Quotas:
 ### Scalability
 
 - Registries can restrict themselves to small subsets of creators/pubkeys and/or types, and therefore the global set of nanopublications can be distributed across as many servers as needed
-- Any subset defined by creator/pubkey/type can be efficiently located and loaded (from other registries, query services, and other tools)
+- Any subset defined by creator/pubkey/type can be efficiently located and loaded (by other registries, query services, and other tools)
 - Approval of new trusted agents can be done by any existing trusted agent (with sufficiently strong trust chains), and therefore doesn't depend on a single bottleneck
 - Arbitrarily large datasets can be published, by setting up dedicated registry instances and using dedicated pubkeys if quotas of existing general registries don't suffice
 
