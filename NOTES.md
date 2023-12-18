@@ -21,7 +21,7 @@ Identifier lists:
 - Each registry keeps various public add-only lists of identifiers that refer to nanopublications in its store
 - Each list covers just one pubkey, and can cover either one specific type (e.g. BiodivNanopubs) or all types
 - To efficiently synchronize them, these lists keep at each position a checksum of the set of contained identifiers up to that point, which can be used to identify identical sets even when list ordering is different
-- Each lists provides hashtable-based lookup on positions (get n-th position in list), identifier (get position of RA... in list), and checksum (get position with checksum XX...)
+- Each lists provides index-based lookup on positions (get n-th position in list), identifier (get position of RA... in list), and checksum (get position with checksum XX...)
 
 Invalidations (retractions, new versions):
 
