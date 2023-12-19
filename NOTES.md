@@ -145,128 +145,109 @@ Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
 
 Process started:
 
-    - setup-ID: 1332309348
-    - status: launching
-    - last-update: _none_
-    - last-uptodate: _none_
-    - coverage: _empty_
-    - quotas: _empty_
-    - registry-state-counter: 0
-    - registry-log: _empty_
-    - registry: _empty_
-    - setting: _empty_
-    - content: _empty_
-    - tasks:
-      - 20230317-...: [ (action:load-config), (action:load-setting) ]
+    setup-ID: 1332309348
+    status: launching
+    last-update: _none_
+    last-uptodate: _none_
+    coverage: _empty_
+    quotas: _empty_
+    registry-state-counter: 0
+    registry: _empty_
+    setting: _empty_
+    content: _empty_
+    tasks:
+      { not-before^:20230317-..., action:load-config }
+      { not-before^:20230317-..., action:load-setting }
 
 Config loaded:
 
     ...
-    - coverage:
-      - agents: _via-setting_
-      - types: _all_
-    - quotas:
-      - _global_: 1000000
-      - _anyone_: 10
-      - _approved_: global * ratio
-      - JohnDoe/a83: global * ratio * 10
-      - SueRich/b55: 1000000
-    - tasks:
-      - 20230317-...: [ (action:load-setting) ]
+    coverage: { agents:_via-setting_, types:_all_ }
+    global-quota: 1000000
+    quotas: { _anyone_:10, _approved_:'global*ratio', JohnDoe/a83:'global*ratio*10', SueRich/b55:1000000 }
+    tasks:
+      { not-before^:20230317-..., action:load-setting }
 
 Setting definition loaded:
 
     ...
-    - setting:
-      - original: RA123...
-      - current: RA123...
-      - last-update: _none_
-      - status: initializing
-      - link-threshold: 0.000001 
-      - bootstrap-services:
-        - https://...
-        - ...
-      - base-agents: [JohnDoe/a83, EveBlue/c43, ...]
-      - agents: _empty_
-      - trust network:
-        - edges: [@-JohnDoe/a83, @-EveBlue/c43, ...]
-        - ratio-paths:
-          - John-Doe/a83:
-            - @: 0.1
-          - EveBlue/c43:
-            - @: 0.1
-          - ...
-    - content:
-      - RA123...: '@prefix ...'
-    - tasks:
-      - 20230317-...: [ (action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1), (action:load-agent-core, agent:EveBlue/c43, path:@, ratio:0.1), ..., (action:calculate-trust-network) ]
+    setting:
+      original: RA123...
+      current: RA123...
+      last-update: _none_
+      status: initializing
+      link-threshold: 0.000001 
+      bootstrap-services:
+        https://...
+        ...
+      base-agents: [JohnDoe/a83, EveBlue/c43, ...]
+      agents: _empty_
+      trust network:
+        edges: [@-JohnDoe/a83, @-EveBlue/c43, ...]
+        ratio-paths:
+          { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+          ...
+    content:
+      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
+    tasks:
+      { not-before^:20230317-..., action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1 }
+      { not-before^:20230317-..., action:load-agent-core, agent:EveBlue/c43, path:@, ratio:0.1 }
+      ...
+      { not-before^:20230317-..., action:load-core-info }
 
 Agent core info loaded:
 
     ...
-    - registry-state-counter: 132
-    - registry-log:
-      - 132: (timestamp:20230316-..., action:add-core, id:RA..., key:a83)
-      - 131: ...
-    - registry:
-      - a83:
-        - full-key: 4e8d9s...
-        - status: core-loaded
-        - lists:
-          - intro:
-            - count:11
-            - status: complete
-            - positions:
-              - 0: (id:RA..., checksum:XX...)
-              - 1: (id:RA..., checksum:XX...)
-              - 2: (id:RA..., checksum:XX..., flag:secondary)
-              - ...
-            - ids:
-              - RA...: (position:5, invalidated-by:[])
-              - RA...: (position:2, invalidated-by:[RA...])
-              - ...
-            - checksums:
-              - XX...: 5
-              - ...
-          - endorsement:
-            - ...
-      - b55:
-        - ...
-    - setting:
-      - trust network:
-        - edges: [@-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ...]
-        - ratio-paths:
-          - John-Doe/a83:
-            - @: 0.1
-            - @-SueRich/b55: 0.02
-            - @-BillSmith/d32-JoeBold/e83-AmyBaker/f02: 0.0001
-          - John-Doe/d28:
-            - ...
-          - SueRich/b55:
-            - ...
-    - content:
-      - ...
-      - RA123...: '@prefix ...'
-      - ...
-    - tasks:
-      - 20230317-...: [ (action:calculate-trust-network) ]
+    registry-state-counter: 132
+    registry-log:
+      132: (timestamp:20230316-..., action:add-core, id:RA..., key:a83)
+      131: ...
+    registry:
+      a83:
+        full-key: 4e8d9s...
+        status: core-loaded
+        lists:
+          intro:
+            count:11
+            status: complete
+            content:
+              { id#:RA..., position*:0, checksum*:XX..., invalidated-by:[] }
+              { id#:RA..., position*:1, checksum*:XX..., invalidated-by:[] }
+              { id#:RA..., position*:2, checksum*:XX..., invalidated-by:[], flag:secondary }
+              ...
+              { id#:RA..., invalidated-by:[RA...] }
+              ...
+          endorsement:
+            ...
+      b55:
+        ...
+    setting:
+      trust network:
+        edges: [ @-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ... ]
+        ratio-paths:
+          { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+          { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+          ...
+    content:
+      ...
+      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
+      ...
+    tasks:
+      { not-before^:20230317-..., action:calculate-trust-network }
 
 Trust network calculated:
 
     ...
-    - setting:
-      - agents:
-        - JohnDoe:
-          - a83:
-            - ratio: 0.1362
-            - paths: 3
-            - independent-paths: 3
-            - quota: 1362000
-          - d28:
-            ...
-        - ...
-    - tasks:
-      - 20230317-...: [ (action:load-content) ]
+    setting:
+      agents:
+        { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
+        { key#:d28, agent^:JohnDoe, ... }
+        ...
+    tasks:
+      { not-before^:20230317-..., action:load-core-info }
 
 _to be continued..._
 
