@@ -69,6 +69,8 @@ Quotas:
 
 ## Data Structure
 
+_(work in progress...)_
+
 Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
 
     setup-ID: 1332309348
@@ -142,6 +144,8 @@ Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
 
 
 ## Process
+
+_(work in progress...)_
 
 Process started:
 
