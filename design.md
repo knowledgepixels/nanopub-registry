@@ -1,4 +1,4 @@
-# Nanopub Registry Notes
+# Nanopub Registry Design (Draft)
 
 ## General Considerations
 
