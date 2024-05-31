@@ -9,6 +9,7 @@ import com.mongodb.MongoClient;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Indexes;
 
 public class RegistryDB {
 
@@ -30,18 +31,36 @@ public class RegistryDB {
 		init();
 	}
 
+	public MongoDatabase getDB() {
+		return mongoDB;
+	}
+
 	private void init() {
-		BasicDBObject query = new BasicDBObject("_id", "setup-id");
-		MongoCollection<Document> collection = mongoDB.getCollection("server-info");
-		FindIterable<Document> result = collection.find(query);
+		MongoCollection<Document> serverInfo = mongoDB.getCollection("server-info");
+		FindIterable<Document> result = serverInfo.find(new BasicDBObject("_id", "setup-id"));
 		if (result.cursor().hasNext()) {
 			System.err.println("Existing Setup ID: " + result.cursor().next().get("value").toString());
 		} else {
+			System.err.println("Setting up new database...");
 			long setupId = Math.abs(new Random().nextLong());
 			System.err.println("New Setup ID: " + setupId);
-			Document doc = new Document("_id", "setup-id").append("value", setupId);
-			collection.insertOne(doc);
+			serverInfo.insertOne(new Document("_id", "setup-id").append("value", setupId));
+
+			MongoCollection<Document> tasks = mongoDB.getCollection("tasks");
+			String resultCreateIndex = tasks.createIndex(Indexes.descending("not-before"));
+			System.out.println(String.format("Index created: %s", resultCreateIndex));
+			long timeNow = System.currentTimeMillis();
+			tasks.insertOne(new Document("not-before", timeNow + 2000).append("action", "test1"));
+			tasks.insertOne(new Document("not-before", timeNow + 4000).append("action", "test2"));
+			tasks.insertOne(new Document("not-before", timeNow + 1000).append("action", "test3"));
 		}
+		Thread t1 = new Thread(new Runnable() {
+			@Override
+		    public void run() {
+		    	TaskManager.runTasks();
+		    }
+		});
+		t1.start();
 	}
 
 }
