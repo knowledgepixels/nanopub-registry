@@ -36,13 +36,17 @@ public class RegistryDB {
 	}
 
 	private void init() {
-		if (!collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor().hasNext()) {
-			collection("tasks").insertOne(new Document("not-before", System.currentTimeMillis() + 5000).append("action", "init-db"));
+		if (!mongoDB.getCollection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor().hasNext()) {
+			mongoDB.getCollection("tasks").insertOne(new Document("not-before", System.currentTimeMillis() + 5000).append("action", "init-db"));
 		}
 
 		new Thread(() -> {
 			TaskManager.runTasks();
 		}).start();
+	}
+
+	public long getSetupId() {
+		return collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor().next().getLong("value");
 	}
 
 }
