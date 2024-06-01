@@ -35,6 +35,7 @@ public class MainPage extends Page {
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
 			println("<p>Setup ID: " + RegistryDB.get().getSetupId() + "</p>");
+			println("<p>Status: " + RegistryDB.get().getStatus() + "</p>");
 			println("<p>work in progress...</p>");
 			printHtmlFooter();
 		}

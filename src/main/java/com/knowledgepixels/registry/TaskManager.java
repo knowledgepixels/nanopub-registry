@@ -40,6 +40,7 @@ public class TaskManager {
 		if (action == null) throw new RuntimeException("Action is null");
 		System.err.println("Running task: " + action);
 		if (action.equals("init-db")) {
+			RegistryDB.get().setStatus("initializing");
 			MongoCollection<Document> serverInfo = RegistryDB.collection("server-info");
 			FindIterable<Document> result = serverInfo.find(new BasicDBObject("_id", "setup-id"));
 			if (result.cursor().hasNext()) throw new RuntimeException("DB already initialized");
@@ -56,6 +57,8 @@ public class TaskManager {
 			tasks.insertOne(new Document("not-before", timeNow + 4000).append("action", "test2"));
 			tasks.insertOne(new Document("not-before", timeNow + 1000).append("action", "test3"));
 			tasks.insertOne(new Document("not-before", timeNow + 10000).append("action", "test5"));
+		} else if (action.equals("test5")) {
+			RegistryDB.get().setStatus("ready");
 		}
 		tasks.deleteOne(eq("_id", task.get("_id")));
 	}

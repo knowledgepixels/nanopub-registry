@@ -5,6 +5,7 @@ import org.bson.Document;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 
 public class RegistryDB {
@@ -46,7 +47,24 @@ public class RegistryDB {
 	}
 
 	public long getSetupId() {
-		return collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor().next().getLong("value");
+		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor();
+		if (!cursor.hasNext()) return 0;
+		return cursor.next().getLong("value");
+	}
+
+	public String getStatus() {
+		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "status")).cursor();
+		if (!cursor.hasNext()) return null;
+		return cursor.next().getString("value");
+	}
+
+	public void setStatus(String status) {
+		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "status")).cursor();
+		if (cursor.hasNext()) {
+			collection("server-info").updateOne(new BasicDBObject("_id", "status"), new BasicDBObject("$set", new BasicDBObject("value", status)));
+		} else {
+			collection("server-info").insertOne(new Document("_id", "status").append("value", status));
+		}
 	}
 
 }
