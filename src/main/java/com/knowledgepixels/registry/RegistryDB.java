@@ -81,12 +81,12 @@ public class RegistryDB {
 		return cursor.next().get(fieldName);
 	}
 
-	public static void set(String collection, String elementName, Object value) {
-		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementName)).cursor();
+	public static void set(String collection, String elementId, Object value) {
+		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementId)).cursor();
 		if (cursor.hasNext()) {
-			collection(collection).updateOne(new BasicDBObject("_id", elementName), new BasicDBObject("$set", new BasicDBObject("value", value)));
+			collection(collection).updateOne(new BasicDBObject("_id", elementId), new BasicDBObject("$set", new BasicDBObject("value", value)));
 		} else {
-			collection(collection).insertOne(new Document("_id", elementName).append("value", value));
+			collection(collection).insertOne(new Document("_id", elementId).append("value", value));
 		}
 	}
 

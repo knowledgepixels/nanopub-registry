@@ -10,7 +10,6 @@ import static com.mongodb.client.model.Sorts.ascending;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.Random;
 
 import org.bson.Document;
@@ -128,7 +127,6 @@ public class TaskManager {
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", getHash(kd.getPublicKeyString())));
 			}
-			// TODO...
 
 		} else {
 
