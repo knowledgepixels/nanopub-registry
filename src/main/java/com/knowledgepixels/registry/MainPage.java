@@ -35,12 +35,19 @@ public class MainPage extends Page {
 		} else {
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
-			println("<p>setup-id: " + getSetupId() + "</p>");
-			println("<p>status: " + getServerInfoString("status") + "</p>");
-			println("<p>state-counter: " + getStateCounter() + "</p>");
-			println("<p>coverage-types: " + getServerInfoString("coverage-types") + "</p>");
-			println("<p>coverage-agents: " + getServerInfoString("coverage-agents") + "</p>");
-			println("<p><i>work in progress...</i></p>");
+			println("<p>Server Info:</p>");
+			println("<ul>");
+			println("<li><em>setup-id:</em> " + get("server-info", "setup-id") + "</li>");
+			println("<li><em>status:</em> " + get("server-info", "status") + "</li>");
+			println("<li><em>state-counter:</em> " + get("server-info", "state-counter") + "</li>");
+			println("<li><em>coverage-types:</em> " + get("server-info", "coverage-types") + "</li>");
+			println("<li><em>coverage-agents:</em> " + get("server-info", "coverage-agents") + "</li>");
+			println("</ul>");
+			println("<p>Setting:</p>");
+			println("<ul>");
+			println("<li><em>original:</em> " + get("setting", "original") + "</li>");
+			println("<li><em>current:</em> " + get("setting", "current") + "</li>");
+			println("</ul>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {

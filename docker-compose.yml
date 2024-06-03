@@ -6,8 +6,11 @@ services:
     restart: unless-stopped
     ports:
       - 9292:8080
+    volumes:
+      - ./setting.trig:/data/setting.trig
   mongodb:
     image: mongo:7
     restart: unless-stopped
     volumes:
       - ./data/mongodb:/data/db
+      - ./setting.trig:/data/setting.trig

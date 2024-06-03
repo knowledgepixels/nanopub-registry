@@ -36,13 +36,13 @@ public class RegistryDB {
 		}).start();
 	}
 
-	public static Long getSetupId() {
+	public static Long getSetupIdX() {
 		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().getLong("value");
 	}
 
-	public static Long getStateCounter() {
+	public static Long getStateCounterX() {
 		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "state-counter")).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().getLong("value");
@@ -58,18 +58,18 @@ public class RegistryDB {
 		}
 	}
 
-	public static String getServerInfoString(String fieldName) {
-		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", fieldName)).cursor();
+	public static Object get(String collection, String fieldName) {
+		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", fieldName)).cursor();
 		if (!cursor.hasNext()) return null;
-		return cursor.next().getString("value");
+		return cursor.next().get("value");
 	}
 
-	public static void setServerInfoString(String fieldName, String value) {
-		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", fieldName)).cursor();
+	public static void set(String collection, String fieldName, Object value) {
+		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", fieldName)).cursor();
 		if (cursor.hasNext()) {
-			collection("server-info").updateOne(new BasicDBObject("_id", fieldName), new BasicDBObject("$set", new BasicDBObject("value", value)));
+			collection(collection).updateOne(new BasicDBObject("_id", fieldName), new BasicDBObject("$set", new BasicDBObject("value", value)));
 		} else {
-			collection("server-info").insertOne(new Document("_id", fieldName).append("value", value));
+			collection(collection).insertOne(new Document("_id", fieldName).append("value", value));
 		}
 	}
 
