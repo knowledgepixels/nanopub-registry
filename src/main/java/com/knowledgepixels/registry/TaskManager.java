@@ -14,8 +14,13 @@ import java.util.Random;
 
 import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.model.IRI;
 import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
+import org.nanopub.extra.index.IndexUtils;
+import org.nanopub.extra.index.NanopubIndex;
+import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
 import com.mongodb.BasicDBObject;
@@ -30,7 +35,7 @@ public class TaskManager {
 
 	static void runTasks() {
 		if (get("server-info", "setup-id") == null) {
-			tasks.insertOne(new Document("not-before", System.currentTimeMillis()).append("action", "init-db"));
+			scheduleTask("init-db");
 		}
 		while (true) {
 			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
@@ -56,6 +61,7 @@ public class TaskManager {
 
 	static void runTask(Document task) {
 		String action = task.getString("action");
+		String param = task.getString("param");
 		if (action == null) throw new RuntimeException("Action is null");
 		System.err.println("Running task: " + action);
 
@@ -69,7 +75,7 @@ public class TaskManager {
 			long setupId = Math.abs(new Random().nextLong());
 			collection("server-info").insertOne(new Document("_id", "setup-id").append("value", setupId));
 
-			tasks.insertOne(new Document("not-before", System.currentTimeMillis()).append("action", "init-config"));
+			scheduleTask("init-config");
 
 		} else if (action.equals("init-config")) {
 
@@ -90,10 +96,31 @@ public class TaskManager {
 				set("setting", "current", settingNp.getNanopub().getUri().stringValue());
 				loadNanopub(settingNp.getNanopub());
 				set("server-info", "status", "loaded");
+				scheduleTask("load-agents", settingNp.getAgentIntroCollection().stringValue());
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
 				ex.printStackTrace();
 				error(ex.getMessage());
 			}
+
+		} else if (action.equals("load-agents")) {
+
+			try {
+				NanopubIndex agentIndex = IndexUtils.castToIndex(GetNanopub.get(param));
+				loadNanopub(agentIndex);
+				for (IRI el : agentIndex.getElements()) {
+					scheduleTask("load-agent-intro", el.stringValue());
+				}
+
+			} catch (MalformedNanopubException ex) {
+				ex.printStackTrace();
+				error(ex.getMessage());
+			}
+
+		} else if (action.equals("load-agent-intro")) {
+
+			Nanopub agentIntro = GetNanopub.get(param);
+			loadNanopub(agentIntro);
+			// TODO...
 
 		} else {
 
@@ -107,6 +134,20 @@ public class TaskManager {
 	private static void error(String message) {
 		set("server-info", "status", "hanging");
 		throw new RuntimeException(message);
+	}
+
+	private static void scheduleTask(String name) {
+		scheduleTask(name, null, 0l);
+	}
+
+	private static void scheduleTask(String name, String param) {
+		scheduleTask(name, param, 0l);
+	}
+
+	private static void scheduleTask(String name, String param, long delay) {
+		Document d = new Document("not-before", System.currentTimeMillis() + delay).append("action", name);
+		if (param != null) d.append("param", param);
+		tasks.insertOne(d);
 	}
 
 }
