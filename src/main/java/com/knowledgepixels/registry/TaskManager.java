@@ -16,11 +16,12 @@ import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.nanopub.MalformedNanopubException;
-import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
+import org.nanopub.extra.security.KeyDeclaration;
 import org.nanopub.extra.server.GetNanopub;
+import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
 import com.mongodb.BasicDBObject;
@@ -118,8 +119,12 @@ public class TaskManager {
 
 		} else if (action.equals("load-agent-intro")) {
 
-			Nanopub agentIntro = GetNanopub.get(param);
-			loadNanopub(agentIntro);
+			IntroNanopub agentIntro = new IntroNanopub(GetNanopub.get(param));
+			System.err.println(agentIntro.getUser());
+			loadNanopub(agentIntro.getNanopub());
+			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
+				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", kd.getPublicKeyString()));
+			}
 			// TODO...
 
 		} else {

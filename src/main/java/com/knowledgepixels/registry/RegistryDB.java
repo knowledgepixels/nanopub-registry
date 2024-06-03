@@ -90,6 +90,14 @@ public class RegistryDB {
 		}
 	}
 
+	public static void add(String collection, Document doc) {
+		collection(collection).insertOne(doc);
+	}
+
+	public static MongoCursor<Document> get(String collection) {
+		return collection(collection).find().cursor();
+	}
+
 	public static void loadNanopub(Nanopub nanopub) {
 		NanopubSignatureElement el = null;
 		try {

@@ -2,6 +2,10 @@ package com.knowledgepixels.registry;
 
 import java.io.IOException;
 
+import org.bson.Document;
+
+import com.mongodb.client.MongoCursor;
+
 import jakarta.servlet.http.HttpServletResponse;
 import static com.knowledgepixels.registry.RegistryDB.*;
 
@@ -48,7 +52,15 @@ public class MainPage extends Page {
 			println("<li><em>original:</em> " + get("setting", "original") + "</li>");
 			println("<li><em>current:</em> " + get("setting", "current") + "</li>");
 			println("</ul>");
-			println("<p>Content:</p>");
+			println("<p>Base Agents:</p>");
+			println("<ul>");
+			MongoCursor<Document> baseAgents = RegistryDB.get("base-agents");
+			while (baseAgents.hasNext()) {
+				Document d = baseAgents.next();
+				println("<li>" + d.get("agent") + " - " + d.get("pubkey") + "</li>");
+			}
+			println("</ul>");
+			println("<p>Nanopubs:</p>");
 			println("<ul>");
 			println("<li><em>counter:</em> " + getField("nanopubs", "counter") + "</li>");
 			println("</ul>");
