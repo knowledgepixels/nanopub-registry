@@ -11,6 +11,10 @@ public class RegistryServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 
+	static {
+		RegistryDB.init();
+	}
+
 	//private Logger logger = LoggerFactory.getLogger(this.getClass());
 
 	@Override

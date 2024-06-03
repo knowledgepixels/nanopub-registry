@@ -1,8 +1,8 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.get;
+import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
@@ -20,8 +20,6 @@ import org.nanopub.extra.setting.NanopubSetting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.IndexOptions;
-import com.mongodb.client.model.Indexes;
 
 public class TaskManager {
 
@@ -70,13 +68,7 @@ public class TaskManager {
 			long setupId = Math.abs(new Random().nextLong());
 			collection("server-info").insertOne(new Document("_id", "setup-id").append("value", setupId));
 
-			tasks.createIndex(Indexes.descending("not-before"));
 			tasks.insertOne(new Document("not-before", System.currentTimeMillis()).append("action", "init-config"));
-
-			collection("content").createIndex(Indexes.ascending("id"), new IndexOptions().unique(true));
-			collection("content").createIndex(Indexes.ascending("full-id"), new IndexOptions().unique(true));
-			collection("content").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
-			collection("content").createIndex(Indexes.ascending("pubkey"));
 
 		} else if (action.equals("init-config")) {
 

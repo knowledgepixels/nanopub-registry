@@ -7,14 +7,12 @@ import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.IndexOptions;
+import com.mongodb.client.model.Indexes;
 
 public class RegistryDB {
 
 	private RegistryDB() {}
-
-	static {
-		init();
-	}
 
 	private static MongoClient mongoClient;
 	private static MongoDatabase mongoDB;
@@ -31,6 +29,14 @@ public class RegistryDB {
 		if (mongoClient != null) return;
 		mongoClient = new MongoClient("mongodb");
 		mongoDB = mongoClient.getDatabase("nanopub-registry");
+
+		collection("tasks").createIndex(Indexes.descending("not-before"));
+
+		collection("content").createIndex(Indexes.ascending("id"), new IndexOptions().unique(true));
+		collection("content").createIndex(Indexes.ascending("full-id"), new IndexOptions().unique(true));
+		collection("content").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
+		collection("content").createIndex(Indexes.ascending("pubkey"));
+
 		new Thread(() -> {
 			TaskManager.runTasks();
 		}).start();
