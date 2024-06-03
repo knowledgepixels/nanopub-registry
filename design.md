@@ -71,7 +71,7 @@ Quotas:
 
 _(work in progress...)_
 
-Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
+Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)
 
     setup-id: 1332309348
     status: ready
@@ -81,58 +81,45 @@ Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
     global-quota: 1000000
     quotas: { _anyone_:10, _approved_:'global*ratio', JohnDoe/a83:'global*ratio*10', SueRich/b55:1000000 }
     state-counter: 1423293
-    registry:
-      a83:
-        full-key: 4e8d9s...
-        status: loading
-        lists:
-          _all_:
-            count: 1537
-            status: loading
-            content:
-              { id#:RA..., position*:0, checksum*:XX..., invalidated-by:[] }
-              { id#:RA..., position*:1, checksum*:XX..., invalidated-by:[] }
-              { id#:RA..., position*:2, checksum*:XX..., invalidated-by:[RA...] }
-              ...
-              { id#:RA..., invalidated-by:[RA...] }
-              ...
-          intro:
-            count:11
-            status: complete
-            content:
-              { id#:RA..., position*:0, checksum*:XX..., invalidated-by:[] }
-              { id#:RA..., position*:1, checksum*:XX..., invalidated-by:[] }
-              { id#:RA..., position*:2, checksum*:XX..., invalidated-by:[], flag:secondary }
-              ...
-              { id#:RA..., invalidated-by:[RA...] }
-              ...
-          endorsement: ...
-          service-info: ...
-          typex: ...
-          ...
-        b55: ...
-        ...
+    pubkeys:
+      { pubkey:a83, full-key:4e8d9x... }
+      ...
+    lists:
+      { pubkey:a83, type:_all_, status:loading }
+      ...
+    list-entries:
+      { id#:RA..., pubkey**:a83, type**:_all_, position**:0, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:_all_, position**:1, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:_all_, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      ...
+      { id#:RA..., pubkey**:a83, type**:intro, position**:0, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:intro, position**:1, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:intro, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      ...
+    loose-entries:
+      { id#:RA..., pubkey^:a83, type^:_all_, invalidated-by:[RA...] }
+      { id#:RA..., invalidated-by:[RA...] }
+      ...
     setting:
       original: RA123...
       current: RA...
       last-update: 20230316-...
       status: completed
       link-threshold: 0.000001
-      bootstrap-services:
-        ...
-      base-agents: [ JohnDoe/a83, EveBlue/c43, ... ]
-      agents:
-        { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
-        { key#:d28, agent^:JohnDoe, ... }
-        ...
-      trust network:
-        edges: [ @-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ... ]
-        ratio-paths:
-          { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
-          ...
+    bootstrap-services:
+      ...
+    base-agents: [ JohnDoe/a83, EveBlue/c43, ... ]
+    agents:
+      { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
+      { key#:d28, agent^:JohnDoe, ... }
+      ...
+    trust-edges: [ @-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ... ]
+    trust-paths-paths:
+      { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      ...
     content:
       { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, key^:a83, content:'@prefix ...' }
       ...
