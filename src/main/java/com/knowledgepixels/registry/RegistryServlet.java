@@ -27,8 +27,6 @@ public class RegistryServlet extends HttpServlet {
 			resp.getOutputStream().close();
 			req.getInputStream().close();
 		}
-		//check();
-		RegistryDB.get();
 	}
 
 	private void setGeneralHeaders(HttpServletResponse resp) {

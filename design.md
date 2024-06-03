@@ -73,14 +73,14 @@ _(work in progress...)_
 
 Field type legend: primary# / unique* / indexed^ (all with prefix lookup)
 
-    setup-ID: 1332309348
+    setup-id: 1332309348
     status: ready
     last-update: 20230316-...
     last-uptodate: 20230317-...
     coverage: { agents:_via-setting_, types:_all_ }
     global-quota: 1000000
     quotas: { _anyone_:10, _approved_:'global*ratio', JohnDoe/a83:'global*ratio*10', SueRich/b55:1000000 }
-    registry-state-counter: 1423293
+    state-counter: 1423293
     registry:
       a83:
         full-key: 4e8d9s...
@@ -149,9 +149,9 @@ _(work in progress...)_
 
 Process started:
 
-    setup-ID: 1332309348
+    setup-id: 1332309348
     status: launching
-    registry-state-counter: 0
+    state-counter: 0
     tasks:
       { not-before^:20230317-..., action:load-config }
 
@@ -195,10 +195,7 @@ Setting definition loaded:
 Agent core info loaded:
 
     ...
-    registry-state-counter: 132
-    registry-log:
-      132: (timestamp:20230316-..., action:add-core, id:RA..., key:a83)
-      131: ...
+    state-counter: 132
     registry:
       a83:
         full-key: 4e8d9s...

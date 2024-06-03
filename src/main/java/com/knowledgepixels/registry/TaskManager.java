@@ -19,6 +19,9 @@ public class TaskManager {
 	private TaskManager() {}
 
 	static void runTasks() {
+		if (!RegistryDB.collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor().hasNext()) {
+			tasks.insertOne(new Document("not-before", System.currentTimeMillis() + 5000).append("action", "init-db"));
+		}
 		while (true) {
 			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
 			if (taskResult.cursor().hasNext()) {
@@ -40,7 +43,8 @@ public class TaskManager {
 		if (action == null) throw new RuntimeException("Action is null");
 		System.err.println("Running task: " + action);
 		if (action.equals("init-db")) {
-			RegistryDB.get().setStatus("initializing");
+			RegistryDB.setStatus("launching");
+			RegistryDB.increateStateCounter();
 			MongoCollection<Document> serverInfo = RegistryDB.collection("server-info");
 			FindIterable<Document> result = serverInfo.find(new BasicDBObject("_id", "setup-id"));
 			if (result.cursor().hasNext()) throw new RuntimeException("DB already initialized");
@@ -58,7 +62,8 @@ public class TaskManager {
 			tasks.insertOne(new Document("not-before", timeNow + 1000).append("action", "test3"));
 			tasks.insertOne(new Document("not-before", timeNow + 10000).append("action", "test5"));
 		} else if (action.equals("test5")) {
-			RegistryDB.get().setStatus("ready");
+			RegistryDB.setStatus("ready");
+			RegistryDB.increateStateCounter();
 		}
 		tasks.deleteOne(eq("_id", task.get("_id")));
 	}

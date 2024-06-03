@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import java.io.IOException;
 
 import jakarta.servlet.http.HttpServletResponse;
+import static com.knowledgepixels.registry.RegistryDB.*;
 
 public class MainPage extends Page {
 
@@ -34,9 +35,10 @@ public class MainPage extends Page {
 		} else {
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
-			println("<p>Setup ID: " + RegistryDB.get().getSetupId() + "</p>");
-			println("<p>Status: " + RegistryDB.get().getStatus() + "</p>");
-			println("<p>work in progress...</p>");
+			println("<p>setup-id: " + getSetupId() + "</p>");
+			println("<p>status: " + getStatus() + "</p>");
+			println("<p>state-counter: " + getStateCounter() + "</p>");
+			println("<p><i>work in progress...</i></p>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {
