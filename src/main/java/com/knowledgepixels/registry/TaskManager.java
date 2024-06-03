@@ -10,6 +10,7 @@ import static com.mongodb.client.model.Sorts.ascending;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Random;
 
 import org.bson.Document;
@@ -24,6 +25,8 @@ import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
+import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -123,7 +126,7 @@ public class TaskManager {
 			System.err.println(agentIntro.getUser());
 			loadNanopub(agentIntro.getNanopub());
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
-				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", kd.getPublicKeyString()));
+				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", getHash(kd.getPublicKeyString())));
 			}
 			// TODO...
 
@@ -153,6 +156,10 @@ public class TaskManager {
 		Document d = new Document("not-before", System.currentTimeMillis() + delay).append("action", name);
 		if (param != null) d.append("param", param);
 		tasks.insertOne(d);
+	}
+
+	public static String getHash(String pubkey) {
+		return Hashing.sha256().hashString(pubkey, Charsets.UTF_8).toString();
 	}
 
 }

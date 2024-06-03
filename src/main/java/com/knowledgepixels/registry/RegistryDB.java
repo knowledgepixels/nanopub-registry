@@ -95,7 +95,7 @@ public class RegistryDB {
 	}
 
 	public static MongoCursor<Document> get(String collection) {
-		return collection(collection).find().cursor();
+		return collection(collection).find().sort(new BasicDBObject("agent", 1)).cursor();
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
