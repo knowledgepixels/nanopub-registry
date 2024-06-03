@@ -13,4 +13,3 @@ services:
     restart: unless-stopped
     volumes:
       - ./data/mongodb:/data/db
-      - ./setting.trig:/data/setting.trig
