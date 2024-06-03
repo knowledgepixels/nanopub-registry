@@ -48,6 +48,10 @@ public class MainPage extends Page {
 			println("<li><em>original:</em> " + get("setting", "original") + "</li>");
 			println("<li><em>current:</em> " + get("setting", "current") + "</li>");
 			println("</ul>");
+			println("<p>Content:</p>");
+			println("<ul>");
+			println("<li><em>counter:</em> " + getField("content", "counter") + "</li>");
+			println("</ul>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {

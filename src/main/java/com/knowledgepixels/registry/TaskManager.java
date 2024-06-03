@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
+import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
@@ -87,6 +88,8 @@ public class TaskManager {
 				NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
 				set("setting", "original", settingNp.getNanopub().getUri().stringValue());
 				set("setting", "current", settingNp.getNanopub().getUri().stringValue());
+				loadNanopub(settingNp.getNanopub());
+				set("server-info", "status", "loaded");
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
 				ex.printStackTrace();
 				error(ex.getMessage());
