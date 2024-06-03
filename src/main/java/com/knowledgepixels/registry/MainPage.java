@@ -50,7 +50,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Content:</p>");
 			println("<ul>");
-			println("<li><em>counter:</em> " + getField("content", "counter") + "</li>");
+			println("<li><em>counter:</em> " + getField("nanopubs", "counter") + "</li>");
 			println("</ul>");
 			printHtmlFooter();
 		}

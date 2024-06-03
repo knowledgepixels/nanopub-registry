@@ -11,11 +11,16 @@ public class RegistryServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 
-	static {
-		RegistryDB.init();
-	}
+	@Override
+	public void init() throws ServletException {
+		super.init();
 
-	//private Logger logger = LoggerFactory.getLogger(this.getClass());
+		RegistryDB.init();
+
+		new Thread(() -> {
+			TaskManager.runTasks();
+		}).start();
+	}
 
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {

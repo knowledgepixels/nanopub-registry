@@ -42,13 +42,9 @@ public class RegistryDB {
 
 		collection("tasks").createIndex(Indexes.descending("not-before"));
 
-		collection("content").createIndex(Indexes.ascending("full-id"), new IndexOptions().unique(true));
-		collection("content").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
-		collection("content").createIndex(Indexes.ascending("pubkey"));
-
-		new Thread(() -> {
-			TaskManager.runTasks();
-		}).start();
+		collection("nanopubs").createIndex(Indexes.ascending("full-id"), new IndexOptions().unique(true));
+		collection("nanopubs").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
+		collection("nanopubs").createIndex(Indexes.ascending("pubkey"));
 	}
 
 	public static Long getSetupIdX() {
@@ -104,9 +100,9 @@ public class RegistryDB {
 		if (!hasValidSignature(el)) {
 			return;
 		}
-		Long counter = (Long) getField("content", "counter");
+		Long counter = (Long) getField("nanopubs", "counter");
 		if (counter == null) counter = 0l;
-		collection("content").insertOne(
+		collection("nanopubs").insertOne(
 				new Document("_id", TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue()))
 					.append("full-id", nanopub.getUri().stringValue())
 					.append("counter", counter + 1)
