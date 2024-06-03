@@ -151,17 +151,9 @@ Process started:
 
     setup-ID: 1332309348
     status: launching
-    last-update: _none_
-    last-uptodate: _none_
-    coverage: _empty_
-    quotas: _empty_
     registry-state-counter: 0
-    registry: _empty_
-    setting: _empty_
-    content: _empty_
     tasks:
       { not-before^:20230317-..., action:load-config }
-      { not-before^:20230317-..., action:load-setting }
 
 Config loaded:
 
