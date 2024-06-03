@@ -36,8 +36,10 @@ public class MainPage extends Page {
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
 			println("<p>setup-id: " + getSetupId() + "</p>");
-			println("<p>status: " + getStatus() + "</p>");
+			println("<p>status: " + getServerInfoString("status") + "</p>");
 			println("<p>state-counter: " + getStateCounter() + "</p>");
+			println("<p>coverage-types: " + getServerInfoString("coverage-types") + "</p>");
+			println("<p>coverage-agents: " + getServerInfoString("coverage-agents") + "</p>");
 			println("<p><i>work in progress...</i></p>");
 			printHtmlFooter();
 		}

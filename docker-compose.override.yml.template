@@ -3,3 +3,6 @@ services:
   registry:
     volumes:
       - ./target/nanopub-registry/:/usr/local/tomcat/webapps/ROOT
+    environment:
+      - REGISTRY_COVERAGE_TYPES=*
+      - REGISTRY_COVERAGE_AGENTS=via-setting
