@@ -108,7 +108,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       link-threshold: 0.000001
     bootstrap-services:
       ...
-    base-agents: [ JohnDoe/a83, EveBlue/c43, ... ]
+    base-agents:
+      { id:JohnDoe, pubkey:a83 }
+      { id:EveBlue, pubkey:c43 }
+      ...
     agents:
       { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
       { key#:d28, agent^:JohnDoe, ... }
