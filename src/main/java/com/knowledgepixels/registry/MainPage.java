@@ -7,7 +7,8 @@ import org.bson.Document;
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
-import static com.knowledgepixels.registry.RegistryDB.*;
+import static com.knowledgepixels.registry.RegistryDB.get;
+import static com.knowledgepixels.registry.RegistryDB.getFirstField;
 
 public class MainPage extends Page {
 
@@ -54,7 +55,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Base Agents:</p>");
 			println("<ul>");
-			MongoCursor<Document> baseAgents = RegistryDB.get("base-agents");
+			MongoCursor<Document> baseAgents = get("base-agents");
 			while (baseAgents.hasNext()) {
 				Document d = baseAgents.next();
 				println("<li>" + d.get("agent") + " - " + d.get("pubkey") + "</li>");
@@ -62,7 +63,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Nanopubs:</p>");
 			println("<ul>");
-			println("<li><em>counter:</em> " + getField("nanopubs", "counter") + "</li>");
+			println("<li><em>counter:</em> " + getFirstField("nanopubs", "counter") + "</li>");
 			println("</ul>");
 			printHtmlFooter();
 		}

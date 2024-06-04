@@ -56,18 +56,6 @@ public class RegistryDB {
 		return get("server-info", "setup-id") != null;
 	}
 
-	public static Long getSetupIdX() {
-		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor();
-		if (!cursor.hasNext()) return null;
-		return cursor.next().getLong("value");
-	}
-
-	public static Long getStateCounterX() {
-		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "state-counter")).cursor();
-		if (!cursor.hasNext()) return null;
-		return cursor.next().getLong("value");
-	}
-
 	public static void increateStateCounter() {
 		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "state-counter")).cursor();
 		if (cursor.hasNext()) {
@@ -84,7 +72,7 @@ public class RegistryDB {
 		return cursor.next().get("value");
 	}
 
-	public static Object getField(String collection, String fieldName) {
+	public static Object getFirstField(String collection, String fieldName) {
 		MongoCursor<Document> cursor = collection(collection).find().sort(new BasicDBObject("counter", -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
@@ -117,7 +105,7 @@ public class RegistryDB {
 		if (!hasValidSignature(el)) {
 			return;
 		}
-		Long counter = (Long) getField("nanopubs", "counter");
+		Long counter = (Long) getFirstField("nanopubs", "counter");
 		if (counter == null) counter = 0l;
 		collection("nanopubs").insertOne(
 				new Document("_id", TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue()))

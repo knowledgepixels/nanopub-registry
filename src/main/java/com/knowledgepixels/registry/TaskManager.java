@@ -9,6 +9,8 @@ import static com.mongodb.client.model.Sorts.ascending;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.bson.Document;
@@ -97,6 +99,11 @@ public class TaskManager {
 				set("setting", "original", settingNp.getNanopub().getUri().stringValue());
 				set("setting", "current", settingNp.getNanopub().getUri().stringValue());
 				loadNanopub(settingNp.getNanopub());
+				List<BasicDBObject> bootstrapServices = new ArrayList<>();
+				for (IRI i : settingNp.getBootstrapServices()) {
+					bootstrapServices.add(new BasicDBObject("_id", i.stringValue()));
+				}
+				set("setting", "bootstrap-services", bootstrapServices);
 				set("server-info", "status", "loaded");
 				scheduleTask("load-agents", settingNp.getAgentIntroCollection().stringValue());
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
