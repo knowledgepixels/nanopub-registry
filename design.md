@@ -83,16 +83,16 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       global-quota: 1000000
       state-counter: 1423293
     quotas:
-      { for:_anyone_ quota:10 }
-      { for:_approved_ quota:'global*ratio' }
-      { for:JohnDoe/a83 quota:'global*ratio*10' }
-      { for:SueRich/b55 quota:1000000 }
+      { for#:_anyone_ quota:10 }
+      { for#:_approved_ quota:'global*ratio' }
+      { for#:JohnDoe/a83 quota:'global*ratio*10' }
+      { for#:SueRich/b55 quota:1000000 }
       ...
     pubkeys:
-      { pubkey:a83, full-key:4e8d9x... }
+      { pubkey#:a83, full-key:4e8d9x... }
       ...
     lists:
-      { pubkey:a83, type:_all_, status:loading }
+      { pubkey**:a83, type**:_all_, status^:loading }
       ...
     list-entries:
       { id#:RA..., pubkey**:a83, type**:_all_, position**:0, checksum**:XX..., invalidated-by:[] }
@@ -113,20 +113,19 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       last-update: 20230316-...
       status: completed
       link-threshold: 0.000001
-    bootstrap-services:
-      ...
+      bootstrap-services: [..., ...]
     base-agents:
-      { id:JohnDoe, pubkey:a83 }
-      { id:EveBlue, pubkey:c43 }
+      { id**:JohnDoe, pubkey**:a83 }
+      { id**:EveBlue, pubkey**:c43 }
       ...
     agents:
       { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
       { key#:d28, agent^:JohnDoe, ... }
       ...
     trust-edges:
-      { from^:@ to^:JohnDoe/a83 }
-      { from^:JohnDoe/a83 to^:SueRich/b55 }
-      { from^:SueRich/b55 to^:EveBlue/c43 }
+      { from**:@ to**:JohnDoe/a83 }
+      { from**:JohnDoe/a83 to**:SueRich/b55 }
+      { from**:SueRich/b55 to**:EveBlue/c43 }
       ...
     trust-paths:
       { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
@@ -138,7 +137,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, key^:a83, content:'@prefix ...' }
       ...
     tasks:
-      { not-before^:20230317-..., action:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
+      { not-before^:20230317-..., action^:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
       { not-before^:20230317-..., ... }
       ...
       { not-before^:20240229-..., ... }
