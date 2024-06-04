@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.function.Consumer;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
@@ -15,7 +16,7 @@ public class NanopubRetriever {
 
 	private NanopubRetriever() {}
 
-	public static void retrieveNanopubs(String type, String pubkeyHash, Function<String,Void> processFunction) {
+	public static void retrieveNanopubs(String type, String pubkeyHash, Consumer<String> processFunction) {
 		try {
 			String callUrl = "https://query.np.trustyuri.net/repo/type/" + type + "?" +
 					"query=prefix%20npa%3A%20%3Chttp%3A%2F%2Fpurl.org%2Fnanopub%2Fadmin%2F%3E%20select%20%3Fnp%20where%20%7B%20graph%20npa%3Agraph%20%7B%20%3Fnp%20npa%3AhasValidSignatureForPublicKeyHash%20%22" +
@@ -28,7 +29,7 @@ public class NanopubRetriever {
 			reader.readLine(); // discard first line
 			String line = reader.readLine();
 			while (line != null) {
-				processFunction.apply(line);
+				processFunction.accept(line);
 				line = reader.readLine();
 			}
 			reader.close();
