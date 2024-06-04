@@ -129,7 +129,7 @@ public class TaskManager {
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 				String agentId = agentIntro.getUser().stringValue();
 				String pubkeyHash = getHash(kd.getPublicKeyString());
-				RegistryDB.add("pubkeys", new Document("_id", pubkeyHash).append("full-key", kd.getPublicKeyString()));
+				RegistryDB.add("pubkeys", new Document("_id", pubkeyHash).append("full-pubkey", kd.getPublicKeyString()));
 				RegistryDB.add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
 				schedule(task("load-agent-core").append("agent", agentId).append("pubkey", pubkeyHash));
 			}

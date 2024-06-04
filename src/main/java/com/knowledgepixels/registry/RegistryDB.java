@@ -52,14 +52,22 @@ public class RegistryDB {
 		collection("lists").createIndex(Indexes.ascending("status"));
 
 		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "position"), new IndexOptions().unique(true));
-		collection("list-entries").createIndex(Indexes.descending("type", "checksum"), new IndexOptions().unique(true));
+		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "checksum"), new IndexOptions().unique(true));
 
 		collection("loose-entries").createIndex(Indexes.ascending("pubkey"));
 		collection("loose-entries").createIndex(Indexes.ascending("type"));
 
+		collection("base-agents").createIndex(Indexes.ascending("agent"));
+		collection("base-agents").createIndex(Indexes.ascending("pubkey"));
 		collection("base-agents").createIndex(Indexes.ascending("agent", "pubkey"), new IndexOptions().unique(true));
 
-		collection("trust-edges").createIndex(Indexes.ascending("from", "to"), new IndexOptions().unique(true));
+		collection("trust-edges").createIndex(Indexes.ascending("from"));
+		collection("trust-edges").createIndex(Indexes.ascending("to"));
+		collection("trust-edges").createIndex(Indexes.ascending("source"));
+		collection("trust-edges").createIndex(Indexes.ascending("from", "to", "source"), new IndexOptions().unique(true));
+
+		collection("trust-paths").createIndex(Indexes.ascending("agent", "pubkey"));
+		collection("trust-edges").createIndex(Indexes.ascending("source"));
 	}
 
 	public static boolean isInitialized() {

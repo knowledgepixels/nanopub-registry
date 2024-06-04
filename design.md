@@ -89,7 +89,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { for#:SueRich/b55 quota:1000000 }
       ...
     pubkeys:
-      { id#:a83, full-key:4e8d9x... }
+      { id#:a83, full-pubkey:4e8d9x... }
       ...
     lists:
       { pubkey**:a83, type**:_all_, status^:loading }
@@ -119,22 +119,22 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id**:EveBlue, pubkey**:c43 }
       ...
     agents:
-      { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
-      { key#:d28, agent^:JohnDoe, ... }
+      { pubkey#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
+      { pubkey#:d28, agent^:JohnDoe, ... }
       ...
     trust-edges:
-      { from**:@ to**:JohnDoe/a83 }
-      { from**:JohnDoe/a83 to**:SueRich/b55 }
-      { from**:SueRich/b55 to**:EveBlue/c43 }
+      { from^:@, to^:JohnDoe/a83, source^:RA... }
+      { from^:JohnDoe>a83, to^:SueRich>b55, source^:RA... }
+      { from^:SueRich>b55, to^:EveBlue>c43, source^:RA... }
       ...
     trust-paths:
-      { path#:'@-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-JohnDoe/d28', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
+      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
+      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     nanopubs:
-      { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, key^:a83, content:'@prefix ...' }
+      { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
       ...
     tasks:
       { not-before^:20240317-..., action^:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
@@ -173,7 +173,7 @@ Config loaded:
 Setting loaded:
 
     pubkeys:
-      { id#:a83, full-key:4e8d9x... }
+      { id#:a83, full-pubkey:4e8d9x... }
       ...
     setting:
       original: RA123...
@@ -187,7 +187,7 @@ Setting loaded:
       { id**:EveBlue, pubkey**:c43 }
       ...
     nanopubs:
-      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
+      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, pubkey^:a83, content:'@prefix ...' }
       ...
     tasks:
       { not-before^:20240317-..., action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1 }
@@ -219,19 +219,19 @@ Agent core info loaded:
       { id#:RA..., invalidated-by:[RA...] }
       ...
     trust-edges:
-      { from**:@ to**:JohnDoe/a83 }
-      { from**:JohnDoe/a83 to**:SueRich/b55 }
-      { from**:SueRich/b55 to**:EveBlue/c43 }
+      { from^:@, to^:JohnDoe/a83, source^:RA... }
+      { from^:JohnDoe/a83, to^:SueRich/b55, source^:RA... }
+      { from^:SueRich/b55, to^:EveBlue/c43, source^:RA... }
       ...
     trust-paths:
-      { path#:'@-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-JohnDoe/d28', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
+      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
+      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     nanopubs:
       ...
-      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:59, key^:a83, content:'@prefix ...' }
+      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:59, pubkey^:a83, content:'@prefix ...' }
       ...
     tasks:
       { not-before^:20240317-..., action:calculate-trust-network }
@@ -239,8 +239,8 @@ Agent core info loaded:
 Trust network calculated:
 
     agents:
-      { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
-      { key#:d28, agent^:JohnDoe, ... }
+      { pubkey#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
+      { pubkey#:d28, agent^:JohnDoe, ... }
       ...
     tasks:
       { not-before^:20240317-..., action:load-nanopubs }
