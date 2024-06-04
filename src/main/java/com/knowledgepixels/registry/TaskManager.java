@@ -73,15 +73,11 @@ public class TaskManager {
 
 			set("server-info", "status", "launching");
 			increateStateCounter();
-			if (collection("server-info").find(new BasicDBObject("_id", "setup-id")).cursor().hasNext()) {
-				error("DB already initialized");
-			}
-			long setupId = Math.abs(new Random().nextLong());
-			collection("server-info").insertOne(new Document("_id", "setup-id").append("value", setupId));
+			if (RegistryDB.isInitialized()) error("DB already initialized");
+			set("server-info", "setup-id", Math.abs(new Random().nextLong()));
+			scheduleTask("load-config");
 
-			scheduleTask("init-config");
-
-		} else if (action.equals("init-config")) {
+		} else if (action.equals("load-config")) {
 
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
 				set("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));

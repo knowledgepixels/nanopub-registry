@@ -76,8 +76,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     server-info:
       setup-id: 1332309348
       status: ready
-      last-update: 20230316-...
-      last-uptodate: 20230317-...
+      last-update: 20240316-...
+      last-uptodate: 20240317-...
       coverage-agents:_via-setting_
       coverage-types:_all_
       global-quota: 1000000
@@ -110,7 +110,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     setting:
       original: RA123...
       current: RA...
-      last-update: 20230316-...
+      last-update: 20240316-...
       status: completed
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
@@ -137,110 +137,119 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, key^:a83, content:'@prefix ...' }
       ...
     tasks:
-      { not-before^:20230317-..., action^:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
-      { not-before^:20230317-..., ... }
+      { not-before^:20240317-..., action^:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
+      { not-before^:20240317-..., ... }
       ...
       { not-before^:20240229-..., ... }
 
 
 ## Process
 
-_(work in progress...)_
+Database initialized:
 
-Process started:
-
-    setup-id: 1332309348
-    status: launching
-    state-counter: 0
+    server-info:
+      setup-id: 1332309348
+      status: launching
+      state-counter: 0
     tasks:
-      { not-before^:20230317-..., action:load-config }
+      { not-before^:20240317-..., action:load-config }
 
 Config loaded:
 
-    ...
-    coverage: { agents:_via-setting_, types:_all_ }
-    global-quota: 1000000
-    quotas: { _anyone_:10, _approved_:'global*ratio', JohnDoe/a83:'global*ratio*10', SueRich/b55:1000000 }
+    server-info:
+      ...
+      coverage-agents:_via-setting_
+      coverage-types:_all_
+      global-quota: 1000000
+    quotas:
+      { for#:_anyone_ quota:10 }
+      { for#:_approved_ quota:'global*ratio' }
+      { for#:JohnDoe/a83 quota:'global*ratio*10' }
+      { for#:SueRich/b55 quota:1000000 }
+      ...
     tasks:
-      { not-before^:20230317-..., action:load-setting }
+      { not-before^:20240317-..., action:load-setting }
 
-Setting definition loaded:
+Setting loaded:
 
-    ...
     setting:
       original: RA123...
-      current: RA123...
-      last-update: _none_
-      status: initializing
-      link-threshold: 0.000001 
-      bootstrap-services:
-        https://...
-        ...
-      base-agents: [JohnDoe/a83, EveBlue/c43, ...]
-      agents: _empty_
-      trust network:
-        edges: [@-JohnDoe/a83, @-EveBlue/c43, ...]
-        ratio-paths:
-          { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
-          ...
-    content:
-      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
-    tasks:
-      { not-before^:20230317-..., action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1 }
-      { not-before^:20230317-..., action:load-agent-core, agent:EveBlue/c43, path:@, ratio:0.1 }
+      current: RA...
+      last-update: 20240316-...
+      status: completed
+      link-threshold: 0.000001
+      bootstrap-services: [..., ...]
+    base-agents:
+      { id**:JohnDoe, pubkey**:a83 }
+      { id**:EveBlue, pubkey**:c43 }
       ...
-      { not-before^:20230317-..., action:load-core-info }
+    trust-edges:
+      { from**:@ to**:JohnDoe/a83 }
+      { from**:JohnDoe/a83 to**:SueRich/b55 }
+      { from**:SueRich/b55 to**:EveBlue/c43 }
+      ...
+    trust-paths:
+      { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      ...
+    nanopubs:
+      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
+      ...
+    tasks:
+      { not-before^:20240317-..., action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1 }
+      { not-before^:20240317-..., action:load-agent-core, agent:EveBlue/c43, path:@, ratio:0.1 }
+      ...
+      { not-before^:20240317-..., action:load-core-info }
 
 Agent core info loaded:
 
-    ...
-    state-counter: 132
-    registry:
-      a83:
-        full-key: 4e8d9s...
-        status: core-loaded
-        lists:
-          intro:
-            count:11
-            status: complete
-            content:
-              { id#:RA..., position*:0, checksum*:XX..., invalidated-by:[] }
-              { id#:RA..., position*:1, checksum*:XX..., invalidated-by:[] }
-              { id#:RA..., position*:2, checksum*:XX..., invalidated-by:[], flag:secondary }
-              ...
-              { id#:RA..., invalidated-by:[RA...] }
-              ...
-          endorsement:
-            ...
-      b55:
-        ...
-    setting:
-      trust network:
-        edges: [ @-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ... ]
-        ratio-paths:
-          { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-          { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
-          ...
-    content:
+    server-info:
       ...
-      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
+      state-counter: 132
+    pubkeys:
+      { pubkey#:a83, full-key:4e8d9x... }
+      ...
+    lists:
+      { pubkey**:a83, type**:_all_, status^:loading }
+      ...
+    list-entries:
+      { id#:RA..., pubkey**:a83, type**:_all_, position**:0, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:_all_, position**:1, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:_all_, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      ...
+      { id#:RA..., pubkey**:a83, type**:intro, position**:0, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:intro, position**:1, checksum**:XX..., invalidated-by:[] }
+      { id#:RA..., pubkey**:a83, type**:intro, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      ...
+    loose-entries:
+      { id#:RA..., pubkey^:a83, type^:_all_, invalidated-by:[RA...] }
+      { id#:RA..., invalidated-by:[RA...] }
+      ...
+    trust-edges:
+      { from**:@ to**:JohnDoe/a83 }
+      { from**:JohnDoe/a83 to**:SueRich/b55 }
+      { from**:SueRich/b55 to**:EveBlue/c43 }
+      ...
+    trust-paths:
+      { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      ...
+    nanopubs:
+      ...
+      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:59, key^:a83, content:'@prefix ...' }
       ...
     tasks:
-      { not-before^:20230317-..., action:calculate-trust-network }
+      { not-before^:20240317-..., action:calculate-trust-network }
 
 Trust network calculated:
 
-    ...
-    setting:
-      agents:
-        { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
-        { key#:d28, agent^:JohnDoe, ... }
-        ...
+    agents:
+      { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
+      { key#:d28, agent^:JohnDoe, ... }
+      ...
     tasks:
-      { not-before^:20230317-..., action:load-core-info }
+      { not-before^:20240317-..., action:load-nanopubs }
 
 _to be continued..._
-
