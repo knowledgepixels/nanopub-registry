@@ -128,10 +128,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { from**:SueRich/b55 to**:EveBlue/c43 }
       ...
     trust-paths:
-      { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      { path#:'@-JohnDoe/d28', agent^:JohnDoe, key^:d28, ratio:0.1 }
       ...
     nanopubs:
       { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, key^:a83, content:'@prefix ...' }
@@ -224,10 +224,10 @@ Agent core info loaded:
       { from**:SueRich/b55 to**:EveBlue/c43 }
       ...
     trust-paths:
-      { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
+      { path#:'@-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
+      { path#:'@-JohnDoe/d28', agent^:JohnDoe, key^:d28, ratio:0.1 }
       ...
     nanopubs:
       ...

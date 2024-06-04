@@ -48,10 +48,18 @@ public class RegistryDB {
 		collection("nanopubs").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
 		collection("nanopubs").createIndex(Indexes.ascending("pubkey"));
 
+		collection("lists").createIndex(Indexes.ascending("pubkey", "type"), new IndexOptions().unique(true));
+		collection("lists").createIndex(Indexes.ascending("status"));
+
 		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "position"), new IndexOptions().unique(true));
 		collection("list-entries").createIndex(Indexes.descending("type", "checksum"), new IndexOptions().unique(true));
 
+		collection("loose-entries").createIndex(Indexes.ascending("pubkey"));
+		collection("loose-entries").createIndex(Indexes.ascending("type"));
+
 		collection("base-agents").createIndex(Indexes.ascending("agent", "pubkey"), new IndexOptions().unique(true));
+
+		collection("trust-edges").createIndex(Indexes.ascending("from", "to"), new IndexOptions().unique(true));
 	}
 
 	public static boolean isInitialized() {

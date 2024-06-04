@@ -39,7 +39,7 @@ public class TaskManager {
 
 	static void runTasks() {
 		if (!RegistryDB.isInitialized()) {
-			scheduleTask("init-db");
+			schedule(task("init-db"));
 		}
 		while (true) {
 			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
@@ -75,7 +75,7 @@ public class TaskManager {
 			increateStateCounter();
 			if (RegistryDB.isInitialized()) error("DB already initialized");
 			set("server-info", "setup-id", Math.abs(new Random().nextLong()));
-			scheduleTask("load-config");
+			schedule(task("load-config"));
 
 		} else if (action.equals("load-config")) {
 
@@ -101,7 +101,7 @@ public class TaskManager {
 				}
 				set("setting", "bootstrap-services", bootstrapServices);
 				set("server-info", "status", "loaded");
-				scheduleTask("load-agents", settingNp.getAgentIntroCollection().stringValue());
+				schedule(task("load-agents").append("param", settingNp.getAgentIntroCollection().stringValue()));
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
 				ex.printStackTrace();
 				error(ex.getMessage());
@@ -113,7 +113,7 @@ public class TaskManager {
 				NanopubIndex agentIndex = IndexUtils.castToIndex(GetNanopub.get(param));
 				loadNanopub(agentIndex);
 				for (IRI el : agentIndex.getElements()) {
-					scheduleTask("load-agent-intro", el.stringValue());
+					schedule(task("load-agent-intro").append("param", el.stringValue()));
 				}
 
 			} catch (MalformedNanopubException ex) {
@@ -127,10 +127,16 @@ public class TaskManager {
 			System.err.println(agentIntro.getUser());
 			loadNanopub(agentIntro.getNanopub());
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
-				String hash = getHash(kd.getPublicKeyString());
-				RegistryDB.add("pubkeys", new Document("_id", hash).append("full-key", kd.getPublicKeyString()));
-				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", hash));
+				String agentId = agentIntro.getUser().stringValue();
+				String pubkeyHash = getHash(kd.getPublicKeyString());
+				RegistryDB.add("pubkeys", new Document("_id", pubkeyHash).append("full-key", kd.getPublicKeyString()));
+				RegistryDB.add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
+				schedule(task("load-agent-core").append("agent", agentId).append("pubkey", pubkeyHash));
 			}
+
+		} else if (action.equals("load-agent-core")) {
+
+			// TODO
 
 		} else {
 
@@ -146,18 +152,16 @@ public class TaskManager {
 		throw new RuntimeException(message);
 	}
 
-	private static void scheduleTask(String name) {
-		scheduleTask(name, null, 0l);
+	private static void schedule(Document task) {
+		tasks.insertOne(task);
 	}
 
-	private static void scheduleTask(String name, String param) {
-		scheduleTask(name, param, 0l);
+	private static Document task(String name) {
+		return task(name, 0l);
 	}
 
-	private static void scheduleTask(String name, String param, long delay) {
-		Document d = new Document("not-before", System.currentTimeMillis() + delay).append("action", name);
-		if (param != null) d.append("param", param);
-		tasks.insertOne(d);
+	private static Document task(String name, long delay) {
+		return new Document("not-before", System.currentTimeMillis() + delay).append("action", name);
 	}
 
 	public static String getHash(String pubkey) {
