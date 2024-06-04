@@ -50,6 +50,8 @@ public class RegistryDB {
 
 		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "position"), new IndexOptions().unique(true));
 		collection("list-entries").createIndex(Indexes.descending("type", "checksum"), new IndexOptions().unique(true));
+
+		collection("base-agents").createIndex(Indexes.ascending("agent", "pubkey"), new IndexOptions().unique(true));
 	}
 
 	public static boolean isInitialized() {

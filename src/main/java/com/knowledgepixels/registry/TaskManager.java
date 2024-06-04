@@ -127,7 +127,9 @@ public class TaskManager {
 			System.err.println(agentIntro.getUser());
 			loadNanopub(agentIntro.getNanopub());
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
-				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", getHash(kd.getPublicKeyString())));
+				String hash = getHash(kd.getPublicKeyString());
+				RegistryDB.add("pubkeys", new Document("_id", hash).append("full-key", kd.getPublicKeyString()));
+				RegistryDB.add("base-agents", new Document("agent", agentIntro.getUser().stringValue()).append("pubkey", hash));
 			}
 
 		} else {

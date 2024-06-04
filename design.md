@@ -89,7 +89,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { for#:SueRich/b55 quota:1000000 }
       ...
     pubkeys:
-      { pubkey#:a83, full-key:4e8d9x... }
+      { id#:a83, full-key:4e8d9x... }
       ...
     lists:
       { pubkey**:a83, type**:_all_, status^:loading }
@@ -172,6 +172,9 @@ Config loaded:
 
 Setting loaded:
 
+    pubkeys:
+      { id#:a83, full-key:4e8d9x... }
+      ...
     setting:
       original: RA123...
       current: RA...
@@ -198,7 +201,6 @@ Agent core info loaded:
       ...
       state-counter: 132
     pubkeys:
-      { pubkey#:a83, full-key:4e8d9x... }
       ...
     lists:
       { pubkey**:a83, type**:_all_, status^:loading }
