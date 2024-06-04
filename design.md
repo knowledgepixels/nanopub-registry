@@ -73,14 +73,21 @@ _(work in progress...)_
 
 Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)
 
-    setup-id: 1332309348
-    status: ready
-    last-update: 20230316-...
-    last-uptodate: 20230317-...
-    coverage: { agents:_via-setting_, types:_all_ }
-    global-quota: 1000000
-    quotas: { _anyone_:10, _approved_:'global*ratio', JohnDoe/a83:'global*ratio*10', SueRich/b55:1000000 }
-    state-counter: 1423293
+    server-info:
+      setup-id: 1332309348
+      status: ready
+      last-update: 20230316-...
+      last-uptodate: 20230317-...
+      coverage-agents:_via-setting_
+      coverage-types:_all_
+      global-quota: 1000000
+      state-counter: 1423293
+    quotas:
+      { for:_anyone_ quota:10 }
+      { for:_approved_ quota:'global*ratio' }
+      { for:JohnDoe/a83 quota:'global*ratio*10' }
+      { for:SueRich/b55 quota:1000000 }
+      ...
     pubkeys:
       { pubkey:a83, full-key:4e8d9x... }
       ...
@@ -116,8 +123,12 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { key#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
       { key#:d28, agent^:JohnDoe, ... }
       ...
-    trust-edges: [ @-JohnDoe/a83, JohnDoe/a83-SueRich/b55, SueRich/b55-EveBlue/c43, ... ]
-    trust-paths-paths:
+    trust-edges:
+      { from^:@ to^:JohnDoe/a83 }
+      { from^:JohnDoe/a83 to^:SueRich/b55 }
+      { from^:SueRich/b55 to^:EveBlue/c43 }
+      ...
+    trust-paths:
       { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-SueRich/b55-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
