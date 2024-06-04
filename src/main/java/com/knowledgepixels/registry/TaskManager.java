@@ -136,7 +136,16 @@ public class TaskManager {
 
 		} else if (action.equals("load-agent-core")) {
 
-			// TODO
+			String pubkey = task.getString("pubkey");
+			System.err.println("Pubkey: " + pubkey);
+			for (String npId : NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/declaredBy"), pubkey)) {
+				System.err.println("  Intro NP: " + npId);
+				loadNanopub(GetNanopub.get(npId));
+			}
+			for (String npId : NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/approvesOf"), pubkey)) {
+				System.err.println("  Approval NP: " + npId);
+				loadNanopub(GetNanopub.get(npId));
+			}
 
 		} else {
 

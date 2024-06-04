@@ -371,4 +371,9 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/json/json/20240303/json-20240303.jar" sourcepath="M2_REPO/org/json/json/20240303/json-20240303-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/json/json/20240303/json-20240303-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
 </classpath>

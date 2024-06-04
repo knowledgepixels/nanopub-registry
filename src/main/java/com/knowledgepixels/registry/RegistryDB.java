@@ -84,6 +84,10 @@ public class RegistryDB {
 		}
 	}
 
+	public static boolean has(String collection, String elementName) {
+		return collection(collection).find(new BasicDBObject("_id", elementName)).cursor().hasNext();
+	}
+
 	public static Object get(String collection, String elementName) {
 		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementName)).cursor();
 		if (!cursor.hasNext()) return null;
@@ -125,13 +129,16 @@ public class RegistryDB {
 		}
 		Long counter = (Long) getFirstField("nanopubs", "counter");
 		if (counter == null) counter = 0l;
-		collection("nanopubs").insertOne(
-				new Document("_id", TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue()))
-					.append("full-id", nanopub.getUri().stringValue())
-					.append("counter", counter + 1)
-					.append("pubkey", el.getPublicKeyString())
-					.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
-			);
+		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+		if (!has("nanopubs", ac)) {
+			collection("nanopubs").insertOne(
+					new Document("_id", ac)
+						.append("full-id", nanopub.getUri().stringValue())
+						.append("counter", counter + 1)
+						.append("pubkey", el.getPublicKeyString())
+						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
+				);
+		}
 	}
 
 	private static boolean hasValidSignature(NanopubSignatureElement el) {
