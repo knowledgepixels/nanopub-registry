@@ -183,15 +183,6 @@ Setting loaded:
       { id**:JohnDoe, pubkey**:a83 }
       { id**:EveBlue, pubkey**:c43 }
       ...
-    trust-edges:
-      { from**:@ to**:JohnDoe/a83 }
-      { from**:JohnDoe/a83 to**:SueRich/b55 }
-      { from**:SueRich/b55 to**:EveBlue/c43 }
-      ...
-    trust-paths:
-      { path#:'@-JohnDoe', agent^:JohnDoe, key^:a83, ratio:0.1 }
-      { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
-      ...
     nanopubs:
       { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, key^:a83, content:'@prefix ...' }
       ...
