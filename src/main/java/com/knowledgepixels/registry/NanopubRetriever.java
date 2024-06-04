@@ -1,18 +1,15 @@
 package com.knowledgepixels.registry;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 public class NanopubRetriever {
 
@@ -26,16 +23,16 @@ public class NanopubRetriever {
 					pubkeyHash +
 					"%22%20.%20%7D%20%7D";
 			HttpGet get = new HttpGet(callUrl);
-			get.setHeader(HttpHeaders.ACCEPT, "application/json");
+			get.setHeader(HttpHeaders.ACCEPT, "text/csv");
 			HttpResponse resp = HttpClientBuilder.create().build().execute(get);
-			InputStream in = resp.getEntity().getContent();
-			String respString = IOUtils.toString(in, StandardCharsets.UTF_8);
-			JSONArray resultsArray = new JSONObject(respString).getJSONObject("results").getJSONArray("bindings");
-			for (int i = 0; i < resultsArray.length(); i++) {
-				JSONObject resultObject = resultsArray.getJSONObject(i);
-				String uri = resultObject.getJSONObject("np").getString("value");
-				values.add(uri);
+			BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getEntity().getContent()));
+			reader.readLine(); // discard first line
+			String line = reader.readLine();
+			while (line != null) {
+				values.add(line);
+				line = reader.readLine();
 			}
+			reader.close();
 		} catch (IOException ex) {
 			ex.printStackTrace();
 		}
