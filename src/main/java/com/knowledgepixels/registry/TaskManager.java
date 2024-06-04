@@ -138,14 +138,16 @@ public class TaskManager {
 
 			String pubkey = task.getString("pubkey");
 			System.err.println("Pubkey: " + pubkey);
-			for (String npId : NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/declaredBy"), pubkey)) {
-				System.err.println("  Intro NP: " + npId);
+			NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/declaredBy"), pubkey, (String npId) -> {
+				System.err.println("  Intro NPx: " + npId);
 				loadNanopub(GetNanopub.get(npId));
-			}
-			for (String npId : NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/approvesOf"), pubkey)) {
-				System.err.println("  Approval NP: " + npId);
+				return null;
+			});
+			NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/approvesOf"), pubkey, (String npId) -> {
+				System.err.println("  Approval NPx: " + npId);
 				loadNanopub(GetNanopub.get(npId));
-			}
+				return null;
+			});
 
 		} else {
 
