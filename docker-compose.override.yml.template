@@ -6,3 +6,12 @@ services:
     environment:
       - REGISTRY_COVERAGE_TYPES=*
       - REGISTRY_COVERAGE_AGENTS=via-setting
+  mongodb:
+    ports:
+      - 27017:27017
+  mongo-express:
+    image: mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+    ports:
+      - 8081:8081
