@@ -40,11 +40,20 @@ public class RegistryDB {
 		mongoClient = new MongoClient("mongodb");
 		mongoDB = mongoClient.getDatabase("nanopub-registry");
 
+		if (isInitialized()) return;
+
 		collection("tasks").createIndex(Indexes.descending("not-before"));
 
 		collection("nanopubs").createIndex(Indexes.ascending("full-id"), new IndexOptions().unique(true));
 		collection("nanopubs").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
 		collection("nanopubs").createIndex(Indexes.ascending("pubkey"));
+
+		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "position"), new IndexOptions().unique(true));
+		collection("list-entries").createIndex(Indexes.descending("type", "checksum"), new IndexOptions().unique(true));
+	}
+
+	public static boolean isInitialized() {
+		return get("server-info", "setup-id") != null;
 	}
 
 	public static Long getSetupIdX() {

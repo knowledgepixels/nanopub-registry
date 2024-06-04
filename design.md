@@ -120,7 +120,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { path#:'@-BillSmith/d32-JoeBold/e83-AmyBaker/f02-JohnDoe/a83', agent^:JohnDoe, key^:a83, ratio:0.1 }
       { path#:'@-JohnDoe', agent^:JohnDoe, key^:d28, ratio:0.1 }
       ...
-    content:
+    nanopubs:
       { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, key^:a83, content:'@prefix ...' }
       ...
     tasks:

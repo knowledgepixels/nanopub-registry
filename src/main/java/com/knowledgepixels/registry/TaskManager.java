@@ -1,7 +1,6 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
@@ -37,7 +36,7 @@ public class TaskManager {
 	private TaskManager() {}
 
 	static void runTasks() {
-		if (get("server-info", "setup-id") == null) {
+		if (!RegistryDB.isInitialized()) {
 			scheduleTask("init-db");
 		}
 		while (true) {
