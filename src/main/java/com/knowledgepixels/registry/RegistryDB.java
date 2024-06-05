@@ -96,13 +96,16 @@ public class RegistryDB {
 		}
 	}
 
-
 	public static boolean has(String collection, String elementName) {
 		return has(collection, new BasicDBObject("_id", elementName));
 	}
 
 	public static boolean has(String collection, Bson find) {
 		return collection(collection).find(find).cursor().hasNext();
+	}
+
+	public static boolean hasStrongInvalidation(String npId, String pubkey) {
+		return has("invalidations", new BasicDBObject("invalidated-np", npId).append("invalidating-pubkey", pubkey));
 	}
 
 	public static Object get(String collection, String elementName) {
@@ -193,7 +196,6 @@ public class RegistryDB {
 							.append("invalidating-pubkey", ph)
 							.append("invalidated-np", invalidatedAc)
 					);
-				System.err.println("INVALIDATION ADDDED: " + ac + ">" + ph + " " + invalidatedAc);
 			}
 		}
 

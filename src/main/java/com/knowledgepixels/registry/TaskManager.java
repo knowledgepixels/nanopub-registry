@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
@@ -29,6 +30,7 @@ import org.nanopub.extra.setting.NanopubSetting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 
 public class TaskManager {
 
@@ -85,7 +87,7 @@ public class TaskManager {
 				set("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
 			set("server-info", "status", "initializing");
-			tasks.insertOne(new Document("not-before", System.currentTimeMillis()).append("action", "load-setting"));
+			schedule(task("load-setting"));
 
 		} else if (action.equals("load-setting")) {
 
@@ -148,6 +150,19 @@ public class TaskManager {
 			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
 				loadNanopub(GetNanopub.get(npId), approvalType, pubkeyHash);
 			});
+			schedule(task("run-test"));
+
+		} else if (action.equals("run-test")) {
+
+			MongoCursor<Document> cursor = get("nanopubs");
+			while (cursor.hasNext()) {
+				Document d = cursor.next();
+				if (RegistryDB.hasStrongInvalidation(d.getString("_id"), d.getString("pubkey"))) {
+					System.err.println("INVALID: " + d.getString("_id"));
+				} else {
+					System.err.println("VALID: " + d.getString("_id"));
+				}
+			}
 
 		} else {
 
