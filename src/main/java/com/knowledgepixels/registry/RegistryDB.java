@@ -118,39 +118,44 @@ public class RegistryDB {
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
+		String pubkey = getPubkey(nanopub);
+		if (pubkey == null) {
+			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
+			return;
+		}
+		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+		if (has("nanopubs", ac)) {
+			System.err.println("Already loaded: " + nanopub.getUri());
+			return;
+		}
+		Long counter = (Long) getFirstField("nanopubs", "counter");
+		if (counter == null) counter = 0l;
+
+		collection("nanopubs").insertOne(
+				new Document("_id", ac)
+					.append("full-id", nanopub.getUri().stringValue())
+					.append("counter", counter + 1)
+					.append("pubkey", pubkey)
+					.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
+			);
+	}
+
+	private static String getPubkey(Nanopub nanopub) {
 		NanopubSignatureElement el = null;
 		try {
 			el = SignatureUtils.getSignatureElement(nanopub);
 		} catch (MalformedCryptoElementException ex) {
 			ex.printStackTrace();
 		}
-		if (!hasValidSignature(el)) {
-			return;
-		}
-		Long counter = (Long) getFirstField("nanopubs", "counter");
-		if (counter == null) counter = 0l;
-		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-		if (!has("nanopubs", ac)) {
-			collection("nanopubs").insertOne(
-					new Document("_id", ac)
-						.append("full-id", nanopub.getUri().stringValue())
-						.append("counter", counter + 1)
-						.append("pubkey", el.getPublicKeyString())
-						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
-				);
-		}
-	}
-
-	private static boolean hasValidSignature(NanopubSignatureElement el) {
 		try {
 			if (el != null && SignatureUtils.hasValidSignature(el) && el.getPublicKeyString() != null) {
-				return true;
+				return el.getPublicKeyString();
 			}
 		} catch (GeneralSecurityException ex) {
 			System.err.println("Error for signature element " + el.getUri());
 			ex.printStackTrace();
 		}
-		return false;
+		return null;
 	}
 
 }
