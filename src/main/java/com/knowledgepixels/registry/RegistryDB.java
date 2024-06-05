@@ -145,7 +145,17 @@ public class RegistryDB {
 	}
 
 	public static MongoCursor<Document> get(String collection) {
-		return collection(collection).find().sort(new BasicDBObject("agent", 1)).cursor();
+		return collection(collection).find().cursor();
+	}
+
+	public static MongoCursor<Document> get(String collection, Bson find) {
+		return collection(collection).find(find).cursor();
+	}
+
+	public static Document getOne(String collection, Bson find) {
+		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
+		if (cursor.hasNext()) return cursor.next();
+		return null;
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
@@ -175,18 +185,18 @@ public class RegistryDB {
 				);
 		}
 
-		if (type != null) {
-			if (!ph.equals(pubkeyHash)) {
-				System.err.println("Nanopub doesn't have the specified pubkey: " + nanopub.getUri() + " / " + pubkeyHash);
-				// TODO: load as loose nanopub
-				return;
+		for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
+			String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+			Document invalidatedDoc = getOne("nanopubs", new BasicDBObject("_id", invalidatedAc));
+			if (invalidatedDoc == null) {
+				System.err.println("INVALIDATED NOT FOUND");
+			} else {
+				System.err.println("INVALIDATED FOUND: " + invalidatedAc);
 			}
+		}
+
+		if (type != null && ph.equals(pubkeyHash) && hasType(nanopub, type)) {
 			String typeHash = Utils.getHash(type);
-			if (!hasType(nanopub, type)) {
-				System.err.println("Nanopub doesn't have the specified type: " + nanopub.getUri() + " / " + type);
-				// TODO: load as loose nanopub
-				return;
-			}
 	
 			if (has("list-entries", new BasicDBObject("pubkey", ph).append("type", typeHash).append("np", ac))) {
 				System.err.println("Already listed: " + nanopub.getUri());
