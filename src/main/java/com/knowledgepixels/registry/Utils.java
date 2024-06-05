@@ -2,12 +2,10 @@ package com.knowledgepixels.registry;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-
-import jakarta.servlet.http.HttpServletRequest;
-import net.trustyuri.TrustyUriUtils;
+import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 import org.commonjava.mimeparse.MIMEParse;
@@ -21,6 +19,9 @@ import org.nanopub.NanopubUtils;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
+
+import jakarta.servlet.http.HttpServletRequest;
+import net.trustyuri.TrustyUriUtils;
 
 public class Utils {
 
@@ -47,8 +48,8 @@ public class Utils {
 		return Hashing.sha256().hashString(pubkey, Charsets.UTF_8).toString();
 	}
 
-	public static List<IRI> getInvalidatedNanopubIds(Nanopub np) {
-		List<IRI> l = new ArrayList<IRI>();
+	public static Set<IRI> getInvalidatedNanopubIds(Nanopub np) {
+		Set<IRI> l = new HashSet<IRI>();
 		for (Statement st : NanopubUtils.getStatements(np)) {
 			if (!(st.getObject() instanceof IRI)) continue;
 			Resource s = st.getSubject();

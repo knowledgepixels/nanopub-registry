@@ -104,7 +104,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX... }
       ...
     invalidations:
-      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA..., invalidated-pubkey^:a83 }
+      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     setting:
       original: RA123...
@@ -214,7 +214,7 @@ Agent core info loaded:
       { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX... }
       ...
     invalidations:
-      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA..., invalidated-pubkey^:a83 }
+      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     trust-edges:
       { from^:@, to^:JohnDoe/a83, source^:RA... }

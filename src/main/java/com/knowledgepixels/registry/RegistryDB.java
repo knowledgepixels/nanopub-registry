@@ -67,7 +67,7 @@ public class RegistryDB {
 		collection("invalidations").createIndex(ascending("invalidating-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey"));
 		collection("invalidations").createIndex(ascending("invalidated-np"));
-		collection("invalidations").createIndex(ascending("invalidated-pubkey"));
+		collection("invalidations").createIndex(ascending("invalidating-pubkey", "invalidated-np"));
 
 		collection("base-agents").createIndex(ascending("agent"));
 		collection("base-agents").createIndex(ascending("pubkey"));
@@ -185,15 +185,15 @@ public class RegistryDB {
 						.append("pubkey", ph)
 						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
 				);
-		}
 
-		for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
-			String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
-			Document invalidatedDoc = getOne("nanopubs", new BasicDBObject("_id", invalidatedAc));
-			if (invalidatedDoc == null) {
-				System.err.println("INVALIDATED NOT FOUND");
-			} else {
-				System.err.println("INVALIDATED FOUND: " + invalidatedAc);
+			for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
+				String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+				collection("invalidations").insertOne(
+						new Document("invalidating-np", ac)
+							.append("invalidating-pubkey", ph)
+							.append("invalidated-np", invalidatedAc)
+					);
+				System.err.println("INVALIDATION ADDDED: " + ac + ">" + ph + " " + invalidatedAc);
 			}
 		}
 
