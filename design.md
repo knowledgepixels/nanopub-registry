@@ -122,9 +122,9 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey#:d28, agent^:JohnDoe, ... }
       ...
     trust-edges:
-      { from^:@, to^:JohnDoe/a83, source^:RA... }
-      { from^:JohnDoe>a83, to^:SueRich>b55, source^:RA... }
-      { from^:SueRich>b55, to^:EveBlue>c43, source^:RA... }
+      { from-agent^:@, from-pubkey^:@ to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
+      { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
+      { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
     trust-paths:
       { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
@@ -217,15 +217,9 @@ Agent core info loaded:
       { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     trust-edges:
-      { from^:@, to^:JohnDoe/a83, source^:RA... }
-      { from^:JohnDoe/a83, to^:SueRich/b55, source^:RA... }
-      { from^:SueRich/b55, to^:EveBlue/c43, source^:RA... }
-      ...
-    trust-paths:
-      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
-      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
-      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
-      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
+      { from-agent^:@, from-pubkey^:@ to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
+      { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
+      { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
     nanopubs:
       ...
@@ -239,6 +233,12 @@ Trust network calculated:
     agents:
       { pubkey#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
       { pubkey#:d28, agent^:JohnDoe, ... }
+      ...
+    trust-paths:
+      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
+      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
+      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     tasks:
       { not-before^:20240317-..., action:load-nanopubs }
