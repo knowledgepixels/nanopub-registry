@@ -1,8 +1,8 @@
 package com.knowledgepixels.registry;
 
 import static com.mongodb.client.model.Indexes.ascending;
-import static com.mongodb.client.model.Indexes.descending;
 import static com.mongodb.client.model.Indexes.compoundIndex;
+import static com.mongodb.client.model.Indexes.descending;
 
 import java.security.GeneralSecurityException;
 
@@ -104,9 +104,13 @@ public class RegistryDB {
 	}
 
 	public static Object get(String collection, String elementName) {
-		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementName)).cursor();
+		return get(collection, new BasicDBObject("_id", elementName), "value");
+	}
+
+	public static Object get(String collection, Bson find, String field) {
+		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
 		if (!cursor.hasNext()) return null;
-		return cursor.next().get("value");
+		return cursor.next().get(field);
 	}
 
 	public static Object getMaxValue(String collection, String fieldName) {
@@ -119,6 +123,12 @@ public class RegistryDB {
 		MongoCursor<Document> cursor = collection(collection).find(find).sort(new BasicDBObject(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
+	}
+
+	public static Document getMaxValueDocument(String collection, Bson find, String fieldName) {
+		MongoCursor<Document> cursor = collection(collection).find(find).sort(new BasicDBObject(fieldName, -1)).cursor();
+		if (!cursor.hasNext()) return null;
+		return cursor.next();
 	}
 
 	public static void set(String collection, String elementId, Object value) {
@@ -176,14 +186,23 @@ public class RegistryDB {
 			if (has("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
 				System.err.println("Already listed: " + nanopub.getUri());
 			} else {
-				Long position = (Long) getMaxValue("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash), "position");
-				if (position == null) position = 0l;
+				
+				Document doc = getMaxValueDocument("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash), "position");
+				long position;
+				String checksum;
+				if (doc == null) {
+					position = 0l;
+					checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
+				} else {
+					position = doc.getLong("position") + 1;
+					checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
+				}
 				collection("list-entries").insertOne(
 						new Document("pubkey", pubkeyHash)
 							.append("type", typeHash)
-							.append("position", position + 1)
+							.append("position", position)
 							.append("np", ac)
-							.append("checksum", "TODO" + position)
+							.append("checksum", checksum)
 					);
 			}
 		}
