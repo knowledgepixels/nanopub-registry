@@ -115,6 +115,12 @@ public class RegistryDB {
 		return cursor.next().get(fieldName);
 	}
 
+	public static Object getMaxValue(String collection, Bson find, String fieldName) {
+		MongoCursor<Document> cursor = collection(collection).find(find).sort(new BasicDBObject(fieldName, -1)).cursor();
+		if (!cursor.hasNext()) return null;
+		return cursor.next().get(fieldName);
+	}
+
 	public static void set(String collection, String elementId, Object value) {
 		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementId)).cursor();
 		if (cursor.hasNext()) {
@@ -142,6 +148,7 @@ public class RegistryDB {
 			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
 			return;
 		}
+		String pubkeyHash = Utils.getHash(pubkey);
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 		if (has("nanopubs", ac)) {
@@ -153,7 +160,7 @@ public class RegistryDB {
 					new Document("_id", ac)
 						.append("full-id", nanopub.getUri().stringValue())
 						.append("counter", counter + 1)
-						.append("pubkey", pubkey)
+						.append("pubkey", pubkeyHash)
 						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
 				);
 		}
@@ -166,10 +173,18 @@ public class RegistryDB {
 				return;
 			}
 	
-			if (has("list-entries", new BasicDBObject("pubkey", pubkey).append("type", typeHash).append("np", ac))) {
+			if (has("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
 				System.err.println("Already listed: " + nanopub.getUri());
 			} else {
-				// TODO
+				Long position = (Long) getMaxValue("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash), "position");
+				if (position == null) position = 0l;
+				collection("list-entries").insertOne(
+						new Document("pubkey", pubkeyHash)
+							.append("type", typeHash)
+							.append("position", position + 1)
+							.append("np", ac)
+							.append("checksum", "TODO" + position)
+					);
 			}
 		}
 
