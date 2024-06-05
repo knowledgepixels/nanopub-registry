@@ -10,6 +10,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang.StringUtils;
 import org.commonjava.mimeparse.MIMEParse;
 
+import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
+
 public class Utils {
 
 	private Utils() {}  // no instances allowed
@@ -29,6 +32,10 @@ public class Utils {
 		} catch (UnsupportedEncodingException ex) {
 			throw new RuntimeException(ex);
 		}
+	}
+
+	public static String getHash(String pubkey) {
+		return Hashing.sha256().hashString(pubkey, Charsets.UTF_8).toString();
 	}
 
 }

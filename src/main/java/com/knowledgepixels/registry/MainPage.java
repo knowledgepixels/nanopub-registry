@@ -8,7 +8,7 @@ import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
 import static com.knowledgepixels.registry.RegistryDB.get;
-import static com.knowledgepixels.registry.RegistryDB.getFirstField;
+import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 
 public class MainPage extends Page {
 
@@ -63,7 +63,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Nanopubs:</p>");
 			println("<ul>");
-			println("<li><em>counter:</em> " + getFirstField("nanopubs", "counter") + "</li>");
+			println("<li><em>counter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("</ul>");
 			printHtmlFooter();
 		}

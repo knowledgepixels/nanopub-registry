@@ -1,10 +1,10 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
-import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 
@@ -26,8 +26,6 @@ import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
-import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
-import com.google.common.hash.Hashing;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -129,7 +127,7 @@ public class TaskManager {
 			loadNanopub(agentIntro.getNanopub());
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 				String agentId = agentIntro.getUser().stringValue();
-				String pubkeyHash = getHash(kd.getPublicKeyString());
+				String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
 				add("pubkeys", new Document("_id", pubkeyHash).append("full-pubkey", kd.getPublicKeyString()));
 				add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
 				schedule(task("load-agent-core").append("agent", agentId).append("pubkey", pubkeyHash));
@@ -138,17 +136,17 @@ public class TaskManager {
 		} else if (action.equals("load-agent-core")) {
 
 			String pubkey = task.getString("pubkey");
-			String introType = getHash("http://purl.org/nanopub/x/declaredBy");
-			String approvalType = getHash("http://purl.org/nanopub/x/approvesOf");
+			String introType = "http://purl.org/nanopub/x/declaredBy";
+			String approvalType = "http://purl.org/nanopub/x/approvesOf";
 
-			add("lists", new Document("pubkey", pubkey).append("type", introType).append("status", "loading"));
+			add("lists", new Document("pubkey", pubkey).append("type", Utils.getHash(introType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(introType, pubkey, npId -> {
-				loadNanopub(GetNanopub.get(npId));
+				loadNanopub(GetNanopub.get(npId), introType);
 			});
 
-			add("lists", new Document("pubkey", pubkey).append("type", approvalType).append("status", "loading"));
+			add("lists", new Document("pubkey", pubkey).append("type", Utils.getHash(approvalType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(approvalType, pubkey, npId -> {
-				loadNanopub(GetNanopub.get(npId));
+				loadNanopub(GetNanopub.get(npId), approvalType);
 			});
 
 		} else {
@@ -175,10 +173,6 @@ public class TaskManager {
 
 	private static Document task(String name, long delay) {
 		return new Document("not-before", System.currentTimeMillis() + delay).append("action", name);
-	}
-
-	public static String getHash(String pubkey) {
-		return Hashing.sha256().hashString(pubkey, Charsets.UTF_8).toString();
 	}
 
 }

@@ -14,11 +14,11 @@ public class NanopubRetriever {
 
 	private NanopubRetriever() {}
 
-	public static void retrieveNanopubs(String type, String pubkeyHash, Consumer<String> processFunction) {
+	public static void retrieveNanopubs(String type, String pubkey, Consumer<String> processFunction) {
 		try {
-			String callUrl = "https://query.np.trustyuri.net/repo/type/" + type + "?" +
+			String callUrl = "https://query.np.trustyuri.net/repo/type/" + Utils.getHash(type) + "?" +
 					"query=prefix%20npa%3A%20%3Chttp%3A%2F%2Fpurl.org%2Fnanopub%2Fadmin%2F%3E%20select%20%3Fnp%20where%20%7B%20graph%20npa%3Agraph%20%7B%20%3Fnp%20npa%3AhasValidSignatureForPublicKeyHash%20%22" +
-					pubkeyHash +
+					pubkey +
 					"%22%20.%20%7D%20%7D";
 			HttpGet get = new HttpGet(callUrl);
 			get.setHeader(HttpHeaders.ACCEPT, "text/csv");

@@ -1,8 +1,14 @@
 package com.knowledgepixels.registry;
 
+import static com.mongodb.client.model.Indexes.ascending;
+import static com.mongodb.client.model.Indexes.descending;
+import static com.mongodb.client.model.Indexes.compoundIndex;
+
 import java.security.GeneralSecurityException;
 
 import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
@@ -42,32 +48,36 @@ public class RegistryDB {
 
 		if (isInitialized()) return;
 
+		final IndexOptions unique = new IndexOptions().unique(true);
+
 		collection("tasks").createIndex(Indexes.descending("not-before"));
 
-		collection("nanopubs").createIndex(Indexes.ascending("full-id"), new IndexOptions().unique(true));
-		collection("nanopubs").createIndex(Indexes.descending("counter"), new IndexOptions().unique(true));
-		collection("nanopubs").createIndex(Indexes.ascending("pubkey"));
+		collection("nanopubs").createIndex(ascending("full-id"), unique);
+		collection("nanopubs").createIndex(descending("counter"), unique);
+		collection("nanopubs").createIndex(ascending("pubkey"));
 
-		collection("lists").createIndex(Indexes.ascending("pubkey", "type"), new IndexOptions().unique(true));
-		collection("lists").createIndex(Indexes.ascending("status"));
+		collection("lists").createIndex(ascending("pubkey", "type"), unique);
+		collection("lists").createIndex(ascending("status"));
 
-		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "position"), new IndexOptions().unique(true));
-		collection("list-entries").createIndex(Indexes.descending("pubkey", "type", "checksum"), new IndexOptions().unique(true));
+		collection("list-entries").createIndex(ascending("np"));
+		collection("list-entries").createIndex(ascending("pubkey", "type", "np"), unique);
+		collection("list-entries").createIndex(compoundIndex(Indexes.ascending("pubkey"), ascending("type"), descending("position")), unique);
+		collection("list-entries").createIndex(ascending("pubkey", "type", "checksum"), unique);
 
-		collection("loose-entries").createIndex(Indexes.ascending("pubkey"));
-		collection("loose-entries").createIndex(Indexes.ascending("type"));
+		collection("loose-entries").createIndex(ascending("pubkey"));
+		collection("loose-entries").createIndex(ascending("type"));
 
-		collection("base-agents").createIndex(Indexes.ascending("agent"));
-		collection("base-agents").createIndex(Indexes.ascending("pubkey"));
-		collection("base-agents").createIndex(Indexes.ascending("agent", "pubkey"), new IndexOptions().unique(true));
+		collection("base-agents").createIndex(ascending("agent"));
+		collection("base-agents").createIndex(ascending("pubkey"));
+		collection("base-agents").createIndex(ascending("agent", "pubkey"), unique);
 
-		collection("trust-edges").createIndex(Indexes.ascending("from"));
-		collection("trust-edges").createIndex(Indexes.ascending("to"));
-		collection("trust-edges").createIndex(Indexes.ascending("source"));
-		collection("trust-edges").createIndex(Indexes.ascending("from", "to", "source"), new IndexOptions().unique(true));
+		collection("trust-edges").createIndex(ascending("from"));
+		collection("trust-edges").createIndex(ascending("to"));
+		collection("trust-edges").createIndex(ascending("source"));
+		collection("trust-edges").createIndex(ascending("from", "to", "source"), unique);
 
-		collection("trust-paths").createIndex(Indexes.ascending("agent", "pubkey"));
-		collection("trust-edges").createIndex(Indexes.ascending("source"));
+		collection("trust-paths").createIndex(ascending("agent", "pubkey"));
+		collection("trust-edges").createIndex(ascending("source"));
 	}
 
 	public static boolean isInitialized() {
@@ -84,8 +94,13 @@ public class RegistryDB {
 		}
 	}
 
+
 	public static boolean has(String collection, String elementName) {
-		return collection(collection).find(new BasicDBObject("_id", elementName)).cursor().hasNext();
+		return has(collection, new BasicDBObject("_id", elementName));
+	}
+
+	public static boolean has(String collection, Bson find) {
+		return collection(collection).find(find).cursor().hasNext();
 	}
 
 	public static Object get(String collection, String elementName) {
@@ -94,8 +109,8 @@ public class RegistryDB {
 		return cursor.next().get("value");
 	}
 
-	public static Object getFirstField(String collection, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find().sort(new BasicDBObject("counter", -1)).cursor();
+	public static Object getMaxValue(String collection, String fieldName) {
+		MongoCursor<Document> cursor = collection(collection).find().sort(new BasicDBObject(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
 	}
@@ -118,26 +133,46 @@ public class RegistryDB {
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
+		loadNanopub(nanopub, null);
+	}
+
+	public static void loadNanopub(Nanopub nanopub, String type) {
 		String pubkey = getPubkey(nanopub);
 		if (pubkey == null) {
 			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
 			return;
 		}
+
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 		if (has("nanopubs", ac)) {
 			System.err.println("Already loaded: " + nanopub.getUri());
-			return;
+		} else {
+			Long counter = (Long) getMaxValue("nanopubs", "counter");
+			if (counter == null) counter = 0l;
+			collection("nanopubs").insertOne(
+					new Document("_id", ac)
+						.append("full-id", nanopub.getUri().stringValue())
+						.append("counter", counter + 1)
+						.append("pubkey", pubkey)
+						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
+				);
 		}
-		Long counter = (Long) getFirstField("nanopubs", "counter");
-		if (counter == null) counter = 0l;
 
-		collection("nanopubs").insertOne(
-				new Document("_id", ac)
-					.append("full-id", nanopub.getUri().stringValue())
-					.append("counter", counter + 1)
-					.append("pubkey", pubkey)
-					.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
-			);
+		if (type != null) {
+			String typeHash = Utils.getHash(type);
+			if (!hasType(nanopub, type)) {
+				System.err.println("Nanopub doesn't have the specified type: " + nanopub.getUri() + " / " + type);
+				// TODO: load as loose nanopub
+				return;
+			}
+	
+			if (has("list-entries", new BasicDBObject("pubkey", pubkey).append("type", typeHash).append("np", ac))) {
+				System.err.println("Already listed: " + nanopub.getUri());
+			} else {
+				// TODO
+			}
+		}
+
 	}
 
 	private static String getPubkey(Nanopub nanopub) {
@@ -156,6 +191,13 @@ public class RegistryDB {
 			ex.printStackTrace();
 		}
 		return null;
+	}
+
+	private static boolean hasType(Nanopub nanopub, String type) {
+		for (IRI typeIri : NanopubUtils.getTypes(nanopub)) {
+			if (typeIri.stringValue().equals(type)) return true;
+		}
+		return false;
 	}
 
 }
