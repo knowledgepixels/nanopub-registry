@@ -95,13 +95,13 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey**:a83, type**:_all_, status^:loading }
       ...
     list-entries:
-      { id#:RA..., pubkey**:a83, type**:_all_, position**:0, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:_all_, position**:1, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:_all_, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
       ...
-      { id#:RA..., pubkey**:a83, type**:intro, position**:0, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:intro, position**:1, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:intro, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
       ...
     loose-entries:
       { id#:RA..., pubkey^:a83, type^:_all_, invalidated-by:[RA...] }
@@ -206,13 +206,13 @@ Agent core info loaded:
       { pubkey**:a83, type**:_all_, status^:loading }
       ...
     list-entries:
-      { id#:RA..., pubkey**:a83, type**:_all_, position**:0, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:_all_, position**:1, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:_all_, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
       ...
-      { id#:RA..., pubkey**:a83, type**:intro, position**:0, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:intro, position**:1, checksum**:XX..., invalidated-by:[] }
-      { id#:RA..., pubkey**:a83, type**:intro, position**:2, checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
+      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
       ...
     loose-entries:
       { id#:RA..., pubkey^:a83, type^:_all_, invalidated-by:[RA...] }
