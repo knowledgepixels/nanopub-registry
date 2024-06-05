@@ -4,6 +4,7 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
+import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 
@@ -129,21 +130,24 @@ public class TaskManager {
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 				String agentId = agentIntro.getUser().stringValue();
 				String pubkeyHash = getHash(kd.getPublicKeyString());
-				RegistryDB.add("pubkeys", new Document("_id", pubkeyHash).append("full-pubkey", kd.getPublicKeyString()));
-				RegistryDB.add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
+				add("pubkeys", new Document("_id", pubkeyHash).append("full-pubkey", kd.getPublicKeyString()));
+				add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
 				schedule(task("load-agent-core").append("agent", agentId).append("pubkey", pubkeyHash));
 			}
 
 		} else if (action.equals("load-agent-core")) {
 
 			String pubkey = task.getString("pubkey");
-			System.err.println("Pubkey: " + pubkey);
-			NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/declaredBy"), pubkey, npId -> {
-				System.err.println("  Intro NP: " + npId);
+			String introType = getHash("http://purl.org/nanopub/x/declaredBy");
+			String approvalType = getHash("http://purl.org/nanopub/x/approvesOf");
+
+			add("lists", new Document("pubkey", pubkey).append("type", introType).append("status", "loading"));
+			NanopubRetriever.retrieveNanopubs(introType, pubkey, npId -> {
 				loadNanopub(GetNanopub.get(npId));
 			});
-			NanopubRetriever.retrieveNanopubs(getHash("http://purl.org/nanopub/x/approvesOf"), pubkey, npId -> {
-				System.err.println("  Approval NP: " + npId);
+
+			add("lists", new Document("pubkey", pubkey).append("type", approvalType).append("status", "loading"));
+			NanopubRetriever.retrieveNanopubs(approvalType, pubkey, npId -> {
 				loadNanopub(GetNanopub.get(npId));
 			});
 

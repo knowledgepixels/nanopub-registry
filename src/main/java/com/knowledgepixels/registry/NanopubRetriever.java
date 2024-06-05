@@ -10,8 +10,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
 
-import com.github.jsonldjava.shaded.com.google.common.base.Function;
-
 public class NanopubRetriever {
 
 	private NanopubRetriever() {}
