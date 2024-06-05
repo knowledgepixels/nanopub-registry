@@ -64,8 +64,10 @@ public class RegistryDB {
 		collection("list-entries").createIndex(compoundIndex(Indexes.ascending("pubkey"), ascending("type"), descending("position")), unique);
 		collection("list-entries").createIndex(ascending("pubkey", "type", "checksum"), unique);
 
-		collection("loose-entries").createIndex(ascending("pubkey"));
-		collection("loose-entries").createIndex(ascending("type"));
+		collection("invalidations").createIndex(ascending("invalidating-np"));
+		collection("invalidations").createIndex(ascending("invalidating-pubkey"));
+		collection("invalidations").createIndex(ascending("invalidated-np"));
+		collection("invalidations").createIndex(ascending("invalidated-pubkey"));
 
 		collection("base-agents").createIndex(ascending("agent"));
 		collection("base-agents").createIndex(ascending("pubkey"));

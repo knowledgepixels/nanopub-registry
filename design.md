@@ -95,17 +95,16 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey**:a83, type**:_all_, status^:loading }
       ...
     list-entries:
-      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX... }
       ...
-      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX... }
       ...
-    loose-entries:
-      { id#:RA..., pubkey^:a83, type^:_all_, invalidated-by:[RA...] }
-      { id#:RA..., invalidated-by:[RA...] }
+    invalidations:
+      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA..., invalidated-pubkey^:a83 }
       ...
     setting:
       original: RA123...
@@ -206,17 +205,16 @@ Agent core info loaded:
       { pubkey**:a83, type**:_all_, status^:loading }
       ...
     list-entries:
-      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX... }
       ...
-      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX..., invalidated-by:[] }
-      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX..., invalidated-by:[RA...] }
+      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX... }
+      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX... }
       ...
-    loose-entries:
-      { id#:RA..., pubkey^:a83, type^:_all_, invalidated-by:[RA...] }
-      { id#:RA..., invalidated-by:[RA...] }
+    invalidations:
+      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA..., invalidated-pubkey^:a83 }
       ...
     trust-edges:
       { from^:@, to^:JohnDoe/a83, source^:RA... }
