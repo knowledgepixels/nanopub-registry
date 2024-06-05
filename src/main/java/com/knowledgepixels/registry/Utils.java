@@ -67,6 +67,7 @@ public class Utils {
 	public static final IRI SUPERSEDES = vf.createIRI("http://purl.org/nanopub/x/supersedes");
 	public static final IRI RETRACTS = vf.createIRI("http://purl.org/nanopub/x/retracts");
 	public static final IRI INVALIDATES = vf.createIRI("http://purl.org/nanopub/x/invalidates");
+	public static final IRI APPROVES_OF = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
 
 	public static final IRI INTRO_TYPE = vf.createIRI("http://purl.org/nanopub/x/declaredBy");
 	public static final IRI APPROVAL_TYPE = vf.createIRI("http://purl.org/nanopub/x/approvesOf");

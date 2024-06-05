@@ -122,6 +122,8 @@ public class TaskManager {
 				error(ex.getMessage());
 			}
 
+			schedule(task("load-all-core-info"));
+
 		} else if (action.equals("load-agent-intro")) {
 
 			IntroNanopub agentIntro = new IntroNanopub(GetNanopub.get(param));
@@ -131,19 +133,51 @@ public class TaskManager {
 				String agentId = agentIntro.getUser().stringValue();
 				String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
 				add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
-				schedule(task("load-agent-core").append("agent", agentId).append("pubkey", pubkeyHash));
+
+				//schedule(task("load-agent-core-intros").append("pubkey", pubkeyHash));
 			}
 
-		} else if (action.equals("load-agent-core")) {
+		} else if (action.equals("load-all-core-info")) {
+
+			NanopubRetriever.retrieveNanopubs(Utils.INTRO_TYPE.stringValue(), null, npId -> {
+				loadNanopub(GetNanopub.get(npId));
+			});
+			NanopubRetriever.retrieveNanopubs(Utils.APPROVAL_TYPE.stringValue(), null, npId -> {
+				loadNanopub(GetNanopub.get(npId));
+			});
+
+		} else if (action.equals("load-agent-core-approvals")) {
+
+			// currently deactivated
+
+			String pubkeyHash = task.getString("pubkey");
+			String approvalType = Utils.APPROVAL_TYPE.stringValue();
+
+			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(approvalType)).append("status", "loading"));
+			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
+				loadNanopub(GetNanopub.get(npId), approvalType, pubkeyHash);
+			});
+
+			schedule(task("run-test"));
+
+		} else if (action.equals("load-agent-core-intros")) {
+
+			// currently deactivated
 
 			String pubkeyHash = task.getString("pubkey");
 			String introType = Utils.INTRO_TYPE.stringValue();
-			String approvalType = Utils.APPROVAL_TYPE.stringValue();
 
 			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
 				loadNanopub(GetNanopub.get(npId), introType, pubkeyHash);
 			});
+
+			schedule(task("load-agent-core-approvals").append("pubkey", task.getString("pubkey")));
+
+		} else if (action.equals("load-agent-core-approvals")) {
+
+			String pubkeyHash = task.getString("pubkey");
+			String approvalType = Utils.APPROVAL_TYPE.stringValue();
 
 			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(approvalType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {

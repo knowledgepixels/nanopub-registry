@@ -16,10 +16,16 @@ public class NanopubRetriever {
 
 	public static void retrieveNanopubs(String type, String pubkey, Consumer<String> processFunction) {
 		try {
+			String pubkeyQueryPart;
+			if (pubkey == null) {
+				pubkeyQueryPart = "%3Fpubkey";
+			} else {
+				pubkeyQueryPart = "%22" + pubkey + "%22";
+			}
 			String callUrl = "https://query.np.trustyuri.net/repo/type/" + Utils.getHash(type) + "?" +
-					"query=prefix%20npa%3A%20%3Chttp%3A%2F%2Fpurl.org%2Fnanopub%2Fadmin%2F%3E%20select%20%3Fnp%20where%20%7B%20graph%20npa%3Agraph%20%7B%20%3Fnp%20npa%3AhasValidSignatureForPublicKeyHash%20%22" +
-					pubkey +
-					"%22%20.%20%7D%20%7D";
+					"query=prefix%20npa%3A%20%3Chttp%3A%2F%2Fpurl.org%2Fnanopub%2Fadmin%2F%3E%20select%20%3Fnp%20where%20%7B%20graph%20npa%3Agraph%20%7B%20%3Fnp%20npa%3AhasValidSignatureForPublicKeyHash%20" +
+					pubkeyQueryPart +
+					"%20.%20%7D%20%7D";
 			HttpGet get = new HttpGet(callUrl);
 			get.setHeader(HttpHeaders.ACCEPT, "text/csv");
 			HttpResponse resp = HttpClientBuilder.create().build().execute(get);

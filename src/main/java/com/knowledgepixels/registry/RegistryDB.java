@@ -5,10 +5,12 @@ import static com.mongodb.client.model.Indexes.compoundIndex;
 import static com.mongodb.client.model.Indexes.descending;
 
 import java.security.GeneralSecurityException;
+import java.util.Set;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
@@ -208,7 +210,8 @@ public class RegistryDB {
 							.append("invalidated-np", invalidatedAc)
 					);
 			}
-			if (NanopubUtils.getTypes(nanopub).contains(Utils.INTRO_TYPE)) {
+			final Set<IRI> types = NanopubUtils.getTypes(nanopub);
+			if (types.contains(Utils.INTRO_TYPE)) {
 				IntroNanopub introNp = new IntroNanopub(nanopub);
 				for (KeyDeclaration kd : introNp.getKeyDeclarations()) {
 					if (kd.getDeclarers().size() != 1) {
@@ -220,6 +223,28 @@ public class RegistryDB {
 								.append("declaration-pubkey", ph)
 								.append("declaration", ac)
 						);
+				}
+			}
+			if (types.contains(Utils.APPROVAL_TYPE)) {
+				for (Statement st : nanopub.getAssertion()) {
+					if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
+					if (!(st.getObject() instanceof IRI)) continue;
+					String objStr = st.getObject().stringValue();
+					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
+					String objAc = TrustyUriUtils.getArtifactCode(objStr);
+					MongoCursor<Document> c = get("pubkey-declarations", new BasicDBObject("declaration", objAc));
+					if (!c.hasNext()) System.err.println("NOT FOUND: " + objAc);
+					// TODO: deal with case when declaration isn't loaded yet
+					while (c.hasNext()) {
+						Document d = c.next();
+						collection("trust-edges").insertOne(
+								new Document("from-agent", st.getSubject().stringValue())
+									.append("from-pubkey", ph)
+									.append("to-agent", d.getString("agent"))
+									.append("to-pubkey", d.getString("pubkey"))
+									.append("source", ac)
+							);
+					}
 				}
 			}
 		}
