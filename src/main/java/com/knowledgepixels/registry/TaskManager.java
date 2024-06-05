@@ -130,7 +130,6 @@ public class TaskManager {
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 				String agentId = agentIntro.getUser().stringValue();
 				String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-				add("pubkeys", new Document("_id", pubkeyHash).append("full-pubkey", kd.getPublicKeyString()));
 				add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash));
 				schedule(task("load-agent-core").append("agent", agentId).append("pubkey", pubkeyHash));
 			}
@@ -138,8 +137,8 @@ public class TaskManager {
 		} else if (action.equals("load-agent-core")) {
 
 			String pubkeyHash = task.getString("pubkey");
-			String introType = "http://purl.org/nanopub/x/declaredBy";
-			String approvalType = "http://purl.org/nanopub/x/approvesOf";
+			String introType = Utils.INTRO_TYPE.stringValue();
+			String approvalType = Utils.APPROVAL_TYPE.stringValue();
 
 			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
@@ -150,6 +149,7 @@ public class TaskManager {
 			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
 				loadNanopub(GetNanopub.get(npId), approvalType, pubkeyHash);
 			});
+
 			schedule(task("run-test"));
 
 		} else if (action.equals("run-test")) {

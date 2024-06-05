@@ -12,9 +12,11 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
+import org.nanopub.extra.security.KeyDeclaration;
 import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
+import org.nanopub.extra.setting.IntroNanopub;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
@@ -68,6 +70,11 @@ public class RegistryDB {
 		collection("invalidations").createIndex(ascending("invalidating-pubkey"));
 		collection("invalidations").createIndex(ascending("invalidated-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey", "invalidated-np"));
+
+		collection("pubkey-declarations").createIndex(ascending("agent"));
+		collection("pubkey-declarations").createIndex(ascending("pubkey"));
+		collection("pubkey-declarations").createIndex(ascending("declaration-pubkey"));
+		collection("pubkey-declarations").createIndex(ascending("declaration"));
 
 		collection("base-agents").createIndex(ascending("agent"));
 		collection("base-agents").createIndex(ascending("pubkey"));
@@ -175,6 +182,9 @@ public class RegistryDB {
 			return;
 		}
 		String ph = Utils.getHash(pubkey);
+		if (!has("pubkeys", ph)) {
+			add("pubkeys", new Document("_id", ph).append("full-pubkey", pubkey));
+		}
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 		if (has("nanopubs", ac)) {
@@ -197,6 +207,20 @@ public class RegistryDB {
 							.append("invalidating-pubkey", ph)
 							.append("invalidated-np", invalidatedAc)
 					);
+			}
+			if (NanopubUtils.getTypes(nanopub).contains(Utils.INTRO_TYPE)) {
+				IntroNanopub introNp = new IntroNanopub(nanopub);
+				for (KeyDeclaration kd : introNp.getKeyDeclarations()) {
+					if (kd.getDeclarers().size() != 1) {
+						System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
+					}
+					collection("pubkey-declarations").insertOne(
+							new Document("agent", kd.getDeclarers().iterator().next().stringValue())
+								.append("pubkey", kd.getPublicKeyString())
+								.append("declaration-pubkey", ph)
+								.append("declaration", ac)
+						);
+				}
 			}
 		}
 
