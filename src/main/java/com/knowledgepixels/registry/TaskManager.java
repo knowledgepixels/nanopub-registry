@@ -135,18 +135,18 @@ public class TaskManager {
 
 		} else if (action.equals("load-agent-core")) {
 
-			String pubkey = task.getString("pubkey");
+			String pubkeyHash = task.getString("pubkey");
 			String introType = "http://purl.org/nanopub/x/declaredBy";
 			String approvalType = "http://purl.org/nanopub/x/approvesOf";
 
-			add("lists", new Document("pubkey", pubkey).append("type", Utils.getHash(introType)).append("status", "loading"));
-			NanopubRetriever.retrieveNanopubs(introType, pubkey, npId -> {
-				loadNanopub(GetNanopub.get(npId), introType);
+			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading"));
+			NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
+				loadNanopub(GetNanopub.get(npId), introType, pubkeyHash);
 			});
 
-			add("lists", new Document("pubkey", pubkey).append("type", Utils.getHash(approvalType)).append("status", "loading"));
-			NanopubRetriever.retrieveNanopubs(approvalType, pubkey, npId -> {
-				loadNanopub(GetNanopub.get(npId), approvalType);
+			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(approvalType)).append("status", "loading"));
+			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
+				loadNanopub(GetNanopub.get(npId), approvalType, pubkeyHash);
 			});
 
 		} else {

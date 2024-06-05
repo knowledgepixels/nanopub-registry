@@ -149,16 +149,16 @@ public class RegistryDB {
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
-		loadNanopub(nanopub, null);
+		loadNanopub(nanopub, null, null);
 	}
 
-	public static void loadNanopub(Nanopub nanopub, String type) {
+	public static void loadNanopub(Nanopub nanopub, String type, String pubkeyHash) {
 		String pubkey = getPubkey(nanopub);
 		if (pubkey == null) {
 			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
 			return;
 		}
-		String pubkeyHash = Utils.getHash(pubkey);
+		String ph = Utils.getHash(pubkey);
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 		if (has("nanopubs", ac)) {
@@ -170,12 +170,17 @@ public class RegistryDB {
 					new Document("_id", ac)
 						.append("full-id", nanopub.getUri().stringValue())
 						.append("counter", counter + 1)
-						.append("pubkey", pubkeyHash)
+						.append("pubkey", ph)
 						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
 				);
 		}
 
 		if (type != null) {
+			if (!ph.equals(pubkeyHash)) {
+				System.err.println("Nanopub doesn't have the specified pubkey: " + nanopub.getUri() + " / " + pubkeyHash);
+				// TODO: load as loose nanopub
+				return;
+			}
 			String typeHash = Utils.getHash(type);
 			if (!hasType(nanopub, type)) {
 				System.err.println("Nanopub doesn't have the specified type: " + nanopub.getUri() + " / " + type);
@@ -183,11 +188,11 @@ public class RegistryDB {
 				return;
 			}
 	
-			if (has("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+			if (has("list-entries", new BasicDBObject("pubkey", ph).append("type", typeHash).append("np", ac))) {
 				System.err.println("Already listed: " + nanopub.getUri());
 			} else {
 				
-				Document doc = getMaxValueDocument("list-entries", new BasicDBObject("pubkey", pubkeyHash).append("type", typeHash), "position");
+				Document doc = getMaxValueDocument("list-entries", new BasicDBObject("pubkey", ph).append("type", typeHash), "position");
 				long position;
 				String checksum;
 				if (doc == null) {
@@ -198,7 +203,7 @@ public class RegistryDB {
 					checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
 				}
 				collection("list-entries").insertOne(
-						new Document("pubkey", pubkeyHash)
+						new Document("pubkey", ph)
 							.append("type", typeHash)
 							.append("position", position)
 							.append("np", ac)
