@@ -107,8 +107,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     pubkey-declarations:
-      { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:core, status^:loaded }
-      { declaration^:RA..., type^:non-core, status^:to-load }
+      { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loaded }
+      { declaration^:RA..., type^:regular, status^:to-load }
       ...
     setting:
       original: RA123...
@@ -117,13 +117,9 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       status: completed
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
-    base-agents:
-      { id**:JohnDoe, pubkey**:a83 }
-      { id**:EveBlue, pubkey**:c43 }
-      ...
     agents:
-      { pubkey#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
-      { pubkey#:d28, agent^:JohnDoe, ... }
+      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000 }
+      { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     trust-edges:
       { from-agent^:@, from-pubkey^:@ to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }

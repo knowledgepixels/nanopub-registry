@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.bson.Document;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -55,7 +56,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Base Agents:</p>");
 			println("<ul>");
-			MongoCursor<Document> baseAgents = get("base-agents");
+			MongoCursor<Document> baseAgents = get("base-agents", new BasicDBObject("type", "base"));
 			while (baseAgents.hasNext()) {
 				Document d = baseAgents.next();
 				println("<li>" + d.get("agent") + " - " + d.get("pubkey") + "</li>");
