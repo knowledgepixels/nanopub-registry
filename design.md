@@ -181,9 +181,9 @@ Setting loaded:
       status: completed
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
-    base-agents:
-      { id**:JohnDoe, pubkey**:a83 }
-      { id**:EveBlue, pubkey**:c43 }
+    agents:
+      { id**:JohnDoe, pubkey**:a83, type:base }
+      { id**:EveBlue, pubkey**:c43, type:base }
       ...
     nanopubs:
       { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, pubkey^:a83, content:'@prefix ...' }
@@ -237,8 +237,8 @@ Agent core info loaded:
 Trust scores calculated:
 
     agents:
-      { pubkey#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
-      { pubkey#:d28, agent^:JohnDoe, ... }
+      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000 }
+      { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     tasks:
       { not-before^:20240317-..., action:load-nanopubs }
