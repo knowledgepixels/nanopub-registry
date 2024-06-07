@@ -107,7 +107,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     pubkey-declarations:
-      { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA... }
+      { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:core, status^:loaded }
+      { declaration^:RA..., type^:non-core, status^:to-load }
       ...
     setting:
       original: RA123...
@@ -224,6 +225,12 @@ Agent core info loaded:
       { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
       { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
+    trust-paths:
+      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
+      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
+      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
+      ...
     nanopubs:
       ...
       { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:59, pubkey^:a83, content:'@prefix ...' }
@@ -231,17 +238,11 @@ Agent core info loaded:
     tasks:
       { not-before^:20240317-..., action:calculate-trust-network }
 
-Trust network calculated:
+Trust scores calculated:
 
     agents:
       { pubkey#:a83, agent^:JohnDoe, ratio:0.1362, paths:3, independent-paths:3, quota:1362000 }
       { pubkey#:d28, agent^:JohnDoe, ... }
-      ...
-    trust-paths:
-      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
-      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
-      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
-      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     tasks:
       { not-before^:20240317-..., action:load-nanopubs }

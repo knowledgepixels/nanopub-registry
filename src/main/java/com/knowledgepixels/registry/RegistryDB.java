@@ -77,6 +77,8 @@ public class RegistryDB {
 		collection("pubkey-declarations").createIndex(ascending("pubkey"));
 		collection("pubkey-declarations").createIndex(ascending("declaration-pubkey"));
 		collection("pubkey-declarations").createIndex(ascending("declaration"));
+		collection("pubkey-declarations").createIndex(ascending("type"));
+		collection("pubkey-declarations").createIndex(ascending("status"));
 
 		collection("base-agents").createIndex(ascending("agent"));
 		collection("base-agents").createIndex(ascending("pubkey"));
