@@ -1,20 +1,31 @@
 # Notes
 
-- load intros of base agents:
-  - > agents
+- load base declarations:
+  - > pubkey-declarations
+    - { declaration^:RA..., type^:base, status^:to-load }
 - repeat:
-  - calculate trust paths:
-    - trust-edges > trust-paths
-  - determine newly accepted intros (stop if none)
-    - trust-paths > pubkey-declarations
   - load newly accepted declarations:
     - load intro:
-      - get agent-id/pubkeys
+      - get agent-id/pubkeys: JohnDoe/a83
     - load intro list nanopubs:
-      - > pubkey-declarations
+      - network.getIntroCount(a83) > introlimit: stop
+      - network.getIntros(a83) > pubkey-declarations
+        - { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loading }
     - load approval list nanopubs:
-      - > endorsements
+      - network.getEndorsementCount(a83) > endorselimit: stop
+      - network.getEndorsements(a83) > endorsements
+        - { agent^:JohnDoe, pubkey^:a83, endorsed-nanopub^:RA.. }
+      - get(endorsedNp) > trust-edges (if endorsed-nanopub is already found in DB)
+        - { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
     - load incoming edges:
       - endorsements > trust-edges
+        - { from-agent^:SueRich, from-pubkey^:b55, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
     - mark agent-id/pubkey as loaded:
       - > agents
+        - { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loaded }
+  - calculate trust paths:
+    - agents+trust-edges > trust-paths
+      - { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+  - determine newly accepted intros (stop if none)
+    - trust-paths > pubkey-declarations
+      - { declaration^:RA..., type^:regular, status^:to-load }
