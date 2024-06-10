@@ -23,7 +23,6 @@ import org.nanopub.NanopubImpl;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
 import org.nanopub.extra.security.KeyDeclaration;
-import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
@@ -111,7 +110,7 @@ public class TaskManager {
 		} else if (action.equals("load-agents")) {
 
 			try {
-				NanopubIndex agentIndex = IndexUtils.castToIndex(GetNanopub.get(param));
+				NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(param));
 				loadNanopub(agentIndex);
 				for (IRI el : agentIndex.getElements()) {
 					schedule(task("load-agent-intro").append("param", el.stringValue()));
@@ -126,7 +125,7 @@ public class TaskManager {
 
 		} else if (action.equals("load-agent-intro")) {
 
-			IntroNanopub agentIntro = new IntroNanopub(GetNanopub.get(param));
+			IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(param));
 			System.err.println(agentIntro.getUser());
 			loadNanopub(agentIntro.getNanopub());
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
@@ -140,10 +139,10 @@ public class TaskManager {
 		} else if (action.equals("load-all-core-info")) {
 
 			NanopubRetriever.retrieveNanopubs(Utils.INTRO_TYPE.stringValue(), null, npId -> {
-				loadNanopub(GetNanopub.get(npId));
+				loadNanopub(NanopubRetriever.retrieveNanopub(npId));
 			});
 			NanopubRetriever.retrieveNanopubs(Utils.APPROVAL_TYPE.stringValue(), null, npId -> {
-				loadNanopub(GetNanopub.get(npId));
+				loadNanopub(NanopubRetriever.retrieveNanopub(npId));
 			});
 
 		} else if (action.equals("load-agent-core-approvals")) {
@@ -155,7 +154,7 @@ public class TaskManager {
 
 			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(approvalType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
-				loadNanopub(GetNanopub.get(npId), approvalType, pubkeyHash);
+				loadNanopub(NanopubRetriever.retrieveNanopub(npId), approvalType, pubkeyHash);
 			});
 
 			schedule(task("run-test"));
@@ -169,7 +168,7 @@ public class TaskManager {
 
 			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
-				loadNanopub(GetNanopub.get(npId), introType, pubkeyHash);
+				loadNanopub(NanopubRetriever.retrieveNanopub(npId), introType, pubkeyHash);
 			});
 
 			schedule(task("load-agent-core-approvals").append("pubkey", task.getString("pubkey")));
@@ -181,7 +180,7 @@ public class TaskManager {
 
 			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(approvalType)).append("status", "loading"));
 			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
-				loadNanopub(GetNanopub.get(npId), approvalType, pubkeyHash);
+				loadNanopub(NanopubRetriever.retrieveNanopub(npId), approvalType, pubkeyHash);
 			});
 
 			schedule(task("run-test"));

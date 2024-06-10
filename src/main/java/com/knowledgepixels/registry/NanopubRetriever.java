@@ -9,6 +9,8 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.nanopub.Nanopub;
+import org.nanopub.extra.server.GetNanopub;
 
 public class NanopubRetriever {
 
@@ -40,6 +42,10 @@ public class NanopubRetriever {
 		} catch (IOException ex) {
 			ex.printStackTrace();
 		}
+	}
+
+	public static Nanopub retrieveNanopub(String nanopubId) {
+		return GetNanopub.get(nanopubId);
 	}
 
 }
