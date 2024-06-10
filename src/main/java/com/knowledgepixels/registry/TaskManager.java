@@ -2,10 +2,12 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.get;
+import static com.knowledgepixels.registry.RegistryDB.getOne;
+import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
+import static com.knowledgepixels.registry.RegistryDB.setOrInsert;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 
@@ -29,7 +31,6 @@ import org.nanopub.extra.setting.NanopubSetting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 
 public class TaskManager {
 
@@ -71,49 +72,49 @@ public class TaskManager {
 
 		if (action.equals("init-db")) {
 
-			set("server-info", "status", "launching");
+			setOrInsert("server-info", "status", "launching");
 			increateStateCounter();
 			if (RegistryDB.isInitialized()) error("DB already initialized");
-			set("server-info", "setup-id", Math.abs(new Random().nextLong()));
+			setOrInsert("server-info", "setup-id", Math.abs(new Random().nextLong()));
 			schedule(task("load-config"));
 
 		} else if (action.equals("load-config")) {
 
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
-				set("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
+				setOrInsert("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
 			}
 			if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
-				set("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
+				setOrInsert("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
-			set("server-info", "status", "initializing");
+			setOrInsert("server-info", "status", "initializing");
 			schedule(task("load-setting"));
 
 		} else if (action.equals("load-setting")) {
 
 			try {
 				NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
-				set("setting", "original", settingNp.getNanopub().getUri().stringValue());
-				set("setting", "current", settingNp.getNanopub().getUri().stringValue());
+				setOrInsert("setting", "original", settingNp.getNanopub().getUri().stringValue());
+				setOrInsert("setting", "current", settingNp.getNanopub().getUri().stringValue());
 				loadNanopub(settingNp.getNanopub());
 				List<BasicDBObject> bootstrapServices = new ArrayList<>();
 				for (IRI i : settingNp.getBootstrapServices()) {
 					bootstrapServices.add(new BasicDBObject("_id", i.stringValue()));
 				}
-				set("setting", "bootstrap-services", bootstrapServices);
-				set("server-info", "status", "loaded");
-				schedule(task("load-agents").append("param", settingNp.getAgentIntroCollection().stringValue()));
+				setOrInsert("setting", "bootstrap-services", bootstrapServices);
+				setOrInsert("server-info", "status", "loaded");
+				schedule(task("load-base-declarations").append("param", settingNp.getAgentIntroCollection().stringValue()));
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
 				ex.printStackTrace();
 				error(ex.getMessage());
 			}
 
-		} else if (action.equals("load-agents")) {
+		} else if (action.equals("load-base-declarations")) {
 
 			try {
 				NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(param));
 				loadNanopub(agentIndex);
 				for (IRI el : agentIndex.getElements()) {
-					schedule(task("load-agent-intro").append("param", el.stringValue()));
+					add("pubkey-declarations", new Document("declaration", el.stringValue()).append("type","base").append("status", "to-load"));
 				}
 
 			} catch (MalformedNanopubException ex) {
@@ -121,19 +122,24 @@ public class TaskManager {
 				error(ex.getMessage());
 			}
 
-			schedule(task("load-all-core-info"));
+			schedule(task("load-core"));
 
-		} else if (action.equals("load-agent-intro")) {
+		} else if (action.equals("load-core")) {
 
-			IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(param));
-			System.err.println(agentIntro.getUser());
-			loadNanopub(agentIntro.getNanopub());
-			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
-				String agentId = agentIntro.getUser().stringValue();
-				String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-				add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "base"));
-
-				//schedule(task("load-agent-core-intros").append("pubkey", pubkeyHash));
+			if (has("pubkey-declarations", new BasicDBObject("status", "to-load"))) {
+				String declarationId = getOne("pubkey-declarations", new BasicDBObject("status", "to-load")).getString("declaration");
+				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
+				System.err.println(agentIntro.getUser());
+				loadNanopub(agentIntro.getNanopub());
+				for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
+					String agentId = agentIntro.getUser().stringValue();
+					String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
+					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "base"));
+				}
+				set("pubkey-declarations", new BasicDBObject("declaration", declarationId), new BasicDBObject("status", "loaded"));
+				schedule(task("load-core"));
+			} else {
+				schedule(task("run-test"));
 			}
 
 		} else if (action.equals("load-all-core-info")) {
@@ -187,15 +193,16 @@ public class TaskManager {
 
 		} else if (action.equals("run-test")) {
 
-			MongoCursor<Document> cursor = get("nanopubs");
-			while (cursor.hasNext()) {
-				Document d = cursor.next();
-				if (RegistryDB.hasStrongInvalidation(d.getString("_id"), d.getString("pubkey"))) {
-					System.err.println("INVALID: " + d.getString("_id"));
-				} else {
-					System.err.println("VALID: " + d.getString("_id"));
-				}
-			}
+			System.err.println("EVERYTHING DONE");
+//			MongoCursor<Document> cursor = get("nanopubs");
+//			while (cursor.hasNext()) {
+//				Document d = cursor.next();
+//				if (RegistryDB.hasStrongInvalidation(d.getString("_id"), d.getString("pubkey"))) {
+//					System.err.println("INVALID: " + d.getString("_id"));
+//				} else {
+//					System.err.println("VALID: " + d.getString("_id"));
+//				}
+//			}
 
 		} else {
 
@@ -207,7 +214,7 @@ public class TaskManager {
 	}
 
 	private static void error(String message) {
-		set("server-info", "status", "hanging");
+		setOrInsert("server-info", "status", "hanging");
 		throw new RuntimeException(message);
 	}
 

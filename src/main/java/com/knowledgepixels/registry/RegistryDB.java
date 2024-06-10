@@ -149,7 +149,14 @@ public class RegistryDB {
 		return cursor.next();
 	}
 
-	public static void set(String collection, String elementId, Object value) {
+	public static void set(String collection, Bson find, Bson replace) {
+		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
+		if (cursor.hasNext()) {
+			collection(collection).updateOne(find, new BasicDBObject("$set", replace));
+		}
+	}
+
+	public static void setOrInsert(String collection, String elementId, Object value) {
 		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementId)).cursor();
 		if (cursor.hasNext()) {
 			collection(collection).updateOne(new BasicDBObject("_id", elementId), new BasicDBObject("$set", new BasicDBObject("value", value)));

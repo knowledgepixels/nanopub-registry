@@ -107,7 +107,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     pubkey-declarations:
-      { agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loaded }
+      { declaration^:RA..., type^:base, status^:loaded , agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83}
       { declaration^:RA..., type^:regular, status^:to-load }
       ...
     setting:
