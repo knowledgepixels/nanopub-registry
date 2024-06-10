@@ -152,6 +152,7 @@ public class TaskManager {
 				String pubkeyHash = d.getString("pubkey");
 				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded"));
 
+				// TODO check intro limit
 				String introType = Utils.INTRO_TYPE.stringValue();
 				Document introList = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading");
 				add("lists", introList);
@@ -160,6 +161,7 @@ public class TaskManager {
 				});
 				set("lists", introList, new BasicDBObject("status", "loaded"));
 
+				// TODO check endorsement limit
 				String endorseType = Utils.APPROVAL_TYPE.stringValue();
 				Document endorseList = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(endorseType)).append("status", "loading");
 				add("lists", endorseList);
