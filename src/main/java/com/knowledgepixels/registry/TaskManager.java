@@ -132,7 +132,6 @@ public class TaskManager {
 				String declarationId = d.getString("declaration");
 
 				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
-				System.err.println(agentIntro.getUser());
 				loadNanopub(agentIntro.getNanopub());
 				String agentId = agentIntro.getUser().stringValue();
 				for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {

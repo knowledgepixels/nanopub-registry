@@ -9,8 +9,18 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.bson.Document;
+import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 import org.nanopub.extra.server.GetNanopub;
+
+import com.mongodb.BasicDBObject;
+import com.mongodb.client.MongoCursor;
+
+import net.trustyuri.TrustyUriUtils;
 
 public class NanopubRetriever {
 
@@ -45,7 +55,24 @@ public class NanopubRetriever {
 	}
 
 	public static Nanopub retrieveNanopub(String nanopubId) {
-		return GetNanopub.get(nanopubId);
+		Nanopub np = retrieveLocalNanopub(nanopubId);
+		if (np == null) {
+			np = GetNanopub.get(nanopubId);
+			RegistryDB.loadNanopub(np);
+		}
+		return np;
+	}
+
+	public static Nanopub retrieveLocalNanopub(String nanopubId) {
+		String ac = TrustyUriUtils.getArtifactCode(nanopubId);
+		MongoCursor<Document> cursor = RegistryDB.get("nanopubs", new BasicDBObject("_id", ac));
+		if (!cursor.hasNext()) return null;
+		try {
+			return new NanopubImpl(cursor.next().getString("content"), RDFFormat.TRIG);
+		} catch (RDF4JException | MalformedNanopubException ex) {
+			ex.printStackTrace();
+			return null;
+		}
 	}
 
 }
