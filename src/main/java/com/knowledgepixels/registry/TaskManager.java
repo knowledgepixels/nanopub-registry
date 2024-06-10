@@ -136,7 +136,8 @@ public class TaskManager {
 				String agentId = agentIntro.getUser().stringValue();
 				for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 					String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "base"));
+					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
+							.append("type", "base").append("status", "loading"));
 					add("pubkey-declarations", new Document("declaration", declarationId)
 							.append("type", d.get("type")).append("status", "to-load")
 							.append("agent", agentId).append("pubkey", pubkeyHash));
@@ -149,6 +150,7 @@ public class TaskManager {
 			} else if (has("pubkey-declarations", new BasicDBObject("status", "to-load"))) {
 
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-load"));
+				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded"));
 
@@ -169,6 +171,10 @@ public class TaskManager {
 					loadNanopub(NanopubRetriever.retrieveNanopub(npId), endorseType, pubkeyHash);
 				});
 				set("lists", endorseList, new BasicDBObject("status", "loaded"));
+
+				// TODO load incoming edges
+
+				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "loaded"));
 
 				schedule(task("load-core"));
 
