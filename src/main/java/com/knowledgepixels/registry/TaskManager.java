@@ -131,7 +131,7 @@ public class TaskManager {
 			for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 				String agentId = agentIntro.getUser().stringValue();
 				String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-				add("base-agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "base"));
+				add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "base"));
 
 				//schedule(task("load-agent-core-intros").append("pubkey", pubkeyHash));
 			}

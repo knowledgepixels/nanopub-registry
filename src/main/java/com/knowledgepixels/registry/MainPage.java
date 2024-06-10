@@ -56,7 +56,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Base Agents:</p>");
 			println("<ul>");
-			MongoCursor<Document> baseAgents = get("base-agents", new BasicDBObject("type", "base"));
+			MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
 			while (baseAgents.hasNext()) {
 				Document d = baseAgents.next();
 				println("<li>" + d.get("agent") + " - " + d.get("pubkey") + "</li>");
