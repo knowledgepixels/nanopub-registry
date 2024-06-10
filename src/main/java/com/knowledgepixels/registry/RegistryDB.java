@@ -80,6 +80,10 @@ public class RegistryDB {
 		collection("pubkey-declarations").createIndex(ascending("type"));
 		collection("pubkey-declarations").createIndex(ascending("status"));
 
+		collection("endorsements").createIndex(ascending("agent"));
+		collection("endorsements").createIndex(ascending("pubkey"));
+		collection("endorsements").createIndex(ascending("endorsed-nanopub"));
+
 		collection("agents").createIndex(ascending("agent"));
 		collection("agents").createIndex(ascending("pubkey"));
 		collection("agents").createIndex(ascending("agent", "pubkey"), unique);
@@ -242,19 +246,25 @@ public class RegistryDB {
 					String objStr = st.getObject().stringValue();
 					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
 					String objAc = TrustyUriUtils.getArtifactCode(objStr);
-					MongoCursor<Document> c = get("pubkey-declarations", new BasicDBObject("declaration", objAc));
-					if (!c.hasNext()) System.err.println("NOT FOUND: " + objAc);
-					// TODO: deal with case when declaration isn't loaded yet
-					while (c.hasNext()) {
-						Document d = c.next();
-						collection("trust-edges").insertOne(
-								new Document("from-agent", st.getSubject().stringValue())
-									.append("from-pubkey", ph)
-									.append("to-agent", d.getString("agent"))
-									.append("to-pubkey", d.getString("pubkey"))
-									.append("source", ac)
-							);
-					}
+					collection("endorsements").insertOne(
+							new Document("agent", st.getSubject().stringValue())
+								.append("pubkey", ph)
+								.append("endorsed-nanopub", objAc)
+						);
+					
+//					MongoCursor<Document> c = get("pubkey-declarations", new BasicDBObject("declaration", objAc));
+//					if (!c.hasNext()) System.err.println("NOT FOUND: " + objAc);
+//					// TODO: deal with case when declaration isn't loaded yet
+//					while (c.hasNext()) {
+//						Document d = c.next();
+//						collection("trust-edges").insertOne(
+//								new Document("from-agent", st.getSubject().stringValue())
+//									.append("from-pubkey", ph)
+//									.append("to-agent", d.getString("agent"))
+//									.append("to-pubkey", d.getString("pubkey"))
+//									.append("source", ac)
+//							);
+//					}
 				}
 			}
 		}

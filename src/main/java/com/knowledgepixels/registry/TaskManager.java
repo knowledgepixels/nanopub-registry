@@ -151,36 +151,30 @@ public class TaskManager {
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-load"));
 				String pubkeyHash = d.getString("pubkey");
 				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded"));
-				schedule(task("load-core"));
 
 				String introType = Utils.INTRO_TYPE.stringValue();
-
-				Document ld = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading");
-				add("lists", ld);
+				Document introList = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading");
+				add("lists", introList);
 				NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
 					loadNanopub(NanopubRetriever.retrieveNanopub(npId), introType, pubkeyHash);
 				});
-				set("lists", ld, new BasicDBObject("status", "loaded"));
+				set("lists", introList, new BasicDBObject("status", "loaded"));
+
+				String endorseType = Utils.APPROVAL_TYPE.stringValue();
+				Document endorseList = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(endorseType)).append("status", "loading");
+				add("lists", endorseList);
+				NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, npId -> {
+					loadNanopub(NanopubRetriever.retrieveNanopub(npId), endorseType, pubkeyHash);
+				});
+				set("lists", endorseList, new BasicDBObject("status", "loaded"));
+
+				schedule(task("load-core"));
 
 			} else {
 
 				schedule(task("run-test"));
 
 			}
-
-		} else if (action.equals("load-agent-core-approvals")) {
-
-			// currently deactivated
-
-			String pubkeyHash = task.getString("pubkey");
-			String approvalType = Utils.APPROVAL_TYPE.stringValue();
-
-			add("lists", new Document("pubkey", pubkeyHash).append("type", Utils.getHash(approvalType)).append("status", "loading"));
-			NanopubRetriever.retrieveNanopubs(approvalType, pubkeyHash, npId -> {
-				loadNanopub(NanopubRetriever.retrieveNanopub(npId), approvalType, pubkeyHash);
-			});
-
-			schedule(task("run-test"));
 
 		} else if (action.equals("run-test")) {
 
