@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
 import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
@@ -31,6 +32,9 @@ import org.nanopub.extra.setting.NanopubSetting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+
+import net.trustyuri.TrustyUriUtils;
 
 public class TaskManager {
 
@@ -114,7 +118,8 @@ public class TaskManager {
 				NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(param));
 				loadNanopub(agentIndex);
 				for (IRI el : agentIndex.getElements()) {
-					add("pubkey-declarations", new Document("declaration", el.stringValue()).append("type","base").append("status", "to-try"));
+					String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
+					add("pubkey-declarations", new Document("declaration", declarationAc).append("type","base").append("status", "to-try"));
 				}
 
 			} catch (MalformedNanopubException ex) {
@@ -172,7 +177,13 @@ public class TaskManager {
 				});
 				set("lists", endorseList, new BasicDBObject("status", "loaded"));
 
-				// TODO load incoming edges
+				MongoCursor<Document> incomingEndorsements = get("endorsements", new BasicDBObject("endorsed-nanopub", d.getString("declaration")));
+				while (incomingEndorsements.hasNext()) {
+					Document i = incomingEndorsements.next();
+					String endorsingAgentId = i.getString("agent");
+					String endorsingPubkeyHash = i.getString("pubkey");
+					RegistryDB.loadIncomingEndorsements(endorsingAgentId, endorsingPubkeyHash, d.getString("declaration"), i.getString("source"));
+				}
 
 				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "loaded"));
 

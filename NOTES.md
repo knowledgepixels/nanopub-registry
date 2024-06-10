@@ -23,7 +23,7 @@
           - `{ from-agent^:SueRich, from-pubkey^:b55, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }`
       - mark agent-id/pubkey as loaded:
         - -> agents
-          - `{ agent**:JohnDoe, pubkey**:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loaded }`
+          - `{ agent**:JohnDoe, pubkey**:a83, type^:base, status^:loaded }`
     - calculate trust paths:
       - agents+trust-edges -> trust-paths
         - `{ id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`

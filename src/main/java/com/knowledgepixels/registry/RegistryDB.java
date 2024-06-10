@@ -27,6 +27,7 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.UpdateOptions;
 
 import net.trustyuri.TrustyUriUtils;
 
@@ -188,6 +189,10 @@ public class RegistryDB {
 		return null;
 	}
 
+	public static void upsert(String collection, Bson find, Bson update) {
+		collection(collection).updateOne(find, new BasicDBObject("$set", update), new UpdateOptions().upsert(true));
+	}
+
 	public static void loadNanopub(Nanopub nanopub) {
 		loadNanopub(nanopub, null, null);
 	}
@@ -232,12 +237,11 @@ public class RegistryDB {
 					if (kd.getDeclarers().size() != 1) {
 						System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
 					}
+					String agentId = kd.getDeclarers().iterator().next().stringValue();
 					String pubkeyhash = Utils.getHash(kd.getPublicKeyString());
-					collection("pubkey-declarations").insertOne(
-							new Document("agent", kd.getDeclarers().iterator().next().stringValue())
-								.append("pubkey", pubkeyhash)
-								.append("declaration-pubkey", ph)
-								.append("declaration", ac)
+					upsert("pubkey-declarations",
+							new BasicDBObject("agent", agentId).append("pubkey", pubkeyhash).append("declaration", ac),
+							new BasicDBObject("declaration-pubkey", ph)
 						);
 				}
 			}
@@ -247,47 +251,16 @@ public class RegistryDB {
 					if (!(st.getObject() instanceof IRI)) continue;
 					String objStr = st.getObject().stringValue();
 					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-					String endorsedId = TrustyUriUtils.getArtifactCode(objStr);
+					String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+					String agentId = st.getSubject().stringValue();
 					collection("endorsements").insertOne(
-							new Document("agent", st.getSubject().stringValue())
+							new Document("agent", agentId)
 								.append("pubkey", ph)
-								.append("endorsed-nanopub", endorsedId)
+								.append("endorsed-nanopub", endorsedNpId)
 								.append("source", ac)
 						);
 
-					Nanopub endorsedNp = NanopubRetriever.retrieveLocalNanopub(endorsedId);
-					if (endorsedNp != null) {
-						// TODO Handle case when nanopub is not a proper intro
-						IntroNanopub endorsedIntro = new IntroNanopub(endorsedNp);
-						for (KeyDeclaration kd : endorsedIntro.getKeyDeclarations()) {
-							if (kd.getDeclarers().size() != 1) {
-								System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
-							}
-							String endorsedAgentId = kd.getDeclarers().iterator().next().stringValue();
-							String endorsedPubkeyHash = Utils.getHash(kd.getPublicKeyString());
-							collection("trust-edges").insertOne(
-								new Document("from-agent", st.getSubject().stringValue())
-									.append("from-pubkey", ph)
-									.append("to-agent", endorsedAgentId)
-									.append("to-pubkey", endorsedPubkeyHash)
-									.append("source", ac)
-								);
-						}
-					}
-
-//					MongoCursor<Document> c = get("pubkey-declarations", new BasicDBObject("declaration", objAc));
-//					if (!c.hasNext()) System.err.println("NOT FOUND: " + objAc);
-//					// TODO: deal with case when declaration isn't loaded yet
-//					while (c.hasNext()) {
-//						Document d = c.next();
-//						collection("trust-edges").insertOne(
-//								new Document("from-agent", st.getSubject().stringValue())
-//									.append("from-pubkey", ph)
-//									.append("to-agent", d.getString("agent"))
-//									.append("to-pubkey", d.getString("pubkey"))
-//									.append("source", ac)
-//							);
-//					}
+					loadIncomingEndorsements(st.getSubject().stringValue(), ph, endorsedNpId, ac);
 				}
 			}
 		}
@@ -319,6 +292,28 @@ public class RegistryDB {
 			}
 		}
 
+	}
+
+	public static void loadIncomingEndorsements(String endorsingAgentId, String endorsingPubkeyHash, String endorsedNpId, String endorsementNpId) {
+		Nanopub endorsedNp = NanopubRetriever.retrieveLocalNanopub(endorsedNpId);
+		if (endorsedNp != null) {
+			// TODO Handle case when nanopub is not a proper intro
+			IntroNanopub endorsedIntro = new IntroNanopub(endorsedNp);
+			for (KeyDeclaration kd : endorsedIntro.getKeyDeclarations()) {
+				if (kd.getDeclarers().size() != 1) {
+					System.err.println("Ignoring intro with invalid number of declarers: " + endorsedNpId);
+				}
+				String endorsedAgentId = kd.getDeclarers().iterator().next().stringValue();
+				String endorsedPubkeyHash = Utils.getHash(kd.getPublicKeyString());
+				collection("trust-edges").insertOne(
+					new Document("from-agent", endorsingAgentId)
+						.append("from-pubkey", endorsingPubkeyHash)
+						.append("to-agent", endorsedAgentId)
+						.append("to-pubkey", endorsedPubkeyHash)
+						.append("source", endorsementNpId)
+					);
+			}
+		}
 	}
 
 	private static String getPubkey(Nanopub nanopub) {
