@@ -83,6 +83,7 @@ public class RegistryDB {
 		collection("endorsements").createIndex(ascending("agent"));
 		collection("endorsements").createIndex(ascending("pubkey"));
 		collection("endorsements").createIndex(ascending("endorsed-nanopub"));
+		collection("endorsements").createIndex(ascending("source"));
 
 		collection("agents").createIndex(ascending("agent"));
 		collection("agents").createIndex(ascending("pubkey"));
@@ -231,9 +232,10 @@ public class RegistryDB {
 					if (kd.getDeclarers().size() != 1) {
 						System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
 					}
+					String pubkeyhash = Utils.getHash(kd.getPublicKeyString());
 					collection("pubkey-declarations").insertOne(
 							new Document("agent", kd.getDeclarers().iterator().next().stringValue())
-								.append("pubkey", kd.getPublicKeyString())
+								.append("pubkey", pubkeyhash)
 								.append("declaration-pubkey", ph)
 								.append("declaration", ac)
 						);
@@ -245,13 +247,34 @@ public class RegistryDB {
 					if (!(st.getObject() instanceof IRI)) continue;
 					String objStr = st.getObject().stringValue();
 					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-					String objAc = TrustyUriUtils.getArtifactCode(objStr);
+					String endorsedId = TrustyUriUtils.getArtifactCode(objStr);
 					collection("endorsements").insertOne(
 							new Document("agent", st.getSubject().stringValue())
 								.append("pubkey", ph)
-								.append("endorsed-nanopub", objAc)
+								.append("endorsed-nanopub", endorsedId)
+								.append("source", ac)
 						);
-					
+
+					Nanopub endorsedNp = NanopubRetriever.retrieveLocalNanopub(endorsedId);
+					if (endorsedNp != null) {
+						// TODO Handle case when nanopub is not a proper intro
+						IntroNanopub endorsedIntro = new IntroNanopub(endorsedNp);
+						for (KeyDeclaration kd : endorsedIntro.getKeyDeclarations()) {
+							if (kd.getDeclarers().size() != 1) {
+								System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
+							}
+							String endorsedAgentId = kd.getDeclarers().iterator().next().stringValue();
+							String endorsedPubkeyHash = Utils.getHash(kd.getPublicKeyString());
+							collection("trust-edges").insertOne(
+								new Document("from-agent", st.getSubject().stringValue())
+									.append("from-pubkey", ph)
+									.append("to-agent", endorsedAgentId)
+									.append("to-pubkey", endorsedPubkeyHash)
+									.append("source", ac)
+								);
+						}
+					}
+
 //					MongoCursor<Document> c = get("pubkey-declarations", new BasicDBObject("declaration", objAc));
 //					if (!c.hasNext()) System.err.println("NOT FOUND: " + objAc);
 //					// TODO: deal with case when declaration isn't loaded yet
