@@ -21,7 +21,6 @@ import org.nanopub.extra.security.SignatureUtils;
 import org.nanopub.extra.setting.IntroNanopub;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.InsertOptions;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -301,6 +300,7 @@ public class RegistryDB {
 							.append("position", position)
 							.append("np", ac)
 							.append("checksum", checksum)
+							.append("invalidated", false)
 					);
 			}
 
@@ -334,7 +334,8 @@ public class RegistryDB {
 						.append("from-pubkey", endorsingPubkeyHash)
 						.append("to-agent", endorsedAgentId)
 						.append("to-pubkey", endorsedPubkeyHash)
-						.append("source", endorsementNpId);
+						.append("source", endorsementNpId)
+						.append("invalidated", false);
 				collection("trust-edges").updateOne(o, new BasicDBObject("$set", o), new UpdateOptions().upsert(true));
 			}
 		}
