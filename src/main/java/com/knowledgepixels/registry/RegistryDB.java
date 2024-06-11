@@ -229,7 +229,12 @@ public class RegistryDB {
 							.append("invalidating-pubkey", ph)
 							.append("invalidated-np", invalidatedAc)
 					);
+				collection("list-entries").updateMany(
+						new BasicDBObject("np", invalidatedAc).append("pubkey", ph),
+						new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+					);
 			}
+
 			final Set<IRI> types = NanopubUtils.getTypes(nanopub);
 			if (types.contains(Utils.INTRO_TYPE)) {
 				IntroNanopub introNp = new IntroNanopub(nanopub);
@@ -290,6 +295,14 @@ public class RegistryDB {
 							.append("checksum", checksum)
 					);
 			}
+
+		}
+
+		if (has("invalidations", new BasicDBObject("invalidated-np", ac).append("invalidating-pubkey", ph))) {
+			collection("list-entries").updateMany(
+					new BasicDBObject("np", ac).append("pubkey", ph),
+					new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+				);
 		}
 
 	}
