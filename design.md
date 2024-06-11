@@ -147,7 +147,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 ## Process
 
-Database initialized:
+### Database initialized:
 
     server-info:
       setup-id: 1332309348
@@ -156,7 +156,7 @@ Database initialized:
     tasks:
       { not-before^:20240317-..., action:load-config }
 
-Config loaded:
+### Config loaded:
 
     server-info:
       ...
@@ -172,7 +172,7 @@ Config loaded:
     tasks:
       { not-before^:20240317-..., action:load-setting }
 
-Setting loaded:
+### Setting loaded:
 
     pubkeys:
       { id#:a83, full-pubkey:4e8d9x... }
@@ -197,7 +197,40 @@ Setting loaded:
       ...
       { not-before^:20240317-..., action:load-core-info }
 
-Agent core info loaded:
+### Loading agent core info:
+
+- load base declarations:
+  - -> pubkey-declarations
+    - `{ declaration^:RA..., type^:base, status^:to-load }`
+- repeat:
+  - load newly accepted declarations:
+    - load intro:
+      - get agent-id/pubkeys
+    - repeat for each pubkey:
+      - load intro list nanopubs:
+        - `network.getIntroCount(a83) > introlimit`: stop
+        - `network.getIntros(a83)` -> pubkey-declarations
+          - `{ agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loading }`
+      - load approval list nanopubs:
+        - `network.getEndorsementCount(a83) > endorselimit`: stop
+        - `network.getEndorsements(a83)` -> endorsements
+          - `{ agent^:JohnDoe, pubkey^:a83, endorsed-nanopub^:RA.. }`
+        - `get(endorsedNp)` -> trust-edges (if endorsed-nanopub is already found in DB)
+          - `{ from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }`
+      - load incoming edges:
+        - endorsements -> trust-edges
+          - `{ from-agent^:SueRich, from-pubkey^:b55, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }`
+      - mark agent-id/pubkey as loaded:
+        - -> agents
+          - `{ agent**:JohnDoe, pubkey**:a83, type^:base, status^:loaded }`
+    - calculate trust paths:
+      - agents+trust-edges -> trust-paths
+        - `{ id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`
+    - determine newly accepted intros (stop if none)
+      - trust-paths -> pubkey-declarations
+        - `{ declaration^:RA..., type^:regular, status^:to-load }`
+
+### Agent core info loaded:
 
     server-info:
       ...
@@ -237,7 +270,7 @@ Agent core info loaded:
     tasks:
       { not-before^:20240317-..., action:calculate-trust-network }
 
-Trust scores calculated:
+### Trust scores calculated:
 
     agents:
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000 }
