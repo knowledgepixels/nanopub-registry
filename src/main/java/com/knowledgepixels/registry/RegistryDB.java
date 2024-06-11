@@ -21,6 +21,7 @@ import org.nanopub.extra.security.SignatureUtils;
 import org.nanopub.extra.setting.IntroNanopub;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.InsertOptions;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -68,6 +69,7 @@ public class RegistryDB {
 		collection("list-entries").createIndex(ascending("pubkey", "type", "np"), unique);
 		collection("list-entries").createIndex(compoundIndex(Indexes.ascending("pubkey"), ascending("type"), descending("position")), unique);
 		collection("list-entries").createIndex(ascending("pubkey", "type", "checksum"), unique);
+		collection("list-entries").createIndex(ascending("invalidated"));
 
 		collection("invalidations").createIndex(ascending("invalidating-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey"));
@@ -96,9 +98,11 @@ public class RegistryDB {
 		collection("trust-edges").createIndex(ascending("to-agent"));
 		collection("trust-edges").createIndex(ascending("to-pubkey"));
 		collection("trust-edges").createIndex(ascending("source"));
+		collection("trust-edges").createIndex(ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
+		collection("trust-edges").createIndex(ascending("invalidated"));
 
 		collection("trust-paths").createIndex(ascending("agent", "pubkey"));
-		collection("trust-edges").createIndex(ascending("source"));
+		collection("trust-paths").createIndex(ascending("source"));
 	}
 
 	public static boolean isInitialized() {
@@ -233,6 +237,10 @@ public class RegistryDB {
 						new BasicDBObject("np", invalidatedAc).append("pubkey", ph),
 						new BasicDBObject("$set", new BasicDBObject("invalidated", true))
 					);
+				collection("trust-edges").updateMany(
+						new BasicDBObject("source", invalidatedAc),
+						new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+					);
 			}
 
 			final Set<IRI> types = NanopubUtils.getTypes(nanopub);
@@ -303,6 +311,10 @@ public class RegistryDB {
 					new BasicDBObject("np", ac).append("pubkey", ph),
 					new BasicDBObject("$set", new BasicDBObject("invalidated", true))
 				);
+			collection("trust-edges").updateMany(
+					new BasicDBObject("source", ac),
+					new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+				);
 		}
 
 	}
@@ -318,13 +330,12 @@ public class RegistryDB {
 				}
 				String endorsedAgentId = kd.getDeclarers().iterator().next().stringValue();
 				String endorsedPubkeyHash = Utils.getHash(kd.getPublicKeyString());
-				collection("trust-edges").insertOne(
-					new Document("from-agent", endorsingAgentId)
+				BasicDBObject o = new BasicDBObject("from-agent", endorsingAgentId)
 						.append("from-pubkey", endorsingPubkeyHash)
 						.append("to-agent", endorsedAgentId)
 						.append("to-pubkey", endorsedPubkeyHash)
-						.append("source", endorsementNpId)
-					);
+						.append("source", endorsementNpId);
+				collection("trust-edges").updateOne(o, new BasicDBObject("$set", o), new UpdateOptions().upsert(true));
 			}
 		}
 	}
