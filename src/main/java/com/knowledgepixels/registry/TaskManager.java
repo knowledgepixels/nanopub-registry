@@ -240,6 +240,7 @@ public class TaskManager {
 					String agentId = d.getString("agent");
 					String pubkeyHash = d.getString("pubkey");
 
+					// TODO Consider also maximum ratio?
 					Document trustPath = collection("trust-paths").find(
 							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth-1)
 						).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
