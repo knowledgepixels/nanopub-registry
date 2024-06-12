@@ -105,8 +105,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
     pubkey-declarations:
-      { declaration^:RA..., type^:base, status^:loaded , agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83}
-      { declaration^:RA..., type^:regular, status^:to-load }
+      { declaration^:RA..., status^:loaded , agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83}
+      { declaration^:RA..., status^:to-load }
       ...
     endorsements:
       { agent^:JohnDoe, pubkey^:a83, endorsed-nanopub^:RA..., source^:RA... }
@@ -149,7 +149,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 - Declaration endorsed
   - `endorsements: { agent^:..., pubkey^:..., endorsed-nanopub^:RAxyz..., source^:... }`
 - Declaration marked "to retrieve"
-  - `pubkey-declarations: { declaration^:RAxyz..., type^:regular, status^:to-retrieve }`
+  - `pubkey-declarations: { declaration^:RAxyz..., status^:to-retrieve }`
 - Agent info retrieved
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:found }`
 - Agent core marked as "to load"
@@ -224,7 +224,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 - load base declarations:
   - -> pubkey-declarations
-    - `{ declaration^:RA..., type^:base, status^:to-retrieve }`
+    - `{ declaration^:RA..., status^:to-retrieve }`
 - repeat:
   - load newly accepted declarations:
     - load intro:
@@ -233,7 +233,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       - load intro list nanopubs:
         - `network.getIntroCount(a83) > introlimit`: stop
         - `network.getIntros(a83)` -> pubkey-declarations
-          - `{ agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., type^:base, status^:loading }`
+          - `{ agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., status^:loading }`
       - load approval list nanopubs:
         - `network.getEndorsementCount(a83) > endorselimit`: stop
         - `network.getEndorsements(a83)` -> endorsements
@@ -250,8 +250,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       - agents+trust-edges -> trust-paths
         - `{ id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`
     - determine newly accepted intros (stop if none)
-      - trust-paths -> pubkey-declarations
-        - `{ declaration^:RA..., type^:regular, status^:to-retrieve }`
+      - trust-paths+endorsements -> pubkey-declarations
+        - `{ declaration^:RA..., status^:to-try }`
 
 ### Agent core info loaded:
 

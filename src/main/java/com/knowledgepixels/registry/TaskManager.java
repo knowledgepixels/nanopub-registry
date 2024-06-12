@@ -127,33 +127,44 @@ public class TaskManager {
 				error(ex.getMessage());
 			}
 
-			schedule(task("load-core"));
+			schedule(task("load-core").append("depth", 0));
 
 		} else if (action.equals("load-core")) {
 
+			int depth = task.getInteger("depth");
+
 			if (has("pubkey-declarations", new BasicDBObject("status", "to-try"))) {
+				System.err.println("load-core 1");
 
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-try"));
 				String declarationId = d.getString("declaration");
 
 				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
+				System.err.println("Load: " + declarationId);
 				loadNanopub(agentIntro.getNanopub());
-				String agentId = agentIntro.getUser().stringValue();
-				for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
-					String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
-							.append("type", "base").append("status", "loading"));
-					add("pubkey-declarations", new Document("declaration", declarationId)
-							.append("type", d.get("type")).append("status", "to-retrieve")
-							.append("agent", agentId).append("pubkey", pubkeyHash));
+				if (agentIntro.getUser() != null) {
+					// TODO Why/when is user null?
+					String agentId = agentIntro.getUser().stringValue();
+					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
+						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
+						if (!has("agents", new Document("agent", agentId).append("pubkey", pubkeyHash))) {
+							add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
+									.append("type", "base").append("status", "loading"));
+						}
+						add("pubkey-declarations", new Document("declaration", declarationId).append("status", "to-retrieve")
+								.append("agent", agentId).append("pubkey", pubkeyHash));
+					}
+
+					set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded")
+							.append("agent", agentId).append("pubkey", "*"));
+				} else {
+					set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "discarded"));
 				}
 
-				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded")
-						.append("agent", agentId).append("pubkey", "*"));
-
-				schedule(task("load-core"));
+				schedule(task("load-core").append("depth", depth));
 
 			} else if (has("pubkey-declarations", new BasicDBObject("status", "to-retrieve"))) {
+				System.err.println("load-core 2");
 
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-retrieve"));
 				String agentId = d.getString("agent");
@@ -170,9 +181,10 @@ public class TaskManager {
 				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "retrieved"));
 				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-to-load"));
 
-				schedule(task("load-core"));
+				schedule(task("load-core").append("depth", depth));
 
 			} else if (has("agents", new BasicDBObject("status", "core-to-load"))) {
+				System.err.println("load-core 3");
 
 				Document d = getOne("agents", new BasicDBObject("status", "core-to-load"));
 				String agentId = d.getString("agent");
@@ -180,35 +192,43 @@ public class TaskManager {
 
 				// TODO check intro limit
 				String introType = Utils.INTRO_TYPE.stringValue();
-				Document introList = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(introType)).append("status", "loading");
-				add("lists", introList);
-				NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
-					loadNanopub(NanopubRetriever.retrieveNanopub(npId), introType, pubkeyHash);
-				});
-				set("lists", introList, new BasicDBObject("status", "loaded"));
+				String introTypeHash = Utils.getHash(introType);
+				if (!has("lists", new BasicDBObject("pubkey", pubkeyHash).append("type", introTypeHash))) {
+					// TODO Why/when is list already loaded?
+					Document introList = new Document("pubkey", pubkeyHash).append("type", introTypeHash).append("status", "loading");
+					add("lists", introList);
+					NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
+						loadNanopub(NanopubRetriever.retrieveNanopub(npId), introType, pubkeyHash);
+					});
+					set("lists", introList, new BasicDBObject("status", "loaded"));
+				}
 
 				// TODO check endorsement limit
 				String endorseType = Utils.APPROVAL_TYPE.stringValue();
-				Document endorseList = new Document("pubkey", pubkeyHash).append("type", Utils.getHash(endorseType)).append("status", "loading");
-				add("lists", endorseList);
-				NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, npId -> {
-					loadNanopub(NanopubRetriever.retrieveNanopub(npId), endorseType, pubkeyHash);
-				});
-				set("lists", endorseList, new BasicDBObject("status", "loaded"));
+				String endorseTypeHash = Utils.getHash(endorseType);
+				if (!has("lists", new BasicDBObject("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
+					Document endorseList = new Document("pubkey", pubkeyHash).append("type", endorseTypeHash).append("status", "loading");
+					add("lists", endorseList);
+					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, npId -> {
+						loadNanopub(NanopubRetriever.retrieveNanopub(npId), endorseType, pubkeyHash);
+					});
+					set("lists", endorseList, new BasicDBObject("status", "loaded"));
+				}
 
 				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-loaded"));
 
-				schedule(task("load-core"));
+				schedule(task("load-core").append("depth", depth));
 
 			} else {
 
-				schedule(task("calculate-trust-paths").append("depth", 0));
+				schedule(task("calculate-trust-paths").append("depth", depth));
 
 			}
 
 		} else if (action.equals("calculate-trust-paths")) {
 
 			int depth = task.getInteger("depth");
+			System.err.println("DEPTH " + depth);
 			String currentSetting = get("setting", "current").toString();
 
 			if (depth == 0) {
@@ -248,6 +268,7 @@ public class TaskManager {
 					if (trustPath != null) {
 						BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
 						MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
+						// TODO Count only unique:
 						long count = collection("trust-edges").countDocuments(findTerm);
 						while (edgeCursor.hasNext()) {
 							Document edgeDoc = edgeCursor.next();
@@ -256,8 +277,11 @@ public class TaskManager {
 							String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
 							String sortHash = Utils.getHash(currentSetting + " " + pathId);
 							double parentRatio = trustPath.getDouble("ratio");
-							add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
-									.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", parentRatio / count));
+							if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
+								// TODO has-check shouldn't be necessary if duplicates are removed above?
+								add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+										.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
+							}
 						}
 					}
 
@@ -270,7 +294,25 @@ public class TaskManager {
 
 		} else if (action.equals("load-more-declarations"))  {
 
-			schedule(task("run-test"));
+			int depth = task.getInteger("depth");
+
+			MongoCursor<Document> trustPathCursor = get("trust-paths", new BasicDBObject("depth", depth));
+			while (trustPathCursor.hasNext()) {
+				Document trustPathDoc = trustPathCursor.next();
+				String agentId = trustPathDoc.getString("agent");
+				String pubkeyHash = trustPathDoc.getString("pubkey");
+				MongoCursor<Document> endorsementCursor = get("endorsements", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash));
+				while (endorsementCursor.hasNext()) {
+					Document endorsementDoc = endorsementCursor.next();
+					String endorsedNanopubAc = endorsementDoc.getString("endorsed-nanopub");
+					// TODO Make this dependent on ratio
+					if (!has("pubkey-declarations", new BasicDBObject("declaration", endorsedNanopubAc))) {
+						add("pubkey-declarations", new Document("declaration", endorsedNanopubAc).append("status", "to-try"));
+					}
+				}
+			}
+
+			schedule(task("load-core").append("depth", depth));
 
 		} else if (action.equals("run-test")) {
 

@@ -79,7 +79,6 @@ public class RegistryDB {
 		collection("pubkey-declarations").createIndex(ascending("pubkey"));
 		collection("pubkey-declarations").createIndex(ascending("declaration-pubkey"));
 		collection("pubkey-declarations").createIndex(ascending("declaration"));
-		collection("pubkey-declarations").createIndex(ascending("type"));
 		collection("pubkey-declarations").createIndex(ascending("status"));
 
 		collection("endorsements").createIndex(ascending("agent"));
@@ -102,7 +101,8 @@ public class RegistryDB {
 		collection("trust-edges").createIndex(ascending("invalidated"));
 
 		collection("trust-paths").createIndex(ascending("agent", "pubkey", "depth", "sorthash"), unique);
-		collection("trust-paths").createIndex(ascending("source"));
+		collection("trust-edges").createIndex(ascending("depth"));
+		collection("trust-paths").createIndex(descending("ratio"));
 	}
 
 	public static boolean isInitialized() {
