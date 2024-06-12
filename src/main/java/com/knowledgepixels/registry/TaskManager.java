@@ -139,11 +139,9 @@ public class TaskManager {
 				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
 				loadNanopub(agentIntro.getNanopub());
 				String agentId = agentIntro.getUser().stringValue();
-				String currentSetting = get("setting", "current").toString();
 				for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 					String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-					String sortHash = Utils.getHash(currentSetting + " " + agentId + " " + pubkeyHash);
-					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("sorthash", sortHash)
+					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
 							.append("type", "base").append("status", "loading"));
 					add("pubkey-declarations", new Document("declaration", declarationId)
 							.append("type", d.get("type")).append("status", "to-retrieve")
@@ -202,9 +200,18 @@ public class TaskManager {
 
 				schedule(task("load-core"));
 
-			} else if (!collection("trust-paths").find().cursor().hasNext()) {
+			} else {
 
-				// Collection 'trust-paths' is empty
+				schedule(task("calculate-trust-paths").append("depth", 0));
+
+			}
+
+		} else if (action.equals("calculate-trust-paths")) {
+
+			int depth = task.getInteger("depth");
+			String currentSetting = get("setting", "current").toString();
+
+			if (depth == 0) {
 
 				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
 				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
@@ -212,13 +219,57 @@ public class TaskManager {
 					Document d = baseAgents.next();
 					String agentId = d.getString("agent");
 					String pubkeyHash = d.getString("pubkey");
-					add("trust-paths", new Document("_id", agentId + ">" + pubkeyHash)
-							.append("agent", agentId).append("pubkey", pubkeyHash).append("ratio", 1.0d / count));
+					String pathId = agentId + ">" + pubkeyHash;
+					String sortHash = Utils.getHash(currentSetting + " " + pathId);
+					add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+							.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
 				}
 
-				schedule(task("run-test"));
+				schedule(task("load-more-declarations").append("depth", 1));
+	
+			} else {
+
+				Document d = collection("agents").find(new BasicDBObject("status", "core-loaded")).cursor().tryNext();
+	
+				if (d == null) {
+	
+					schedule(task("run-test"));
+
+				} else {
+
+					String agentId = d.getString("agent");
+					String pubkeyHash = d.getString("pubkey");
+
+					Document trustPath = collection("trust-paths").find(
+							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth-1)
+						).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
+
+					if (trustPath != null) {
+						BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
+						MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
+						long count = collection("trust-edges").countDocuments(findTerm);
+						while (edgeCursor.hasNext()) {
+							Document edgeDoc = edgeCursor.next();
+							String targetAgentId = edgeDoc.getString("to-agent");
+							String targetPubkeyHash = edgeDoc.getString("to-pubkey");
+							String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
+							String sortHash = Utils.getHash(currentSetting + " " + pathId);
+							double parentRatio = trustPath.getDouble("ratio");
+							add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+									.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", parentRatio / count));
+						}
+					}
+
+					set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-processed"));
+
+					schedule(task("load-more-declarations").append("depth", depth));
+				}
 
 			}
+
+		} else if (action.equals("load-more-declarations"))  {
+
+			schedule(task("run-test"));
 
 		} else if (action.equals("run-test")) {
 

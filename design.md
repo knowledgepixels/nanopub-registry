@@ -129,10 +129,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
     trust-paths:
-      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
-      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
-      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
-      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
+      { id#:'JohnDoe>a83', depth^:1, agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
+      { id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
+      { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     nanopubs:
       { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
@@ -248,7 +248,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
           - `{ agent**:JohnDoe, pubkey**:a83, type^:base, status^:loaded }`
     - calculate trust paths:
       - agents+trust-edges -> trust-paths
-        - `{ id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`
+        - `{ id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`
     - determine newly accepted intros (stop if none)
       - trust-paths -> pubkey-declarations
         - `{ declaration^:RA..., type^:regular, status^:to-retrieve }`
@@ -281,10 +281,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
     trust-paths:
-      { id#:'JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
-      { id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
-      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
-      { id#:'JohnDoe>d28', agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
+      { id#:'JohnDoe>a83', depth^:1, agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
+      { id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
+      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
+      { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     nanopubs:
       ...
