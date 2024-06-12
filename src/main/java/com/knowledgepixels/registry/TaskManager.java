@@ -139,9 +139,11 @@ public class TaskManager {
 				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
 				loadNanopub(agentIntro.getNanopub());
 				String agentId = agentIntro.getUser().stringValue();
+				String currentSetting = get("setting", "current").toString();
 				for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 					String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
+					String sortHash = Utils.getHash(currentSetting + " " + agentId + " " + pubkeyHash);
+					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("sorthash", sortHash)
 							.append("type", "base").append("status", "loading"));
 					add("pubkey-declarations", new Document("declaration", declarationId)
 							.append("type", d.get("type")).append("status", "to-load")
