@@ -114,6 +114,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     setting:
       original: RA123...
       current: RA...
+      status: loaded
       last-update: 20240316-...
       status: completed
       link-threshold: 0.000001
@@ -157,8 +158,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading-core }`
 - Agent core loaded
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-loaded }`
-- For base agents: trust paths initialized
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:base-initialized }`
+- Agent endorsements processed
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-processed }`
 - Agent nanopubs marked as "to load":
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:to-load }`
 - All nanopubs of agent being loaded

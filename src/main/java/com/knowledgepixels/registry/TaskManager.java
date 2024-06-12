@@ -202,7 +202,9 @@ public class TaskManager {
 
 				schedule(task("load-core"));
 
-			} else if (has("agents", new BasicDBObject("type", "base").append("status", "core-loaded"))) {
+			} else if (!collection("trust-paths").find().cursor().hasNext()) {
+
+				// Collection 'trust-paths' is empty
 
 				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
 				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
@@ -213,10 +215,6 @@ public class TaskManager {
 					add("trust-paths", new Document("_id", agentId + ">" + pubkeyHash)
 							.append("agent", agentId).append("pubkey", pubkeyHash).append("ratio", 1.0d / count));
 				}
-				collection("agents").updateMany(
-						new BasicDBObject("type", "base").append("status", "core-loaded"),
-						new BasicDBObject("$set", new BasicDBObject("status", "base-initialized"))
-					);
 
 				schedule(task("run-test"));
 
