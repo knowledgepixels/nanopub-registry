@@ -69,8 +69,6 @@ Quotas:
 
 ## Data Structure
 
-_(work in progress...)_
-
 Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)
 
     server-info:
@@ -121,7 +119,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
     agents:
-      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000 }
+      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     trust-edges:
@@ -143,6 +141,28 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { not-before^:20240317-..., ... }
       ...
       { not-before^:20240229-..., ... }
+
+
+## Agent Status Life Cycle
+
+- Declaration endorsed
+  - `endorsements: { agent^:..., pubkey^:..., endorsed-nanopub^:RAxyz..., source^:... }`
+- Declaration marked "to retrieve"
+  - `pubkey-declarations: { declaration^:RAxyz..., type^:regular, status^:to-retrieve }`
+- Agent info retrieved
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:found }`
+- Agent core marked as "to load"
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-to-load }`
+- Agent core being loaded
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading-core }`
+- Agent core loaded
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-loaded }`
+- Agent nanopubs marked as "to load":
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:to-load }`
+- All nanopubs of agent being loaded
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading }`
+- All nanopubs of agent loaded
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loaded }`
 
 
 ## Process
@@ -273,10 +293,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 ### Trust scores calculated:
 
     agents:
-      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000 }
+      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:core-loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     tasks:
       { not-before^:20240317-..., action:load-nanopubs }
 
-_to be continued..._
+### _to be continued..._

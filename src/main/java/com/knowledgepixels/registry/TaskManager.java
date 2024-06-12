@@ -146,20 +146,39 @@ public class TaskManager {
 					add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("sorthash", sortHash)
 							.append("type", "base").append("status", "loading"));
 					add("pubkey-declarations", new Document("declaration", declarationId)
-							.append("type", d.get("type")).append("status", "to-load")
+							.append("type", d.get("type")).append("status", "to-retrieve")
 							.append("agent", agentId).append("pubkey", pubkeyHash));
 				}
 
 				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded")
 						.append("agent", agentId).append("pubkey", "*"));
+
 				schedule(task("load-core"));
 
-			} else if (has("pubkey-declarations", new BasicDBObject("status", "to-load"))) {
+			} else if (has("pubkey-declarations", new BasicDBObject("status", "to-retrieve"))) {
 
-				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-load"));
+				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-retrieve"));
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
-				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded"));
+
+				MongoCursor<Document> incomingEndorsements = get("endorsements", new BasicDBObject("endorsed-nanopub", d.getString("declaration")));
+				while (incomingEndorsements.hasNext()) {
+					Document i = incomingEndorsements.next();
+					String endorsingAgentId = i.getString("agent");
+					String endorsingPubkeyHash = i.getString("pubkey");
+					RegistryDB.loadIncomingEndorsements(endorsingAgentId, endorsingPubkeyHash, d.getString("declaration"), i.getString("source"));
+				}
+
+				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "retrieved"));
+				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-to-load"));
+
+				schedule(task("load-core"));
+
+			} else if (has("agents", new BasicDBObject("status", "core-to-load"))) {
+
+				Document d = getOne("agents", new BasicDBObject("status", "core-to-load"));
+				String agentId = d.getString("agent");
+				String pubkeyHash = d.getString("pubkey");
 
 				// TODO check intro limit
 				String introType = Utils.INTRO_TYPE.stringValue();
@@ -179,15 +198,7 @@ public class TaskManager {
 				});
 				set("lists", endorseList, new BasicDBObject("status", "loaded"));
 
-				MongoCursor<Document> incomingEndorsements = get("endorsements", new BasicDBObject("endorsed-nanopub", d.getString("declaration")));
-				while (incomingEndorsements.hasNext()) {
-					Document i = incomingEndorsements.next();
-					String endorsingAgentId = i.getString("agent");
-					String endorsingPubkeyHash = i.getString("pubkey");
-					RegistryDB.loadIncomingEndorsements(endorsingAgentId, endorsingPubkeyHash, d.getString("declaration"), i.getString("source"));
-				}
-
-				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "loaded"));
+				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-loaded"));
 
 				schedule(task("load-core"));
 
