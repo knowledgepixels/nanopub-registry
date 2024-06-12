@@ -202,25 +202,25 @@ public class TaskManager {
 
 				schedule(task("load-core"));
 
-			} else {
+			} else if (has("agents", new BasicDBObject("type", "base").append("status", "core-loaded"))) {
 
-				schedule(task("process-base-agents"));
+				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
+				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
+				while (baseAgents.hasNext()) {
+					Document d = baseAgents.next();
+					String agentId = d.getString("agent");
+					String pubkeyHash = d.getString("pubkey");
+					add("trust-paths", new Document("_id", agentId + ">" + pubkeyHash)
+							.append("agent", agentId).append("pubkey", pubkeyHash).append("ratio", 1.0d / count));
+				}
+				collection("agents").updateMany(
+						new BasicDBObject("type", "base").append("status", "core-loaded"),
+						new BasicDBObject("$set", new BasicDBObject("status", "base-initialized"))
+					);
+
+				schedule(task("run-test"));
 
 			}
-
-		} else if (action.equals("process-base-agents")) {
-
-			MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
-			long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
-			while (baseAgents.hasNext()) {
-				Document d = baseAgents.next();
-				String agentId = d.getString("agent");
-				String pubkeyHash = d.getString("pubkey");
-				add("trust-paths", new Document("_id", agentId + ">" + pubkeyHash)
-						.append("agent", agentId).append("pubkey", pubkeyHash).append("ratio", 1.0d / count));
-			}
-
-			schedule(task("run-test"));
 
 		} else if (action.equals("run-test")) {
 

@@ -157,6 +157,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading-core }`
 - Agent core loaded
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-loaded }`
+- For base agents: trust paths initialized
+  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:base-initialized }`
 - Agent nanopubs marked as "to load":
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:to-load }`
 - All nanopubs of agent being loaded

@@ -93,6 +93,7 @@ public class RegistryDB {
 		collection("agents").createIndex(ascending("agent", "pubkey"), unique);
 		collection("agents").createIndex(ascending("type"));
 		collection("agents").createIndex(ascending("status"));
+		collection("agents").createIndex(ascending("type", "status"));
 
 		collection("trust-edges").createIndex(ascending("from-agent"));
 		collection("trust-edges").createIndex(ascending("from-pubkey"));
