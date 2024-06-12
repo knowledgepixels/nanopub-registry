@@ -221,7 +221,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 - load base declarations:
   - -> pubkey-declarations
-    - `{ declaration^:RA..., type^:base, status^:to-load }`
+    - `{ declaration^:RA..., type^:base, status^:to-retrieve }`
 - repeat:
   - load newly accepted declarations:
     - load intro:
@@ -248,7 +248,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
         - `{ id#:'SueRich>b55 JohnDoe>a83', agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`
     - determine newly accepted intros (stop if none)
       - trust-paths -> pubkey-declarations
-        - `{ declaration^:RA..., type^:regular, status^:to-load }`
+        - `{ declaration^:RA..., type^:regular, status^:to-retrieve }`
 
 ### Agent core info loaded:
 
