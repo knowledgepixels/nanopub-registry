@@ -231,7 +231,9 @@ public class TaskManager {
 			System.err.println("DEPTH " + depth);
 			String currentSetting = get("setting", "current").toString();
 
-			if (depth == 0) {
+			if (depth > 3) {
+				schedule(task("run-test"));
+			} else if (depth == 0) {
 
 				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
 				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
@@ -253,7 +255,7 @@ public class TaskManager {
 	
 				if (d == null) {
 	
-					schedule(task("run-test"));
+					schedule(task("load-core").append("depth", depth + 1));
 
 				} else {
 
@@ -312,7 +314,7 @@ public class TaskManager {
 				}
 			}
 
-			schedule(task("load-core").append("depth", depth));
+			schedule(task("load-core").append("depth", depth + 1));
 
 		} else if (action.equals("run-test")) {
 
