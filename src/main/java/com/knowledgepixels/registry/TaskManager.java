@@ -247,7 +247,7 @@ public class TaskManager {
 							.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
 				}
 
-				schedule(task("load-more-declarations").append("depth", 1));
+				schedule(task("load-more-declarations").append("depth", 0));
 	
 			} else {
 
