@@ -293,6 +293,35 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     tasks:
       { not-before^:20240317-..., action:calculate-trust-network }
 
+### Trust path calculation scheme
+
+Strong paths:
+
+    A
+    A > X
+    A > Y
+    B
+    B > C
+    B > C > D
+
+Trust edges:
+
+    A ~ B
+    C ~ X
+    X ~ Y
+
+Extended paths:
+
+    A
+    A > X
+    (A > X ~ Y)
+    A > Y
+    A ~ B
+    B
+    B > C
+    B > C ~ X
+    B > C > D
+
 ### Trust scores calculated:
 
     agents:
