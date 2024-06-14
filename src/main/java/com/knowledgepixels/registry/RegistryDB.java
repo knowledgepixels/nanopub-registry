@@ -101,7 +101,7 @@ public class RegistryDB {
 		collection("trust-edges").createIndex(ascending("invalidated"));
 
 		collection("trust-paths").createIndex(ascending("agent", "pubkey", "depth", "sorthash"), unique);
-		collection("trust-edges").createIndex(ascending("depth"));
+		collection("trust-paths").createIndex(ascending("depth"));
 		collection("trust-paths").createIndex(descending("ratio"));
 	}
 
