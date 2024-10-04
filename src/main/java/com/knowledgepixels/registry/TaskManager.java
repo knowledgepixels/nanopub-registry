@@ -9,6 +9,7 @@ import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.knowledgepixels.registry.RegistryDB.setOrInsert;
+import static com.knowledgepixels.registry.RegistryDB.upsert;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 
@@ -151,8 +152,8 @@ public class TaskManager {
 							add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
 									.append("type", "base").append("status", "loading"));
 						}
-						add("pubkey-declarations", new Document("declaration", declarationId).append("status", "to-retrieve")
-								.append("agent", agentId).append("pubkey", pubkeyHash));
+						upsert("pubkey-declarations", new BasicDBObject("declaration", declarationId).append("agent", agentId).append("pubkey", pubkeyHash),
+								new Document("declaration", declarationId).append("status", "to-retrieve").append("agent", agentId).append("pubkey", pubkeyHash));
 					}
 
 					set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded")
@@ -197,8 +198,8 @@ public class TaskManager {
 					// TODO Why/when is list already loaded?
 					Document introList = new Document("pubkey", pubkeyHash).append("type", introTypeHash).append("status", "loading");
 					add("lists", introList);
-					NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, npId -> {
-						loadNanopub(NanopubRetriever.retrieveNanopub(npId), introType, pubkeyHash);
+					NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, e -> {
+						loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), introType, pubkeyHash);
 					});
 					set("lists", introList, new BasicDBObject("status", "loaded"));
 				}
@@ -209,8 +210,8 @@ public class TaskManager {
 				if (!has("lists", new BasicDBObject("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
 					Document endorseList = new Document("pubkey", pubkeyHash).append("type", endorseTypeHash).append("status", "loading");
 					add("lists", endorseList);
-					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, npId -> {
-						loadNanopub(NanopubRetriever.retrieveNanopub(npId), endorseType, pubkeyHash);
+					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
+						loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), endorseType, pubkeyHash);
 					});
 					set("lists", endorseList, new BasicDBObject("status", "loaded"));
 				}
@@ -251,45 +252,58 @@ public class TaskManager {
 	
 			} else {
 
-				Document d = collection("agents").find(new BasicDBObject("status", "core-loaded")).cursor().tryNext();
-	
-				if (d == null) {
+				MongoCursor<Document> agentCursor = collection("agents").find(new BasicDBObject("status", "core-loaded")).cursor();
+
+				System.err.println("Trust path calculation at depth " + depth);
+
+				if (!agentCursor.hasNext()) {
 	
 					schedule(task("load-core").append("depth", depth + 1));
 
 				} else {
 
-					String agentId = d.getString("agent");
-					String pubkeyHash = d.getString("pubkey");
+					while (agentCursor.hasNext()) {
 
-					// TODO Consider also maximum ratio?
-					Document trustPath = collection("trust-paths").find(
-							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth-1)
-						).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
+						Document d = agentCursor.next();
 
-					if (trustPath != null) {
-						BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
-						MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
-						// TODO Count only unique:
-						long count = collection("trust-edges").countDocuments(findTerm);
-						while (edgeCursor.hasNext()) {
-							Document edgeDoc = edgeCursor.next();
-							String targetAgentId = edgeDoc.getString("to-agent");
-							String targetPubkeyHash = edgeDoc.getString("to-pubkey");
-							String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
-							String sortHash = Utils.getHash(currentSetting + " " + pathId);
-							double parentRatio = trustPath.getDouble("ratio");
-							if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
-								// TODO has-check shouldn't be necessary if duplicates are removed above?
-								add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
-										.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
+						String agentId = d.getString("agent");
+						String pubkeyHash = d.getString("pubkey");
+	
+						System.err.println(agentId + " / " + pubkeyHash);
+	
+						// TODO Consider also maximum ratio?
+						Document trustPath = collection("trust-paths").find(
+								new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth-1)
+							).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
+	
+						if (trustPath != null) {
+							System.err.println("Trust path: " + trustPath.getString("_id"));
+	
+							BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
+							MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
+							// TODO Count only unique:
+							long count = collection("trust-edges").countDocuments(findTerm);
+							while (edgeCursor.hasNext()) {
+								Document edgeDoc = edgeCursor.next();
+								String targetAgentId = edgeDoc.getString("to-agent");
+								String targetPubkeyHash = edgeDoc.getString("to-pubkey");
+								System.err.println("Trust path target: " + targetAgentId + " / " + targetPubkeyHash);
+								String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
+								String sortHash = Utils.getHash(currentSetting + " " + pathId);
+								double parentRatio = trustPath.getDouble("ratio");
+								if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
+									// TODO has-check shouldn't be necessary if duplicates are removed above?
+									add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+											.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
+								}
 							}
 						}
+						set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-processed"));
 					}
-
-					set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-processed"));
+					
 
 					schedule(task("load-more-declarations").append("depth", depth));
+
 				}
 
 			}

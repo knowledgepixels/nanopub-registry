@@ -1,13 +1,9 @@
 package com.knowledgepixels.registry;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import org.apache.http.HttpResponse;
 import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.rio.RDFFormat;
@@ -15,7 +11,8 @@ import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.server.GetNanopub;
-import org.nanopub.extra.services.QueryCall;
+import org.nanopub.extra.services.ApiResponse;
+import org.nanopub.extra.services.ApiResponseEntry;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCursor;
@@ -26,22 +23,13 @@ public class NanopubRetriever {
 
 	private NanopubRetriever() {}
 
-	public static void retrieveNanopubs(String type, String pubkey, Consumer<String> processFunction) {
-		try {
-			Map<String,String> params = new HashMap<>();
-			params.put("pubkeyhash", pubkey);
-			params.put("type", type);
-			HttpResponse resp = QueryCall.run("RA_YKm9DUvbJw1uVH34nX5uTsm4wjUPE_mHiKMABO4l6o/get-nanopubs-for-pubkey-and-type", params);
-			BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getEntity().getContent()));
-			reader.readLine(); // discard first line
-			String line = reader.readLine();
-			while (line != null) {
-				processFunction.accept(line);
-				line = reader.readLine();
-			}
-			reader.close();
-		} catch (IOException ex) {
-			ex.printStackTrace();
+	public static void retrieveNanopubs(String type, String pubkey, Consumer<ApiResponseEntry> processFunction) {
+		Map<String,String> params = new HashMap<>();
+		params.put("pubkeyhash", pubkey);
+		params.put("type", type);
+		ApiResponse resp = ApiCache.retrieveResponse("RA_YKm9DUvbJw1uVH34nX5uTsm4wjUPE_mHiKMABO4l6o/get-nanopubs-for-pubkey-and-type", params);
+		for (ApiResponseEntry e : resp.getData()) {
+			processFunction.accept(e);
 		}
 	}
 
