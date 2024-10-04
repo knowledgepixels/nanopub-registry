@@ -4,6 +4,7 @@ import static com.mongodb.client.model.Indexes.ascending;
 import static com.mongodb.client.model.Indexes.compoundIndex;
 import static com.mongodb.client.model.Indexes.descending;
 
+import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Set;
 
@@ -218,12 +219,18 @@ public class RegistryDB {
 		} else {
 			Long counter = (Long) getMaxValue("nanopubs", "counter");
 			if (counter == null) counter = 0l;
+			String nanopubString;
+			try {
+				nanopubString = NanopubUtils.writeToString(nanopub, RDFFormat.TRIG);
+			} catch (IOException ex) {
+				throw new RuntimeException(ex);
+			}
 			collection("nanopubs").insertOne(
 					new Document("_id", ac)
 						.append("full-id", nanopub.getUri().stringValue())
 						.append("counter", counter + 1)
 						.append("pubkey", ph)
-						.append("content", NanopubUtils.writeToString(nanopub, RDFFormat.TRIG))
+						.append("content", nanopubString)
 				);
 
 			for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {

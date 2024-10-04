@@ -10,4 +10,7 @@ echo "-------------------------------------"
 echo "Starting up at http://localhost:9292/"
 echo "-------------------------------------"
 
+docker compose down
+docker compose build
 docker compose up
+

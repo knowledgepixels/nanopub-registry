@@ -35,75 +35,80 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/slf4j/slf4j-api/2.1.0-alpha1/slf4j-api-2.1.0-alpha1-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/jakarta/servlet/jakarta.servlet-api/6.1.0-M2/jakarta.servlet-api-6.1.0-M2.jar" sourcepath="M2_REPO/jakarta/servlet/jakarta.servlet-api/6.1.0-M2/jakarta.servlet-api-6.1.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0.jar" sourcepath="M2_REPO/jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/jakarta/servlet/jakarta.servlet-api/6.1.0-M2/jakarta.servlet-api-6.1.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/jakarta/servlet/jakarta.servlet-api/6.1.0/jakarta.servlet-api-6.1.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trix/5.0.0-M2/rdf4j-rio-trix-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trix/5.0.0-M2/rdf4j-rio-trix-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trix/5.0.2/rdf4j-rio-trix-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trix/5.0.2/rdf4j-rio-trix-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-trix/5.0.0-M2/rdf4j-rio-trix-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-trix/5.0.2/rdf4j-rio-trix-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model/5.0.0-M2/rdf4j-model-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model/5.0.0-M2/rdf4j-model-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model/5.0.2/rdf4j-model-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model/5.0.2/rdf4j-model-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-model/5.0.0-M2/rdf4j-model-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-model/5.0.2/rdf4j-model-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model-api/5.0.0-M2/rdf4j-model-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model-api/5.0.0-M2/rdf4j-model-api-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model-api/5.0.2/rdf4j-model-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model-api/5.0.2/rdf4j-model-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-model-api/5.0.0-M2/rdf4j-model-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-model-api/5.0.2/rdf4j-model-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-annotation/5.0.0-M2/rdf4j-common-annotation-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-annotation/5.0.0-M2/rdf4j-common-annotation-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-annotation/5.0.2/rdf4j-common-annotation-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-annotation/5.0.2/rdf4j-common-annotation-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-annotation/5.0.0-M2/rdf4j-common-annotation-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-annotation/5.0.2/rdf4j-common-annotation-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model-vocabulary/5.0.0-M2/rdf4j-model-vocabulary-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model-vocabulary/5.0.0-M2/rdf4j-model-vocabulary-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-model-vocabulary/5.0.2/rdf4j-model-vocabulary-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-model-vocabulary/5.0.2/rdf4j-model-vocabulary-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-model-vocabulary/5.0.0-M2/rdf4j-model-vocabulary-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-model-vocabulary/5.0.2/rdf4j-model-vocabulary-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-exception/5.0.0-M2/rdf4j-common-exception-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-exception/5.0.0-M2/rdf4j-common-exception-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-exception/5.0.2/rdf4j-common-exception-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-exception/5.0.2/rdf4j-common-exception-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-exception/5.0.0-M2/rdf4j-common-exception-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-exception/5.0.2/rdf4j-common-exception-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-text/5.0.0-M2/rdf4j-common-text-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-text/5.0.0-M2/rdf4j-common-text-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-text/5.0.2/rdf4j-common-text-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-text/5.0.2/rdf4j-common-text-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-text/5.0.0-M2/rdf4j-common-text-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-text/5.0.2/rdf4j-common-text-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-io/5.0.0-M2/rdf4j-common-io-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-io/5.0.0-M2/rdf4j-common-io-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-io/5.0.2/rdf4j-common-io-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-io/5.0.2/rdf4j-common-io-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-io/5.0.0-M2/rdf4j-common-io-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-io/5.0.2/rdf4j-common-io-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-iterator/5.0.0-M2/rdf4j-common-iterator-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-iterator/5.0.0-M2/rdf4j-common-iterator-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-iterator/5.0.2/rdf4j-common-iterator-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-iterator/5.0.2/rdf4j-common-iterator-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-iterator/5.0.0-M2/rdf4j-common-iterator-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-iterator/5.0.2/rdf4j-common-iterator-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/google/guava/guava/33.1.0-jre/guava-33.1.0-jre.jar" sourcepath="M2_REPO/com/google/guava/guava/33.1.0-jre/guava-33.1.0-jre-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-order/5.0.2/rdf4j-common-order-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-order/5.0.2/rdf4j-common-order-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/google/guava/guava/33.1.0-jre/guava-33.1.0-jre-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-order/5.0.2/rdf4j-common-order-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.jar" sourcepath="M2_REPO/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/com/google/guava/guava/32.1.3-jre/guava-32.1.3-jre.jar" sourcepath="M2_REPO/com/google/guava/guava/32.1.3-jre/guava-32.1.3-jre-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/google/guava/guava/32.1.3-jre/guava-32.1.3-jre-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1.jar" sourcepath="M2_REPO/com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/com/google/guava/listenablefuture/9999.0-empty-to-avoid-conflict-with-guava/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-api/5.0.0-M2/rdf4j-rio-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-api/5.0.0-M2/rdf4j-rio-api-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-api/5.0.2/rdf4j-rio-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-api/5.0.2/rdf4j-rio-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-api/5.0.0-M2/rdf4j-rio-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-api/5.0.2/rdf4j-rio-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-xml/5.0.0-M2/rdf4j-common-xml-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-xml/5.0.0-M2/rdf4j-common-xml-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-xml/5.0.2/rdf4j-common-xml-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-xml/5.0.2/rdf4j-common-xml-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-xml/5.0.0-M2/rdf4j-common-xml-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-xml/5.0.2/rdf4j-common-xml-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/commons-codec/commons-codec/1.11/commons-codec-1.11.jar" sourcepath="M2_REPO/commons-codec/commons-codec/1.11/commons-codec-1.11-sources.jar">
@@ -111,9 +116,69 @@
       <attribute value="jar:file:/home/tk/.m2/repository/commons-codec/commons-codec/1.11/commons-codec-1.11-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/no/hasmac/hasmac-json-ld/0.9.0/hasmac-json-ld-0.9.0.jar" sourcepath="M2_REPO/no/hasmac/hasmac-json-ld/0.9.0/hasmac-json-ld-0.9.0-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/no/hasmac/hasmac-json-ld/0.9.0/hasmac-json-ld-0.9.0-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
   <classpathentry kind="var" path="M2_REPO/com/github/jsonld-java/jsonld-java/0.13.4/jsonld-java-0.13.4.jar" sourcepath="M2_REPO/com/github/jsonld-java/jsonld-java/0.13.4/jsonld-java-0.13.4-sources.jar">
     <attributes>
       <attribute value="jar:file:/home/tk/.m2/repository/com/github/jsonld-java/jsonld-java/0.13.4/jsonld-java-0.13.4-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.13.5/jackson-annotations-2.13.5.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.13.5/jackson-annotations-2.13.5-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.13.5/jackson-annotations-2.13.5-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.13.5/jackson-core-2.13.5.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.13.5/jackson-core-2.13.5-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.13.5/jackson-core-2.13.5-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.13.5/jackson-databind-2.13.5.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.13.5/jackson-databind-2.13.5-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.13.5/jackson-databind-2.13.5-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-datatypes/5.0.2/rdf4j-rio-datatypes-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-datatypes/5.0.2/rdf4j-rio-datatypes-5.0.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-datatypes/5.0.2/rdf4j-rio-datatypes-5.0.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-languages/5.0.2/rdf4j-rio-languages-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-languages/5.0.2/rdf4j-rio-languages-5.0.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-languages/5.0.2/rdf4j-rio-languages-5.0.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar" sourcepath="M2_REPO/commons-io/commons-io/2.11.0/commons-io-2.11.0-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/commons-io/commons-io/2.11.0/commons-io-2.11.0-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-nquads/5.0.2/rdf4j-rio-nquads-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-nquads/5.0.2/rdf4j-rio-nquads-5.0.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-nquads/5.0.2/rdf4j-rio-nquads-5.0.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-ntriples/5.0.2/rdf4j-rio-ntriples-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-ntriples/5.0.2/rdf4j-rio-ntriples-5.0.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-ntriples/5.0.2/rdf4j-rio-ntriples-5.0.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-jsonld/5.0.2/rdf4j-rio-jsonld-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-jsonld/5.0.2/rdf4j-rio-jsonld-5.0.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-jsonld/5.0.2/rdf4j-rio-jsonld-5.0.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/jakarta/json/jakarta.json-api/2.0.1/jakarta.json-api-2.0.1.jar" sourcepath="M2_REPO/jakarta/json/jakarta.json-api/2.0.1/jakarta.json-api-2.0.1-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/jakarta/json/jakarta.json-api/2.0.1/jakarta.json-api-2.0.1-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/glassfish/jakarta.json/2.0.1/jakarta.json-2.0.1.jar" sourcepath="M2_REPO/org/glassfish/jakarta.json/2.0.1/jakarta.json-2.0.1-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/glassfish/jakarta.json/2.0.1/jakarta.json-2.0.1-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient/4.5.14/httpclient-4.5.14.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpclient/4.5.14/httpclient-4.5.14-sources.jar">
@@ -136,79 +201,34 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/slf4j/jcl-over-slf4j/1.7.36/jcl-over-slf4j-1.7.36-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar" sourcepath="M2_REPO/commons-io/commons-io/2.11.0/commons-io-2.11.0-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/nanopub/nanopub/1.65/nanopub-1.65.jar" sourcepath="M2_REPO/org/nanopub/nanopub/1.65/nanopub-1.65-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/commons-io/commons-io/2.11.0/commons-io-2.11.0-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/nanopub/nanopub/1.65/nanopub-1.65-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-datatypes/5.0.0-M2/rdf4j-rio-datatypes-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-datatypes/5.0.0-M2/rdf4j-rio-datatypes-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trig/5.0.2/rdf4j-rio-trig-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trig/5.0.2/rdf4j-rio-trig-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-datatypes/5.0.0-M2/rdf4j-rio-datatypes-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-trig/5.0.2/rdf4j-rio-trig-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-languages/5.0.0-M2/rdf4j-rio-languages-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-languages/5.0.0-M2/rdf4j-rio-languages-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-turtle/5.0.2/rdf4j-rio-turtle-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-turtle/5.0.2/rdf4j-rio-turtle-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-languages/5.0.0-M2/rdf4j-rio-languages-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-turtle/5.0.2/rdf4j-rio-turtle-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-nquads/5.0.0-M2/rdf4j-rio-nquads-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-nquads/5.0.0-M2/rdf4j-rio-nquads-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-sparql/5.0.2/rdf4j-repository-sparql-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-sparql/5.0.2/rdf4j-repository-sparql-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-nquads/5.0.0-M2/rdf4j-rio-nquads-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-repository-sparql/5.0.2/rdf4j-repository-sparql-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-ntriples/5.0.0-M2/rdf4j-rio-ntriples-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-ntriples/5.0.0-M2/rdf4j-rio-ntriples-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-api/5.0.2/rdf4j-repository-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-api/5.0.2/rdf4j-repository-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-ntriples/5.0.0-M2/rdf4j-rio-ntriples-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-repository-api/5.0.2/rdf4j-repository-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-jsonld/5.0.0-M2/rdf4j-rio-jsonld-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-jsonld/5.0.0-M2/rdf4j-rio-jsonld-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-query/5.0.2/rdf4j-query-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-query/5.0.2/rdf4j-query-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-jsonld/5.0.0-M2/rdf4j-rio-jsonld-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.13.5/jackson-core-2.13.5.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.13.5/jackson-core-2.13.5-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.13.5/jackson-core-2.13.5-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.11.4/jackson-databind-2.11.4.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.11.4/jackson-databind-2.11.4-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.11.4/jackson-databind-2.11.4-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.11.4/jackson-annotations-2.11.4.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.11.4/jackson-annotations-2.11.4-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.11.4/jackson-annotations-2.11.4-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/nanopub/nanopub/1.56/nanopub-1.56.jar" sourcepath="M2_REPO/org/nanopub/nanopub/1.56/nanopub-1.56-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/nanopub/nanopub/1.56/nanopub-1.56-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trig/5.0.0-M2/rdf4j-rio-trig-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-trig/5.0.0-M2/rdf4j-rio-trig-5.0.0-M2-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-trig/5.0.0-M2/rdf4j-rio-trig-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-turtle/5.0.0-M2/rdf4j-rio-turtle-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-turtle/5.0.0-M2/rdf4j-rio-turtle-5.0.0-M2-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-turtle/5.0.0-M2/rdf4j-rio-turtle-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-sparql/5.0.0-M2/rdf4j-repository-sparql-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-sparql/5.0.0-M2/rdf4j-repository-sparql-5.0.0-M2-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-repository-sparql/5.0.0-M2/rdf4j-repository-sparql-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-api/5.0.0-M2/rdf4j-repository-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-repository-api/5.0.0-M2/rdf4j-repository-api-5.0.0-M2-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-repository-api/5.0.0-M2/rdf4j-repository-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-query/5.0.0-M2/rdf4j-query-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-query/5.0.0-M2/rdf4j-query-5.0.0-M2-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-query/5.0.0-M2/rdf4j-query-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-query/5.0.2/rdf4j-query-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-text/1.11.0/commons-text-1.11.0.jar" sourcepath="M2_REPO/org/apache/commons/commons-text/1.11.0/commons-text-1.11.0-sources.jar">
@@ -216,84 +236,64 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-text/1.11.0/commons-text-1.11.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-lang3/3.13.0/commons-lang3-3.13.0.jar" sourcepath="M2_REPO/org/apache/commons/commons-lang3/3.13.0/commons-lang3-3.13.0-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0.jar" sourcepath="M2_REPO/org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-lang3/3.13.0/commons-lang3-3.13.0-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-transaction/5.0.0-M2/rdf4j-common-transaction-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-transaction/5.0.0-M2/rdf4j-common-transaction-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-common-transaction/5.0.2/rdf4j-common-transaction-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-common-transaction/5.0.2/rdf4j-common-transaction-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-transaction/5.0.0-M2/rdf4j-common-transaction-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-common-transaction/5.0.2/rdf4j-common-transaction-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-http-client/5.0.0-M2/rdf4j-http-client-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-http-client/5.0.0-M2/rdf4j-http-client-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-http-client/5.0.2/rdf4j-http-client-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-http-client/5.0.2/rdf4j-http-client-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-http-client/5.0.0-M2/rdf4j-http-client-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-http-client/5.0.2/rdf4j-http-client-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-http-protocol/5.0.0-M2/rdf4j-http-protocol-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-http-protocol/5.0.0-M2/rdf4j-http-protocol-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-http-protocol/5.0.2/rdf4j-http-protocol-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-http-protocol/5.0.2/rdf4j-http-protocol-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-http-protocol/5.0.0-M2/rdf4j-http-protocol-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-http-protocol/5.0.2/rdf4j-http-protocol-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-api/5.0.0-M2/rdf4j-queryresultio-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-api/5.0.0-M2/rdf4j-queryresultio-api-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-api/5.0.2/rdf4j-queryresultio-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-api/5.0.2/rdf4j-queryresultio-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryresultio-api/5.0.0-M2/rdf4j-queryresultio-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryresultio-api/5.0.2/rdf4j-queryresultio-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-sail-api/5.0.0-M2/rdf4j-sail-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-sail-api/5.0.0-M2/rdf4j-sail-api-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-sail-api/5.0.2/rdf4j-sail-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-sail-api/5.0.2/rdf4j-sail-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-sail-api/5.0.0-M2/rdf4j-sail-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-sail-api/5.0.2/rdf4j-sail-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryalgebra-model/5.0.0-M2/rdf4j-queryalgebra-model-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryalgebra-model/5.0.0-M2/rdf4j-queryalgebra-model-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryalgebra-model/5.0.2/rdf4j-queryalgebra-model-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryalgebra-model/5.0.2/rdf4j-queryalgebra-model-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryalgebra-model/5.0.0-M2/rdf4j-queryalgebra-model-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryalgebra-model/5.0.2/rdf4j-queryalgebra-model-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-collection-factory-api/5.0.0-M2/rdf4j-collection-factory-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-collection-factory-api/5.0.0-M2/rdf4j-collection-factory-api-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-collection-factory-api/5.0.2/rdf4j-collection-factory-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-collection-factory-api/5.0.2/rdf4j-collection-factory-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-collection-factory-api/5.0.0-M2/rdf4j-collection-factory-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-collection-factory-api/5.0.2/rdf4j-collection-factory-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-binary/5.0.0-M2/rdf4j-queryresultio-binary-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-binary/5.0.0-M2/rdf4j-queryresultio-binary-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-binary/5.0.2/rdf4j-queryresultio-binary-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-binary/5.0.2/rdf4j-queryresultio-binary-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryresultio-binary/5.0.0-M2/rdf4j-queryresultio-binary-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryresultio-binary/5.0.2/rdf4j-queryresultio-binary-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/5.0.0-M2/rdf4j-queryresultio-sparqlxml-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/5.0.0-M2/rdf4j-queryresultio-sparqlxml-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/5.0.2/rdf4j-queryresultio-sparqlxml-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/5.0.2/rdf4j-queryresultio-sparqlxml-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/5.0.0-M2/rdf4j-queryresultio-sparqlxml-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryresultio-sparqlxml/5.0.2/rdf4j-queryresultio-sparqlxml-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-api/5.0.0-M2/rdf4j-queryparser-api-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-api/5.0.0-M2/rdf4j-queryparser-api-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-api/5.0.2/rdf4j-queryparser-api-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-api/5.0.2/rdf4j-queryparser-api-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryparser-api/5.0.0-M2/rdf4j-queryparser-api-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryparser-api/5.0.2/rdf4j-queryparser-api-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-sparql/5.0.0-M2/rdf4j-queryparser-sparql-5.0.0-M2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-sparql/5.0.0-M2/rdf4j-queryparser-sparql-5.0.0-M2-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-sparql/5.0.2/rdf4j-queryparser-sparql-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-queryparser-sparql/5.0.2/rdf4j-queryparser-sparql-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryparser-sparql/5.0.0-M2/rdf4j-queryparser-sparql-5.0.0-M2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar" sourcepath="M2_REPO/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/checkerframework/checker-qual/3.42.0/checker-qual-3.42.0.jar" sourcepath="M2_REPO/org/checkerframework/checker-qual/3.42.0/checker-qual-3.42.0-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/checkerframework/checker-qual/3.42.0/checker-qual-3.42.0-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0.jar" sourcepath="M2_REPO/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0.jar" sourcepath="M2_REPO/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-queryparser-sparql/5.0.2/rdf4j-queryparser-sparql-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/com/beust/jcommander/1.82/jcommander-1.82.jar" sourcepath="M2_REPO/com/beust/jcommander/1.82/jcommander-1.82-sources.jar">
@@ -306,6 +306,11 @@
       <attribute value="jar:file:/home/tk/.m2/repository/com/google/code/gson/gson/2.11.0/gson-2.11.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0.jar" sourcepath="M2_REPO/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
   <classpathentry kind="var" path="M2_REPO/org/commonjava/mimeparse/mimeparse/0.1.3.3/mimeparse-0.1.3.3.jar" sourcepath="M2_REPO/org/commonjava/mimeparse/mimeparse/0.1.3.3/mimeparse-0.1.3.3-sources.jar">
     <attributes>
       <attribute value="jar:file:/home/tk/.m2/repository/org/commonjava/mimeparse/mimeparse/0.1.3.3/mimeparse-0.1.3.3-javadoc.jar!/" name="javadoc_location"/>
@@ -316,19 +321,15 @@
       <attribute value="jar:file:/home/tk/.m2/repository/commons-lang/commons-lang/2.4/commons-lang-2.4-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/net/trustyuri/trustyuri/1.18/trustyuri-1.18.jar" sourcepath="M2_REPO/net/trustyuri/trustyuri/1.18/trustyuri-1.18-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/net/trustyuri/trustyuri/1.18/trustyuri-1.18-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/net/trustyuri/trustyuri/1.19/trustyuri-1.19.jar"/>
   <classpathentry kind="var" path="M2_REPO/commons-logging/commons-logging/1.2/commons-logging-1.2.jar" sourcepath="M2_REPO/commons-logging/commons-logging/1.2/commons-logging-1.2-sources.jar">
     <attributes>
       <attribute value="jar:file:/home/tk/.m2/repository/commons-logging/commons-logging/1.2/commons-logging-1.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-rdfxml/5.0.0-M1/rdf4j-rio-rdfxml-5.0.0-M1.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-rdfxml/5.0.0-M1/rdf4j-rio-rdfxml-5.0.0-M1-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-rdfxml/5.0.2/rdf4j-rio-rdfxml-5.0.2.jar" sourcepath="M2_REPO/org/eclipse/rdf4j/rdf4j-rio-rdfxml/5.0.2/rdf4j-rio-rdfxml-5.0.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-rdfxml/5.0.0-M1/rdf4j-rio-rdfxml-5.0.0-M1-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/eclipse/rdf4j/rdf4j-rio-rdfxml/5.0.2/rdf4j-rio-rdfxml-5.0.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/com/google/code/externalsortinginjava/externalsortinginjava/0.6.2/externalsortinginjava-0.6.2.jar" sourcepath="M2_REPO/com/google/code/externalsortinginjava/externalsortinginjava/0.6.2/externalsortinginjava-0.6.2-sources.jar">
@@ -346,9 +347,9 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/mongodb/mongo-java-driver/3.12.14/mongo-java-driver-3.12.14-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-compress/1.26.1/commons-compress-1.26.1.jar" sourcepath="M2_REPO/org/apache/commons/commons-compress/1.26.1/commons-compress-1.26.1-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-compress/1.27.1/commons-compress-1.27.1.jar" sourcepath="M2_REPO/org/apache/commons/commons-compress/1.27.1/commons-compress-1.27.1-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-compress/1.26.1/commons-compress-1.26.1-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-compress/1.27.1/commons-compress-1.27.1-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/com/opencsv/opencsv/5.9/opencsv-5.9.jar" sourcepath="M2_REPO/com/opencsv/opencsv/5.9/opencsv-5.9-sources.jar">

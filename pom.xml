@@ -28,7 +28,7 @@
     <dependency>
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
-      <version>6.1.0-M2</version>
+      <version>6.1.0</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -49,7 +49,7 @@
     <dependency>
       <groupId>org.nanopub</groupId>
       <artifactId>nanopub</artifactId>
-      <version>1.56</version>
+      <version>1.65</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
@@ -106,7 +106,7 @@
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <rdf4j.version>5.0.0-M2</rdf4j.version>
+    <rdf4j.version>5.0.2</rdf4j.version>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd HH:mm</maven.build.timestamp.format>
   </properties>

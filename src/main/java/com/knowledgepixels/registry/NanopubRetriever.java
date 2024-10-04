@@ -3,12 +3,11 @@ package com.knowledgepixels.registry;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 
-import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.rio.RDFFormat;
@@ -16,6 +15,7 @@ import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.server.GetNanopub;
+import org.nanopub.extra.services.QueryCall;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCursor;
@@ -28,19 +28,9 @@ public class NanopubRetriever {
 
 	public static void retrieveNanopubs(String type, String pubkey, Consumer<String> processFunction) {
 		try {
-			String pubkeyQueryPart;
-			if (pubkey == null) {
-				pubkeyQueryPart = "%3Fpubkey";
-			} else {
-				pubkeyQueryPart = "%22" + pubkey + "%22";
-			}
-			String callUrl = "https://query.np.trustyuri.net/repo/type/" + Utils.getHash(type) + "?" +
-					"query=prefix%20npa%3A%20%3Chttp%3A%2F%2Fpurl.org%2Fnanopub%2Fadmin%2F%3E%20select%20%3Fnp%20where%20%7B%20graph%20npa%3Agraph%20%7B%20%3Fnp%20npa%3AhasValidSignatureForPublicKeyHash%20" +
-					pubkeyQueryPart +
-					"%20.%20%7D%20%7D";
-			HttpGet get = new HttpGet(callUrl);
-			get.setHeader(HttpHeaders.ACCEPT, "text/csv");
-			HttpResponse resp = HttpClientBuilder.create().build().execute(get);
+			Map<String,String> params = new HashMap<>();
+			params.put("pubkeyhash", pubkey);
+			HttpResponse resp = QueryCall.run("RAOxsf3y2qb4gCBnb5MBZw_sywUemOMQu2tOe7pZKoefg/get-nanopubs-for-pubkeyhash", params);
 			BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getEntity().getContent()));
 			reader.readLine(); // discard first line
 			String line = reader.readLine();
@@ -57,6 +47,7 @@ public class NanopubRetriever {
 	public static Nanopub retrieveNanopub(String nanopubId) {
 		Nanopub np = retrieveLocalNanopub(nanopubId);
 		if (np == null) {
+			System.err.println("Loading " + nanopubId);
 			np = GetNanopub.get(nanopubId);
 			RegistryDB.loadNanopub(np);
 		}
