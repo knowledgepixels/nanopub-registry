@@ -30,7 +30,8 @@ public class NanopubRetriever {
 		try {
 			Map<String,String> params = new HashMap<>();
 			params.put("pubkeyhash", pubkey);
-			HttpResponse resp = QueryCall.run("RAOxsf3y2qb4gCBnb5MBZw_sywUemOMQu2tOe7pZKoefg/get-nanopubs-for-pubkeyhash", params);
+			params.put("type", type);
+			HttpResponse resp = QueryCall.run("RA_YKm9DUvbJw1uVH34nX5uTsm4wjUPE_mHiKMABO4l6o/get-nanopubs-for-pubkey-and-type", params);
 			BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getEntity().getContent()));
 			reader.readLine(); // discard first line
 			String line = reader.readLine();
