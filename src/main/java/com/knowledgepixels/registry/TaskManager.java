@@ -8,7 +8,6 @@ import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
-import static com.knowledgepixels.registry.RegistryDB.setOrInsert;
 import static com.knowledgepixels.registry.RegistryDB.upsert;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
@@ -34,6 +33,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.UpdateOptions;
 
 import net.trustyuri.TrustyUriUtils;
 
@@ -77,36 +77,36 @@ public class TaskManager {
 
 		if (action.equals("init-db")) {
 
-			setOrInsert("server-info", "status", "launching");
+			upsert("server-info", "status", "launching");
 			increateStateCounter();
 			if (RegistryDB.isInitialized()) error("DB already initialized");
-			setOrInsert("server-info", "setup-id", Math.abs(new Random().nextLong()));
+			upsert("server-info", "setup-id", Math.abs(new Random().nextLong()));
 			schedule(task("load-config"));
 
 		} else if (action.equals("load-config")) {
 
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
-				setOrInsert("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
+				upsert("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
 			}
 			if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
-				setOrInsert("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
+				upsert("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
-			setOrInsert("server-info", "status", "initializing");
+			upsert("server-info", "status", "initializing");
 			schedule(task("load-setting"));
 
 		} else if (action.equals("load-setting")) {
 
 			try {
 				NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
-				setOrInsert("setting", "original", settingNp.getNanopub().getUri().stringValue());
-				setOrInsert("setting", "current", settingNp.getNanopub().getUri().stringValue());
+				upsert("setting", "original", settingNp.getNanopub().getUri().stringValue());
+				upsert("setting", "current", settingNp.getNanopub().getUri().stringValue());
 				loadNanopub(settingNp.getNanopub());
 				List<BasicDBObject> bootstrapServices = new ArrayList<>();
 				for (IRI i : settingNp.getBootstrapServices()) {
 					bootstrapServices.add(new BasicDBObject("_id", i.stringValue()));
 				}
-				setOrInsert("setting", "bootstrap-services", bootstrapServices);
-				setOrInsert("server-info", "status", "loaded");
+				upsert("setting", "bootstrap-services", bootstrapServices);
+				upsert("server-info", "status", "loaded");
 				schedule(task("load-base-declarations").append("param", settingNp.getAgentIntroCollection().stringValue()));
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
 				ex.printStackTrace();
@@ -120,7 +120,7 @@ public class TaskManager {
 				loadNanopub(agentIndex);
 				for (IRI el : agentIndex.getElements()) {
 					String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
-					add("pubkey-declarations", new Document("declaration", declarationAc).append("type","base").append("status", "to-try"));
+					add("pubkey-declarations", new Document("declaration", declarationAc).append("type", "base").append("status", "to-try"));
 				}
 
 			} catch (MalformedNanopubException ex) {
@@ -135,10 +135,11 @@ public class TaskManager {
 			int depth = task.getInteger("depth");
 
 			if (has("pubkey-declarations", new BasicDBObject("status", "to-try"))) {
-				System.err.println("load-core 1");
+				System.err.println("load-core stage 1: getting agent intro");
 
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-try"));
 				String declarationId = d.getString("declaration");
+				String type = d.getString("type");
 
 				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
 				System.err.println("Load: " + declarationId);
@@ -149,23 +150,23 @@ public class TaskManager {
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
 						if (!has("agents", new Document("agent", agentId).append("pubkey", pubkeyHash))) {
-							add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash)
-									.append("type", "base").append("status", "loading"));
+							add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", type).append("status", "loading"));
+						} else {
+							// Agent already loaded/loading, possibly with different type; nothing to do here
 						}
 						upsert("pubkey-declarations", new BasicDBObject("declaration", declarationId).append("agent", agentId).append("pubkey", pubkeyHash),
 								new Document("declaration", declarationId).append("status", "to-retrieve").append("agent", agentId).append("pubkey", pubkeyHash));
 					}
 
-					set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "loaded")
-							.append("agent", agentId).append("pubkey", "*"));
+					set("pubkey-declarations", d, new BasicDBObject("status", "loaded").append("agent", agentId).append("pubkey", "*"));
 				} else {
-					set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "discarded"));
+					set("pubkey-declarations", d, new BasicDBObject("status", "discarded"));
 				}
 
 				schedule(task("load-core").append("depth", depth));
 
 			} else if (has("pubkey-declarations", new BasicDBObject("status", "to-retrieve"))) {
-				System.err.println("load-core 2");
+				System.err.println("load-core stage 2: getting incoming endorsements");
 
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-retrieve"));
 				String agentId = d.getString("agent");
@@ -176,16 +177,22 @@ public class TaskManager {
 					Document i = incomingEndorsements.next();
 					String endorsingAgentId = i.getString("agent");
 					String endorsingPubkeyHash = i.getString("pubkey");
-					RegistryDB.loadIncomingEndorsements(endorsingAgentId, endorsingPubkeyHash, d.getString("declaration"), i.getString("source"));
+					BasicDBObject o = new BasicDBObject("from-agent", endorsingAgentId)
+							.append("from-pubkey", endorsingPubkeyHash)
+							.append("to-agent", agentId)
+							.append("to-pubkey", pubkeyHash)
+							.append("source", i.getString("source"))
+							.append("invalidated", false);
+					collection("trust-edges").updateOne(o, new BasicDBObject("$set", o), new UpdateOptions().upsert(true));
 				}
 
-				set("pubkey-declarations", new BasicDBObject("_id", d.get("_id")), new BasicDBObject("status", "retrieved"));
+				set("pubkey-declarations", d, new BasicDBObject("status", "retrieved"));
 				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-to-load"));
 
 				schedule(task("load-core").append("depth", depth));
 
 			} else if (has("agents", new BasicDBObject("status", "core-to-load"))) {
-				System.err.println("load-core 3");
+				System.err.println("load-core stage 3: loading core nanopubs");
 
 				Document d = getOne("agents", new BasicDBObject("status", "core-to-load"));
 				String agentId = d.getString("agent");
@@ -233,10 +240,13 @@ public class TaskManager {
 			String currentSetting = get("setting", "current").toString();
 
 			if (depth > 3) {
+
 				schedule(task("run-test"));
+
 			} else if (depth == 0) {
 
-				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base"));
+				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base").append("status", "core-loaded"));
+
 				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
 				while (baseAgents.hasNext()) {
 					Document d = baseAgents.next();
@@ -244,8 +254,10 @@ public class TaskManager {
 					String pubkeyHash = d.getString("pubkey");
 					String pathId = agentId + ">" + pubkeyHash;
 					String sortHash = Utils.getHash(currentSetting + " " + pathId);
-					add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+					upsert("trust-paths", new BasicDBObject("_id", pathId), new Document("sorthash", sortHash)
 							.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
+
+					set("agents", d, new BasicDBObject("status", "core-processed").append("depth", 0));
 				}
 
 				schedule(task("load-more-declarations").append("depth", 0));
@@ -253,60 +265,53 @@ public class TaskManager {
 			} else {
 
 				MongoCursor<Document> agentCursor = collection("agents").find(new BasicDBObject("status", "core-loaded")).cursor();
-
+				
 				System.err.println("Trust path calculation at depth " + depth);
 
-				if (!agentCursor.hasNext()) {
-	
-					schedule(task("load-core").append("depth", depth + 1));
+				while (agentCursor.hasNext()) {
 
-				} else {
+					Document d = agentCursor.next();
 
-					while (agentCursor.hasNext()) {
+					String agentId = d.getString("agent");
+					String pubkeyHash = d.getString("pubkey");
 
-						Document d = agentCursor.next();
+					System.err.println(agentId + " / " + pubkeyHash);
 
-						String agentId = d.getString("agent");
-						String pubkeyHash = d.getString("pubkey");
-	
-						System.err.println(agentId + " / " + pubkeyHash);
-	
-						// TODO Consider also maximum ratio?
-						Document trustPath = collection("trust-paths").find(
-								new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth-1)
-							).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
-	
-						if (trustPath != null) {
-							System.err.println("Trust path: " + trustPath.getString("_id"));
-	
-							BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
-							MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
-							// TODO Count only unique:
-							long count = collection("trust-edges").countDocuments(findTerm);
-							while (edgeCursor.hasNext()) {
-								Document edgeDoc = edgeCursor.next();
-								String targetAgentId = edgeDoc.getString("to-agent");
-								String targetPubkeyHash = edgeDoc.getString("to-pubkey");
-								System.err.println("Trust path target: " + targetAgentId + " / " + targetPubkeyHash);
-								String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
-								String sortHash = Utils.getHash(currentSetting + " " + pathId);
-								double parentRatio = trustPath.getDouble("ratio");
-								if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
-									// TODO has-check shouldn't be necessary if duplicates are removed above?
-									add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
-											.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
-								}
+					// TODO Consider also maximum ratio?
+					Document trustPath = collection("trust-paths").find(
+							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth-1)
+						).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
+
+					if (trustPath != null) {
+						// Only first matching trust path is considered
+						System.err.println("Trust path: " + trustPath.getString("_id"));
+
+						BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
+						MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
+						// TODO Count only unique:
+						long count = collection("trust-edges").countDocuments(findTerm);
+						while (edgeCursor.hasNext()) {
+							Document edgeDoc = edgeCursor.next();
+							String targetAgentId = edgeDoc.getString("to-agent");
+							String targetPubkeyHash = edgeDoc.getString("to-pubkey");
+							System.err.println("Trust path target: " + targetAgentId + " / " + targetPubkeyHash);
+							String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
+							String sortHash = Utils.getHash(currentSetting + " " + pathId);
+							double parentRatio = trustPath.getDouble("ratio");
+							if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
+								// TODO has-check shouldn't be necessary if duplicates are removed above?
+								add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+										.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
 							}
 						}
-						set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-processed"));
 					}
-					
-
-					schedule(task("load-more-declarations").append("depth", depth));
-
+					set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-processed").append("depth", depth));
 				}
 
+				schedule(task("load-more-declarations").append("depth", depth));
+
 			}
+
 
 		} else if (action.equals("load-more-declarations"))  {
 
@@ -323,7 +328,7 @@ public class TaskManager {
 					String endorsedNanopubAc = endorsementDoc.getString("endorsed-nanopub");
 					// TODO Make this dependent on ratio
 					if (!has("pubkey-declarations", new BasicDBObject("declaration", endorsedNanopubAc))) {
-						add("pubkey-declarations", new Document("declaration", endorsedNanopubAc).append("status", "to-try"));
+						add("pubkey-declarations", new Document("declaration", endorsedNanopubAc).append("type", "regular").append("status", "to-try"));
 					}
 				}
 			}
@@ -354,7 +359,7 @@ public class TaskManager {
 	}
 
 	private static void error(String message) {
-		setOrInsert("server-info", "status", "hanging");
+		upsert("server-info", "status", "hanging");
 		throw new RuntimeException(message);
 	}
 

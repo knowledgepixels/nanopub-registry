@@ -160,20 +160,16 @@ public class RegistryDB {
 		return cursor.next();
 	}
 
-	public static void set(String collection, Bson find, Bson replace) {
+	public static void set(String collection, Bson find, Bson set) {
 		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
 		if (cursor.hasNext()) {
-			collection(collection).updateOne(find, new BasicDBObject("$set", replace));
+			collection(collection).updateOne(find, new BasicDBObject("$set", set));
 		}
 	}
 
-	public static void setOrInsert(String collection, String elementId, Object value) {
-		MongoCursor<Document> cursor = collection(collection).find(new BasicDBObject("_id", elementId)).cursor();
-		if (cursor.hasNext()) {
-			collection(collection).updateOne(new BasicDBObject("_id", elementId), new BasicDBObject("$set", new BasicDBObject("value", value)));
-		} else {
-			collection(collection).insertOne(new Document("_id", elementId).append("value", value));
-		}
+	public static void set(String collection, Document doc, Bson set) {
+		Bson find = new BasicDBObject("_id", doc.get("_id"));
+		set(collection, find, set);
 	}
 
 	public static void add(String collection, Document doc) {
@@ -192,6 +188,10 @@ public class RegistryDB {
 		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
 		if (cursor.hasNext()) return cursor.next();
 		return null;
+	}
+
+	public static void upsert(String collection, String elementId, Object value) {
+		upsert(collection, new BasicDBObject("_id", elementId), new BasicDBObject("value", value));
 	}
 
 	public static void upsert(String collection, Bson find, Bson update) {
