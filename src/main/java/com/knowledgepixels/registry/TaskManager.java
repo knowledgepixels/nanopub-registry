@@ -151,9 +151,9 @@ public class TaskManager {
 
 			}
 
-			schedule(task("load-core").append("depth", depth));
+			schedule(task("load-pubkey-declarations").append("depth", depth));
 
-		} else if (action.equals("load-core")) {
+		} else if (action.equals("load-pubkey-declarations")) {
 
 			int depth = task.getInteger("depth");
 
@@ -186,9 +186,17 @@ public class TaskManager {
 					set("agent-intros", d, new BasicDBObject("status", "discarded"));
 				}
 
-				schedule(task("load-core").append("depth", depth));
+				schedule(task("load-pubkey-declarations").append("depth", depth));
 
-			} else if (has("pubkey-declarations", new BasicDBObject("status", "to-retrieve"))) {
+			} else {
+				schedule(task("populate-trust-edges").append("depth", depth));
+			}
+
+		} else if (action.equals("populate-trust-edges")) {
+
+			int depth = task.getInteger("depth");
+
+			if (has("pubkey-declarations", new BasicDBObject("status", "to-retrieve"))) {
 				System.err.println("load-core stage 2: getting incoming endorsements");
 
 				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-retrieve"));
@@ -212,9 +220,17 @@ public class TaskManager {
 				set("pubkey-declarations", d, new BasicDBObject("status", "retrieved"));
 				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-to-load"));
 
-				schedule(task("load-core").append("depth", depth));
+				schedule(task("populate-trust-edges").append("depth", depth));
 
-			} else if (has("agents", new BasicDBObject("status", "core-to-load"))) {
+			} else {
+				schedule(task("load-core").append("depth", depth));
+			}
+
+		} else if (action.equals("load-core")) {
+
+			int depth = task.getInteger("depth");
+
+			if (has("agents", new BasicDBObject("status", "core-to-load"))) {
 				System.err.println("load-core stage 3: loading core nanopubs");
 
 				Document d = getOne("agents", new BasicDBObject("status", "core-to-load"));
@@ -251,9 +267,7 @@ public class TaskManager {
 				schedule(task("load-core").append("depth", depth));
 
 			} else {
-
 				schedule(task("calculate-trust-paths").append("depth", depth));
-
 			}
 
 		} else if (action.equals("calculate-trust-paths")) {
@@ -266,26 +280,24 @@ public class TaskManager {
 
 				schedule(task("run-test"));
 
-			} else if (depth == 0) {
-
-				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base").append("status", "core-loaded"));
-
-				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
-				while (baseAgents.hasNext()) {
-					Document d = baseAgents.next();
-					String agentId = d.getString("agent");
-					String pubkeyHash = d.getString("pubkey");
-					String pathId = agentId + ">" + pubkeyHash;
-					String sortHash = Utils.getHash(currentSetting + " " + pathId);
-					upsert("trust-paths", new BasicDBObject("_id", pathId), new Document("sorthash", sortHash)
-							.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
-
-					set("agents", d, new BasicDBObject("status", "core-processed").append("depth", 0));
-				}
-
-				schedule(task("load-agent-intros").append("depth", 1));
-	
 			} else {
+
+				if (depth == 0) {
+
+					MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base").append("status", "core-loaded"));
+	
+					long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
+					while (baseAgents.hasNext()) {
+						Document d = baseAgents.next();
+						String agentId = d.getString("agent");
+						String pubkeyHash = d.getString("pubkey");
+						String pathId = agentId + ">" + pubkeyHash;
+						String sortHash = Utils.getHash(currentSetting + " " + pathId);
+						upsert("trust-paths", new BasicDBObject("_id", pathId), new Document("sorthash", sortHash)
+								.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
+					}
+	
+				}
 	
 				MongoCursor<Document> agentCursor = collection("agents").find(new BasicDBObject("status", "core-loaded")).cursor();
 				
@@ -302,7 +314,7 @@ public class TaskManager {
 	
 					// TODO Consider also maximum ratio?
 					Document trustPath = collection("trust-paths").find(
-							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
+							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth)
 						).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
 	
 					if (trustPath != null) {
@@ -324,14 +336,15 @@ public class TaskManager {
 							if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
 								// TODO has-check shouldn't be necessary if duplicates are removed above?
 								add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
-										.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
+										.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth + 1).append("ratio", (parentRatio*0.9) / count));
 							}
 						}
-						set("agents", d, new BasicDBObject("status", "core-processed").append("depth", depth));
+						set("agents", d, new BasicDBObject("status", "core-processed").append("depth", depth + 1));
 					}
+
+					schedule(task("load-agent-intros").append("depth", depth + 1));
+
 				}
-	
-				schedule(task("load-agent-intros").append("depth", depth + 1));
 
 			}
 
