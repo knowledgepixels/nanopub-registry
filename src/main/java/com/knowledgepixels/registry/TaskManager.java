@@ -280,7 +280,7 @@ public class TaskManager {
 					upsert("trust-paths", new BasicDBObject("_id", pathId), new Document("sorthash", sortHash)
 							.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
 
-					//set("agents", d, new BasicDBObject("status", "core-processed").append("depth", 0));
+					set("agents", d, new BasicDBObject("status", "core-processed").append("depth", 0));
 				}
 
 				schedule(task("load-agent-intros").append("depth", 1));
