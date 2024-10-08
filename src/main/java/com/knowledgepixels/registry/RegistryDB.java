@@ -76,10 +76,14 @@ public class RegistryDB {
 		collection("invalidations").createIndex(ascending("invalidated-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey", "invalidated-np"));
 
+		collection("agent-intros").createIndex(ascending("agent"));
+		collection("agent-intros").createIndex(ascending("intro-np"));
+		collection("agent-intros").createIndex(ascending("status"));
+
 		collection("pubkey-declarations").createIndex(ascending("agent"));
 		collection("pubkey-declarations").createIndex(ascending("pubkey"));
-		collection("pubkey-declarations").createIndex(ascending("declaration-pubkey"));
-		collection("pubkey-declarations").createIndex(ascending("declaration"));
+		collection("pubkey-declarations").createIndex(ascending("intro-pubkey"));
+		collection("pubkey-declarations").createIndex(ascending("intro-np"));
 		collection("pubkey-declarations").createIndex(ascending("status"));
 
 		collection("endorsements").createIndex(ascending("agent"));
@@ -260,8 +264,8 @@ public class RegistryDB {
 					String agentId = kd.getDeclarers().iterator().next().stringValue();
 					String pubkeyhash = Utils.getHash(kd.getPublicKeyString());
 					upsert("pubkey-declarations",
-							new BasicDBObject("agent", agentId).append("pubkey", pubkeyhash).append("declaration", ac),
-							new BasicDBObject("declaration-pubkey", ph)
+							new BasicDBObject("agent", agentId).append("pubkey", pubkeyhash).append("intro-np", ac),
+							new BasicDBObject("intro-pubkey", ph)
 						);
 				}
 			}

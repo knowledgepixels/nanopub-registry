@@ -120,7 +120,7 @@ public class TaskManager {
 				loadNanopub(agentIndex);
 				for (IRI el : agentIndex.getElements()) {
 					String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
-					add("pubkey-declarations", new Document("declaration", declarationAc).append("type", "base").append("status", "to-try"));
+					add("agent-intros", new Document("intro-np", declarationAc).append("type", "base").append("status", "to-try"));
 				}
 
 			} catch (MalformedNanopubException ex) {
@@ -134,15 +134,15 @@ public class TaskManager {
 
 			int depth = task.getInteger("depth");
 
-			if (has("pubkey-declarations", new BasicDBObject("status", "to-try"))) {
+			if (has("agent-intros", new BasicDBObject("status", "to-try"))) {
 				System.err.println("load-core stage 1: getting agent intro");
 
-				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-try"));
-				String declarationId = d.getString("declaration");
+				Document d = getOne("agent-intros", new BasicDBObject("status", "to-try"));
+				String introId = d.getString("intro-np");
 				String type = d.getString("type");
 
-				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(declarationId));
-				System.err.println("Load: " + declarationId);
+				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(introId));
+				System.err.println("Load: " + introId);
 				loadNanopub(agentIntro.getNanopub());
 				if (agentIntro.getUser() != null) {
 					// TODO Why/when is user null?
@@ -154,13 +154,13 @@ public class TaskManager {
 						} else {
 							// Agent already loaded/loading, possibly with different type; nothing to do here
 						}
-						upsert("pubkey-declarations", new BasicDBObject("declaration", declarationId).append("agent", agentId).append("pubkey", pubkeyHash),
-								new Document("declaration", declarationId).append("status", "to-retrieve").append("agent", agentId).append("pubkey", pubkeyHash));
+						upsert("pubkey-declarations", new BasicDBObject("intro-np", introId).append("agent", agentId).append("pubkey", pubkeyHash),
+								new Document("intro-np", introId).append("status", "to-retrieve").append("agent", agentId).append("pubkey", pubkeyHash));
 					}
 
-					set("pubkey-declarations", d, new BasicDBObject("status", "loaded").append("agent", agentId).append("pubkey", "*"));
+					set("agent-intros", d, new BasicDBObject("status", "loaded").append("agent", agentId));
 				} else {
-					set("pubkey-declarations", d, new BasicDBObject("status", "discarded"));
+					set("agent-intros", d, new BasicDBObject("status", "discarded"));
 				}
 
 				schedule(task("load-core").append("depth", depth));
@@ -172,7 +172,7 @@ public class TaskManager {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				MongoCursor<Document> incomingEndorsements = get("endorsements", new BasicDBObject("endorsed-nanopub", d.getString("declaration")));
+				MongoCursor<Document> incomingEndorsements = get("endorsements", new BasicDBObject("endorsed-nanopub", d.getString("intro-np")));
 				while (incomingEndorsements.hasNext()) {
 					Document i = incomingEndorsements.next();
 					String endorsingAgentId = i.getString("agent");
@@ -327,8 +327,8 @@ public class TaskManager {
 					Document endorsementDoc = endorsementCursor.next();
 					String endorsedNanopubAc = endorsementDoc.getString("endorsed-nanopub");
 					// TODO Make this dependent on ratio
-					if (!has("pubkey-declarations", new BasicDBObject("declaration", endorsedNanopubAc))) {
-						add("pubkey-declarations", new Document("declaration", endorsedNanopubAc).append("type", "regular").append("status", "to-try"));
+					if (!has("agent-intros", new BasicDBObject("intro-np", endorsedNanopubAc))) {
+						add("agent-intros", new Document("intro-np", endorsedNanopubAc).append("type", "regular").append("status", "to-try"));
 					}
 				}
 			}
