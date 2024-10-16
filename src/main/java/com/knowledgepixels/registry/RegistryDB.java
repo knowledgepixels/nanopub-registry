@@ -6,20 +6,16 @@ import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.Set;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
-import org.nanopub.extra.security.KeyDeclaration;
 import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
-import org.nanopub.extra.setting.IntroNanopub;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
@@ -253,40 +249,6 @@ public class RegistryDB {
 						new BasicDBObject("$set", new BasicDBObject("invalidated", true))
 					);
 			}
-
-//			final Set<IRI> types = NanopubUtils.getTypes(nanopub);
-//			if (types.contains(Utils.INTRO_TYPE)) {
-//				IntroNanopub introNp = new IntroNanopub(nanopub);
-//				for (KeyDeclaration kd : introNp.getKeyDeclarations()) {
-//					if (kd.getDeclarers().size() != 1) {
-//						System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
-//					}
-//					String agentId = kd.getDeclarers().iterator().next().stringValue();
-//					String pubkeyhash = Utils.getHash(kd.getPublicKeyString());
-//					upsert("pubkey-declarations",
-//							new BasicDBObject("agent", agentId).append("pubkey", pubkeyhash).append("intro-np", ac),
-//							new BasicDBObject("intro-pubkey", ph)
-//						);
-//				}
-//			}
-//			if (types.contains(Utils.APPROVAL_TYPE)) {
-//				for (Statement st : nanopub.getAssertion()) {
-//					if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
-//					if (!(st.getObject() instanceof IRI)) continue;
-//					String objStr = st.getObject().stringValue();
-//					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-//					String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
-//					String agentId = st.getSubject().stringValue();
-//					collection("endorsements").insertOne(
-//							new Document("agent", agentId)
-//								.append("pubkey", ph)
-//								.append("endorsed-nanopub", endorsedNpId)
-//								.append("source", ac)
-//						);
-//
-//					loadIncomingEndorsements(st.getSubject().stringValue(), ph, endorsedNpId, ac);
-//				}
-//			}
 		}
 
 		if (type != null && ph.equals(pubkeyHash) && hasType(nanopub, type)) {
@@ -329,28 +291,6 @@ public class RegistryDB {
 				);
 		}
 
-	}
-
-	public static void loadIncomingEndorsements(String endorsingAgentId, String endorsingPubkeyHash, String endorsedNpId, String endorsementNpId) {
-		Nanopub endorsedNp = NanopubRetriever.retrieveLocalNanopub(endorsedNpId);
-		if (endorsedNp != null) {
-			// TODO Handle case when nanopub is not a proper intro
-			IntroNanopub endorsedIntro = new IntroNanopub(endorsedNp);
-			for (KeyDeclaration kd : endorsedIntro.getKeyDeclarations()) {
-				if (kd.getDeclarers().size() != 1) {
-					System.err.println("Ignoring intro with invalid number of declarers: " + endorsedNpId);
-				}
-				String endorsedAgentId = kd.getDeclarers().iterator().next().stringValue();
-				String endorsedPubkeyHash = Utils.getHash(kd.getPublicKeyString());
-				BasicDBObject o = new BasicDBObject("from-agent", endorsingAgentId)
-						.append("from-pubkey", endorsingPubkeyHash)
-						.append("to-agent", endorsedAgentId)
-						.append("to-pubkey", endorsedPubkeyHash)
-						.append("source", endorsementNpId)
-						.append("invalidated", false);
-				collection("trust-edges").updateOne(o, new BasicDBObject("$set", o), new UpdateOptions().upsert(true));
-			}
-		}
 	}
 
 	private static String getPubkey(Nanopub nanopub) {
