@@ -254,39 +254,39 @@ public class RegistryDB {
 					);
 			}
 
-			final Set<IRI> types = NanopubUtils.getTypes(nanopub);
-			if (types.contains(Utils.INTRO_TYPE)) {
-				IntroNanopub introNp = new IntroNanopub(nanopub);
-				for (KeyDeclaration kd : introNp.getKeyDeclarations()) {
-					if (kd.getDeclarers().size() != 1) {
-						System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
-					}
-					String agentId = kd.getDeclarers().iterator().next().stringValue();
-					String pubkeyhash = Utils.getHash(kd.getPublicKeyString());
-					upsert("pubkey-declarations",
-							new BasicDBObject("agent", agentId).append("pubkey", pubkeyhash).append("intro-np", ac),
-							new BasicDBObject("intro-pubkey", ph)
-						);
-				}
-			}
-			if (types.contains(Utils.APPROVAL_TYPE)) {
-				for (Statement st : nanopub.getAssertion()) {
-					if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
-					if (!(st.getObject() instanceof IRI)) continue;
-					String objStr = st.getObject().stringValue();
-					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-					String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
-					String agentId = st.getSubject().stringValue();
-					collection("endorsements").insertOne(
-							new Document("agent", agentId)
-								.append("pubkey", ph)
-								.append("endorsed-nanopub", endorsedNpId)
-								.append("source", ac)
-						);
-
-					loadIncomingEndorsements(st.getSubject().stringValue(), ph, endorsedNpId, ac);
-				}
-			}
+//			final Set<IRI> types = NanopubUtils.getTypes(nanopub);
+//			if (types.contains(Utils.INTRO_TYPE)) {
+//				IntroNanopub introNp = new IntroNanopub(nanopub);
+//				for (KeyDeclaration kd : introNp.getKeyDeclarations()) {
+//					if (kd.getDeclarers().size() != 1) {
+//						System.err.println("Ignoring intro with invalid number of declarers: " + nanopub.getUri());
+//					}
+//					String agentId = kd.getDeclarers().iterator().next().stringValue();
+//					String pubkeyhash = Utils.getHash(kd.getPublicKeyString());
+//					upsert("pubkey-declarations",
+//							new BasicDBObject("agent", agentId).append("pubkey", pubkeyhash).append("intro-np", ac),
+//							new BasicDBObject("intro-pubkey", ph)
+//						);
+//				}
+//			}
+//			if (types.contains(Utils.APPROVAL_TYPE)) {
+//				for (Statement st : nanopub.getAssertion()) {
+//					if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
+//					if (!(st.getObject() instanceof IRI)) continue;
+//					String objStr = st.getObject().stringValue();
+//					if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
+//					String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+//					String agentId = st.getSubject().stringValue();
+//					collection("endorsements").insertOne(
+//							new Document("agent", agentId)
+//								.append("pubkey", ph)
+//								.append("endorsed-nanopub", endorsedNpId)
+//								.append("source", ac)
+//						);
+//
+//					loadIncomingEndorsements(st.getSubject().stringValue(), ph, endorsedNpId, ac);
+//				}
+//			}
 		}
 
 		if (type != null && ph.equals(pubkeyHash) && hasType(nanopub, type)) {

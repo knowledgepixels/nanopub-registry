@@ -21,7 +21,9 @@ import java.util.Random;
 import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Statement;
 import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
@@ -74,6 +76,8 @@ public class TaskManager {
 		if (action == null) throw new RuntimeException("Action is null");
 		System.err.println("Running task: " + action);
 
+		// TODO Proper transactions / roll-back
+
 		if (action.equals("init-db")) {
 
 			upsert("server-info", "status", "launching");
@@ -97,8 +101,9 @@ public class TaskManager {
 
 			try {
 				NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
-				upsert("setting", "original", settingNp.getNanopub().getUri().stringValue());
-				upsert("setting", "current", settingNp.getNanopub().getUri().stringValue());
+				String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
+				upsert("setting", "original", settingId);
+				upsert("setting", "current", settingId);
 				loadNanopub(settingNp.getNanopub());
 				List<BasicDBObject> bootstrapServices = new ArrayList<>();
 				for (IRI i : settingNp.getBootstrapServices()) {
@@ -106,134 +111,127 @@ public class TaskManager {
 				}
 				upsert("setting", "bootstrap-services", bootstrapServices);
 				upsert("server-info", "status", "loaded");
-				schedule(task("load-agent-intros").append("depth", 0).append("agent-index", settingNp.getAgentIntroCollection().stringValue()));
+
+				add("trust-paths", new Document("_id", "@").append("sorthash", "").append("agent", "@").append("pubkey", "@")
+						.append("depth", 0).append("ratio", 1.0d));
+				NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(settingNp.getAgentIntroCollection().stringValue()));
+				loadNanopub(agentIndex);
+				for (IRI el : agentIndex.getElements()) {
+					String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
+					add("endorsements", new Document("agent", "@").append("pubkey", "@").append("endorsed-nanopub", declarationAc)
+							.append("source", settingId).append("status", "to-retrieve"));
+				}
+				add("agents", new Document("agent", "@").append("pubkey", "@").append("status", "visited").append("depth", 0));
+
+				schedule(task("load-declarations").append("depth", 1));
 			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
 				ex.printStackTrace();
 				error(ex.getMessage());
 			}
 
-		} else if (action.equals("load-agent-intros")) {
+		} else if (action.equals("load-declarations")) {
 
 			int depth = task.getInteger("depth");
 
-			if (depth == 0) {
-	
-				try {
-					NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(task.getString("agent-index")));
-					loadNanopub(agentIndex);
-					for (IRI el : agentIndex.getElements()) {
-						String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
-						add("agent-intros", new Document("intro-np", declarationAc).append("type", "base").append("status", "to-try"));
-					}
-	
-				} catch (MalformedNanopubException ex) {
-					ex.printStackTrace();
-					error(ex.getMessage());
-				}
+			if (has("endorsements", new BasicDBObject("status", "to-retrieve"))) {
+				Document d = getOne("endorsements", new BasicDBObject("status", "to-retrieve"));
 
-			} else {
-
-				MongoCursor<Document> trustPathCursor = get("trust-paths", new BasicDBObject("depth", depth - 1));
-				while (trustPathCursor.hasNext()) {
-					Document trustPathDoc = trustPathCursor.next();
-					String agentId = trustPathDoc.getString("agent");
-					String pubkeyHash = trustPathDoc.getString("pubkey");
-					MongoCursor<Document> endorsementCursor = get("endorsements", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash));
-					while (endorsementCursor.hasNext()) {
-						Document endorsementDoc = endorsementCursor.next();
-						String endorsedNanopubAc = endorsementDoc.getString("endorsed-nanopub");
-						// TODO Make this dependent on ratio
-						if (!has("agent-intros", new BasicDBObject("intro-np", endorsedNanopubAc))) {
-							add("agent-intros", new Document("intro-np", endorsedNanopubAc).append("type", "regular").append("status", "to-try"));
-						}
-					}
-				}
-
-			}
-
-			schedule(task("load-pubkey-declarations").append("depth", depth));
-
-		} else if (action.equals("load-pubkey-declarations")) {
-
-			int depth = task.getInteger("depth");
-
-			if (has("agent-intros", new BasicDBObject("status", "to-try"))) {
-				System.err.println("load-core stage 1: getting agent intro");
-
-				Document d = getOne("agent-intros", new BasicDBObject("status", "to-try"));
-				String introId = d.getString("intro-np");
-				String type = d.getString("type");
-
-				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(introId));
-				System.err.println("Load: " + introId);
+				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(d.getString("endorsed-nanopub")));
 				loadNanopub(agentIntro.getNanopub());
 				if (agentIntro.getUser() != null) {
 					// TODO Why/when is user null?
 					String agentId = agentIntro.getUser().stringValue();
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-						if (!has("agents", new Document("agent", agentId).append("pubkey", pubkeyHash))) {
-							add("agents", new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", type).append("status", "loading"));
-						} else {
-							// Agent already loaded/loading, possibly with different type; nothing to do here
+						BasicDBObject o = new BasicDBObject("from-agent", d.getString("agent"))
+								.append("from-pubkey", d.getString("pubkey"))
+								.append("to-agent", agentId)
+								.append("to-pubkey", pubkeyHash)
+								.append("source", d.getString("source"))
+								.append("invalidated", false);
+						collection("trust-edges").updateOne(o, new BasicDBObject("$set", o), new UpdateOptions().upsert(true));
+						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
+						if (!has("agents", agent)) {
+							add("agents", agent.append("status", "seen").append("depth", depth));
 						}
-						upsert("pubkey-declarations", new BasicDBObject("intro-np", introId).append("agent", agentId).append("pubkey", pubkeyHash),
-								new Document("intro-np", introId).append("status", "to-retrieve").append("agent", agentId).append("pubkey", pubkeyHash));
 					}
 
-					set("agent-intros", d, new BasicDBObject("status", "loaded").append("agent", agentId));
+					set("endorsements", d, new BasicDBObject("status", "retrieved"));
 				} else {
-					set("agent-intros", d, new BasicDBObject("status", "discarded"));
+					set("endorsements", d, new BasicDBObject("status", "discarded"));
 				}
 
-				schedule(task("load-pubkey-declarations").append("depth", depth));
+				schedule(task("load-declarations").append("depth", depth));
 
 			} else {
-				schedule(task("populate-trust-edges").append("depth", depth));
+				schedule(task("expand-trust-paths").append("depth", depth));
 			}
 
-		} else if (action.equals("populate-trust-edges")) {
+		} else if (action.equals("expand-trust-paths")) {
 
 			int depth = task.getInteger("depth");
+			System.err.println("DEPTH " + depth);
+			String currentSetting = get("setting", "current").toString();
 
-			if (has("pubkey-declarations", new BasicDBObject("status", "to-retrieve"))) {
-				System.err.println("load-core stage 2: getting incoming endorsements");
+			Document findAgents = new Document("status", "visited").append("depth", depth - 1);
 
-				Document d = getOne("pubkey-declarations", new BasicDBObject("status", "to-retrieve"));
+			if (has("agents", findAgents)) {
+
+				Document d = collection("agents").find(findAgents).cursor().next();
+	
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				MongoCursor<Document> incomingEndorsements = get("endorsements", new BasicDBObject("endorsed-nanopub", d.getString("intro-np")));
-				while (incomingEndorsements.hasNext()) {
-					Document i = incomingEndorsements.next();
-					String endorsingAgentId = i.getString("agent");
-					String endorsingPubkeyHash = i.getString("pubkey");
-					BasicDBObject o = new BasicDBObject("from-agent", endorsingAgentId)
-							.append("from-pubkey", endorsingPubkeyHash)
-							.append("to-agent", agentId)
-							.append("to-pubkey", pubkeyHash)
-							.append("source", i.getString("source"))
-							.append("invalidated", false);
-					collection("trust-edges").updateOne(o, new BasicDBObject("$set", o), new UpdateOptions().upsert(true));
+				System.err.println(agentId + " / " + pubkeyHash);
+
+				// TODO Consider also maximum ratio?
+				Document trustPath = collection("trust-paths").find(
+						new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
+					).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
+
+				if (trustPath != null) {
+					// Only first matching trust path is considered
+					System.err.println("Trust path: " + trustPath.getString("_id"));
+
+					BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
+					MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
+					// TODO Count only unique:
+					long count = collection("trust-edges").countDocuments(findTerm);
+					while (edgeCursor.hasNext()) {
+						Document edgeDoc = edgeCursor.next();
+						String targetAgentId = edgeDoc.getString("to-agent");
+						String targetPubkeyHash = edgeDoc.getString("to-pubkey");
+						System.err.println("Trust path target: " + targetAgentId + " / " + targetPubkeyHash);
+						String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
+						String sortHash = Utils.getHash(currentSetting + " " + pathId);
+						double parentRatio = trustPath.getDouble("ratio");
+						if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
+							// TODO has-check shouldn't be necessary if duplicates are removed above?
+							add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
+									.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
+						}
+					}
+					// TODO Make status dependent on ratio:
+					set("agents", d, new BasicDBObject("status", "processed").append("depth", depth));
+				} else {
+					// Check it again in next iteration:
+					set("agents", d, new BasicDBObject("depth", depth + 1));
 				}
-
-				set("pubkey-declarations", d, new BasicDBObject("status", "retrieved"));
-				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-to-load"));
-
-				schedule(task("populate-trust-edges").append("depth", depth));
-
+				schedule(task("expand-trust-paths").append("depth", depth));
+	
 			} else {
+
 				schedule(task("load-core").append("depth", depth));
+
 			}
 
 		} else if (action.equals("load-core")) {
 
 			int depth = task.getInteger("depth");
 
-			if (has("agents", new BasicDBObject("status", "core-to-load"))) {
-				System.err.println("load-core stage 3: loading core nanopubs");
+			if (has("agents", new BasicDBObject("status", "seen"))) {
 
-				Document d = getOne("agents", new BasicDBObject("status", "core-to-load"));
+				Document d = getOne("agents", new BasicDBObject("status", "seen"));
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
@@ -257,97 +255,43 @@ public class TaskManager {
 					Document endorseList = new Document("pubkey", pubkeyHash).append("type", endorseTypeHash).append("status", "loading");
 					add("lists", endorseList);
 					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
-						loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), endorseType, pubkeyHash);
+						Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
+						loadNanopub(nanopub, endorseType, pubkeyHash);
+						String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+						for (Statement st : nanopub.getAssertion()) {
+							if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
+							if (!(st.getObject() instanceof IRI)) continue;
+							if (!agentId.equals(st.getSubject().stringValue())) continue;
+							String objStr = st.getObject().stringValue();
+							if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
+							String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+							collection("endorsements").insertOne(
+									new Document("agent", agentId)
+										.append("pubkey", pubkeyHash)
+										.append("endorsed-nanopub", endorsedNpId)
+										.append("source", sourceNpId)
+										.append("status", "to-retrieve")
+								);
+						}
 					});
 					set("lists", endorseList, new BasicDBObject("status", "loaded"));
 				}
 
-				set("agents", new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash), new BasicDBObject("status", "core-loaded"));
+				set("agents", d, new BasicDBObject("status", "visited"));
 
 				schedule(task("load-core").append("depth", depth));
 
 			} else {
-				schedule(task("calculate-trust-paths").append("depth", depth));
+				schedule(task("finish-iteration").append("depth", depth));
 			}
 
-		} else if (action.equals("calculate-trust-paths")) {
+		} else if (action.equals("finish-iteration")) {
 
 			int depth = task.getInteger("depth");
-			System.err.println("DEPTH " + depth);
-			String currentSetting = get("setting", "current").toString();
-
-			if (depth > 10) {
-
+			if (depth == 10) {
 				schedule(task("run-test"));
-
-			} else if (depth == 0) {
-
-				MongoCursor<Document> baseAgents = get("agents", new BasicDBObject("type", "base").append("status", "core-loaded"));
-
-				long count = collection("agents").countDocuments(new BasicDBObject("type", "base"));
-				while (baseAgents.hasNext()) {
-					Document d = baseAgents.next();
-					String agentId = d.getString("agent");
-					String pubkeyHash = d.getString("pubkey");
-					String pathId = agentId + ">" + pubkeyHash;
-					String sortHash = Utils.getHash(currentSetting + " " + pathId);
-					upsert("trust-paths", new BasicDBObject("_id", pathId), new Document("sorthash", sortHash)
-							.append("agent", agentId).append("pubkey", pubkeyHash).append("depth", 0).append("ratio", 1.0d / count));
-
-					// TODO Why can't we set it as "core-processed" here? (if done, trust paths are not properly loaded)
-					//set("agents", d, new BasicDBObject("status", "core-processed").append("depth", 0));
-				}
-
-				schedule(task("load-agent-intros").append("depth", 1));
-	
 			} else {
-	
-				MongoCursor<Document> agentCursor = collection("agents").find(new BasicDBObject("status", "core-loaded")).cursor();
-				
-				System.err.println("Trust path calculation at depth " + depth);
-	
-				while (agentCursor.hasNext()) {
-	
-					Document d = agentCursor.next();
-	
-					String agentId = d.getString("agent");
-					String pubkeyHash = d.getString("pubkey");
-	
-					System.err.println(agentId + " / " + pubkeyHash);
-	
-					// TODO Consider also maximum ratio?
-					Document trustPath = collection("trust-paths").find(
-							new BasicDBObject("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
-						).sort(new BasicDBObject("sorthash", 1)).cursor().tryNext();
-	
-					if (trustPath != null) {
-						// Only first matching trust path is considered
-						System.err.println("Trust path: " + trustPath.getString("_id"));
-	
-						BasicDBObject findTerm = new BasicDBObject("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
-						MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
-						// TODO Count only unique:
-						long count = collection("trust-edges").countDocuments(findTerm);
-						while (edgeCursor.hasNext()) {
-							Document edgeDoc = edgeCursor.next();
-							String targetAgentId = edgeDoc.getString("to-agent");
-							String targetPubkeyHash = edgeDoc.getString("to-pubkey");
-							System.err.println("Trust path target: " + targetAgentId + " / " + targetPubkeyHash);
-							String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
-							String sortHash = Utils.getHash(currentSetting + " " + pathId);
-							double parentRatio = trustPath.getDouble("ratio");
-							if (!has("trust-paths", new BasicDBObject("_id", pathId))) {
-								// TODO has-check shouldn't be necessary if duplicates are removed above?
-								add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
-										.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
-							}
-						}
-						set("agents", d, new BasicDBObject("status", "core-processed").append("depth", depth));
-					}
-				}
-	
-				schedule(task("load-agent-intros").append("depth", depth + 1));
-
+				schedule(task("load-declarations").append("depth", depth + 1));
 			}
 
 		} else if (action.equals("run-test")) {

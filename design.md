@@ -124,7 +124,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     trust-edges:
-      { from-agent^:@, from-pubkey^:@ to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
+      { from-agent^:@, from-pubkey^:@, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
       { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
       { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
@@ -166,6 +166,25 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading }`
 - All nanopubs of agent loaded
   - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loaded }`
+
+
+## Agent Status Life Cycle (Revisited)
+
+- Add root trust path:
+  - `trust-paths: { id:@, depth:0, agent:@, pubkey:@, ratio:1.0 }`
+- Add base agent endorsements:
+  - `endorsements: { agent:@, pubkey:@, endorsed-nanopub:RA..., source:RA..., status:to-retrieve }`
+- Repeat (incrementing `depth`):
+  - Load declarations (from `endorsements`):
+    - `trust-edges: { from-agent:@, from-pubkey:@, to-agent:JohnDoe to-pubkey:a83, source^:RA... }`
+    - `agents: { agent:JohnDoe, pubkey:a83, status:to-process }`
+    - Update: `endorsements: { agent:@, pubkey:@, endorsed-nanopub:RA..., source:RA..., status:retrieved }`
+  - Expand trust paths (from `agents` + `trust-paths` + `trust-edges`):
+    - `trust-paths: { id:'@ JohnDoe>a83', depth:1, agent:JohnDoe, pubkey:a83, ratio:0.01 }`
+    - Update: `agents: { pubkey:a83, agent:JohnDoe, depth:1, status:core-to-load }`
+  - Load agent cores (from `agents`):
+    - `endorsements: { agent:a83, pubkey:JohnDoe, endorsed-nanopub:RA..., source:RA..., status:to-retrieve }`
+    - Update: `agents: { pubkey:a83, agent:JohnDoe, depth:1, status:core-loaded }`
 
 
 ## Process
