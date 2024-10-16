@@ -187,6 +187,30 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     - Update: `agents: { pubkey:a83, agent:JohnDoe, depth:1, status:core-loaded }`
 
 
+## Agent Status Life Cycle Diagram
+
+         o
+    ->> /#\
+        / \
+        (seen)
+
+         o --(to-retrieve)--> [intro:]
+    ->> /#\
+        / \
+        (visited)
+
+         o ---(retrieved)---> [intro:]
+    ->> /#\                      o
+        / \ >>---trust-edge-->> /#\ 
+        (visited)               / \
+                                (seen)
+
+         o ---(retrieved)---> [intro:]
+    ->> /#\                      o
+        / \ >>===trust=path==>> /#\ 
+        (processed)             / \
+                                (seen)
+
 ## Process
 
 ### Database initialized:
