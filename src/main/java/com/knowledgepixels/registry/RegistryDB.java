@@ -17,7 +17,6 @@ import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
 
-import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -72,20 +71,11 @@ public class RegistryDB {
 		collection("invalidations").createIndex(ascending("invalidated-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey", "invalidated-np"));
 
-		collection("agent-intros").createIndex(ascending("agent"));
-		collection("agent-intros").createIndex(ascending("intro-np"));
-		collection("agent-intros").createIndex(ascending("status"));
-
-		collection("pubkey-declarations").createIndex(ascending("agent"));
-		collection("pubkey-declarations").createIndex(ascending("pubkey"));
-		collection("pubkey-declarations").createIndex(ascending("intro-pubkey"));
-		collection("pubkey-declarations").createIndex(ascending("intro-np"));
-		collection("pubkey-declarations").createIndex(ascending("status"));
-
 		collection("endorsements").createIndex(ascending("agent"));
 		collection("endorsements").createIndex(ascending("pubkey"));
 		collection("endorsements").createIndex(ascending("endorsed-nanopub"));
 		collection("endorsements").createIndex(ascending("source"));
+		collection("endorsements").createIndex(ascending("status"));
 
 		collection("agents").createIndex(ascending("agent"));
 		collection("agents").createIndex(ascending("pubkey"));
@@ -111,17 +101,17 @@ public class RegistryDB {
 	}
 
 	public static void increateStateCounter() {
-		MongoCursor<Document> cursor = collection("server-info").find(new BasicDBObject("_id", "state-counter")).cursor();
+		MongoCursor<Document> cursor = collection("server-info").find(new Document("_id", "state-counter")).cursor();
 		if (cursor.hasNext()) {
 			long counter = cursor.next().getLong("value");
-			collection("server-info").updateOne(new BasicDBObject("_id", "state-counter"), new BasicDBObject("$set", new BasicDBObject("value", counter + 1)));
+			collection("server-info").updateOne(new Document("_id", "state-counter"), new Document("$set", new Document("value", counter + 1)));
 		} else {
 			collection("server-info").insertOne(new Document("_id", "state-counter").append("value", 0l));
 		}
 	}
 
 	public static boolean has(String collection, String elementName) {
-		return has(collection, new BasicDBObject("_id", elementName));
+		return has(collection, new Document("_id", elementName));
 	}
 
 	public static boolean has(String collection, Bson find) {
@@ -129,11 +119,11 @@ public class RegistryDB {
 	}
 
 	public static boolean hasStrongInvalidation(String npId, String pubkey) {
-		return has("invalidations", new BasicDBObject("invalidated-np", npId).append("invalidating-pubkey", pubkey));
+		return has("invalidations", new Document("invalidated-np", npId).append("invalidating-pubkey", pubkey));
 	}
 
 	public static Object get(String collection, String elementName) {
-		return get(collection, new BasicDBObject("_id", elementName), "value");
+		return get(collection, new Document("_id", elementName), "value");
 	}
 
 	public static Object get(String collection, Bson find, String field) {
@@ -143,19 +133,19 @@ public class RegistryDB {
 	}
 
 	public static Object getMaxValue(String collection, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find().sort(new BasicDBObject(fieldName, -1)).cursor();
+		MongoCursor<Document> cursor = collection(collection).find().sort(new Document(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
 	}
 
 	public static Object getMaxValue(String collection, Bson find, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find(find).sort(new BasicDBObject(fieldName, -1)).cursor();
+		MongoCursor<Document> cursor = collection(collection).find(find).sort(new Document(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
 	}
 
 	public static Document getMaxValueDocument(String collection, Bson find, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find(find).sort(new BasicDBObject(fieldName, -1)).cursor();
+		MongoCursor<Document> cursor = collection(collection).find(find).sort(new Document(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next();
 	}
@@ -163,12 +153,12 @@ public class RegistryDB {
 	public static void set(String collection, Bson find, Bson set) {
 		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
 		if (cursor.hasNext()) {
-			collection(collection).updateOne(find, new BasicDBObject("$set", set));
+			collection(collection).updateOne(find, new Document("$set", set));
 		}
 	}
 
 	public static void set(String collection, Document doc, Bson set) {
-		Bson find = new BasicDBObject("_id", doc.get("_id"));
+		Bson find = new Document("_id", doc.get("_id"));
 		set(collection, find, set);
 	}
 
@@ -191,11 +181,11 @@ public class RegistryDB {
 	}
 
 	public static void upsert(String collection, String elementId, Object value) {
-		upsert(collection, new BasicDBObject("_id", elementId), new BasicDBObject("value", value));
+		upsert(collection, new Document("_id", elementId), new Document("value", value));
 	}
 
 	public static void upsert(String collection, Bson find, Bson update) {
-		collection(collection).updateOne(find, new BasicDBObject("$set", update), new UpdateOptions().upsert(true));
+		collection(collection).updateOne(find, new Document("$set", update), new UpdateOptions().upsert(true));
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
@@ -241,12 +231,12 @@ public class RegistryDB {
 							.append("invalidated-np", invalidatedAc)
 					);
 				collection("list-entries").updateMany(
-						new BasicDBObject("np", invalidatedAc).append("pubkey", ph),
-						new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+						new Document("np", invalidatedAc).append("pubkey", ph),
+						new Document("$set", new Document("invalidated", true))
 					);
 				collection("trust-edges").updateMany(
-						new BasicDBObject("source", invalidatedAc),
-						new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+						new Document("source", invalidatedAc),
+						new Document("$set", new Document("invalidated", true))
 					);
 			}
 		}
@@ -254,11 +244,11 @@ public class RegistryDB {
 		if (type != null && ph.equals(pubkeyHash) && hasType(nanopub, type)) {
 			String typeHash = Utils.getHash(type);
 	
-			if (has("list-entries", new BasicDBObject("pubkey", ph).append("type", typeHash).append("np", ac))) {
+			if (has("list-entries", new Document("pubkey", ph).append("type", typeHash).append("np", ac))) {
 				System.err.println("Already listed: " + nanopub.getUri());
 			} else {
 				
-				Document doc = getMaxValueDocument("list-entries", new BasicDBObject("pubkey", ph).append("type", typeHash), "position");
+				Document doc = getMaxValueDocument("list-entries", new Document("pubkey", ph).append("type", typeHash), "position");
 				long position;
 				String checksum;
 				if (doc == null) {
@@ -280,14 +270,14 @@ public class RegistryDB {
 
 		}
 
-		if (has("invalidations", new BasicDBObject("invalidated-np", ac).append("invalidating-pubkey", ph))) {
+		if (has("invalidations", new Document("invalidated-np", ac).append("invalidating-pubkey", ph))) {
 			collection("list-entries").updateMany(
-					new BasicDBObject("np", ac).append("pubkey", ph),
-					new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+					new Document("np", ac).append("pubkey", ph),
+					new Document("$set", new Document("invalidated", true))
 				);
 			collection("trust-edges").updateMany(
-					new BasicDBObject("source", ac),
-					new BasicDBObject("$set", new BasicDBObject("invalidated", true))
+					new Document("source", ac),
+					new Document("$set", new Document("invalidated", true))
 				);
 		}
 

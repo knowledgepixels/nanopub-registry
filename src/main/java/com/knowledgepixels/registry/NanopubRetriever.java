@@ -14,7 +14,6 @@ import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.services.ApiResponse;
 import org.nanopub.extra.services.ApiResponseEntry;
 
-import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
@@ -45,7 +44,7 @@ public class NanopubRetriever {
 
 	public static Nanopub retrieveLocalNanopub(String nanopubId) {
 		String ac = TrustyUriUtils.getArtifactCode(nanopubId);
-		MongoCursor<Document> cursor = RegistryDB.get("nanopubs", new BasicDBObject("_id", ac));
+		MongoCursor<Document> cursor = RegistryDB.get("nanopubs", new Document("_id", ac));
 		if (!cursor.hasNext()) return null;
 		try {
 			return new NanopubImpl(cursor.next().getString("content"), RDFFormat.TRIG);
