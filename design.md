@@ -174,7 +174,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
   - `trust-paths: { id:@, depth:0, agent:@, pubkey:@, ratio:1.0 }`
 - Add base agent endorsements:
   - `endorsements: { agent:@, pubkey:@, endorsed-nanopub:RA..., source:RA..., status:to-retrieve }`
-- Repeat (incrementing `depth`):
+- Load cores by repeating (incrementing `depth`):
   - Load declarations (from `endorsements`):
     - `trust-edges: { from-agent:@, from-pubkey:@, to-agent:JohnDoe to-pubkey:a83, source^:RA... }`
     - `agents: { agent:JohnDoe, pubkey:a83, status:to-process }`

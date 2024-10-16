@@ -13,16 +13,15 @@ import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import org.bson.Document;
-import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Statement;
-import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.index.IndexUtils;
@@ -70,7 +69,7 @@ public class TaskManager {
 		}
 	}
 
-	static void runTask(Document task) {
+	static void runTask(Document task) throws Exception {
 		String action = task.getString("action");
 		if (action == null) throw new RuntimeException("Action is null");
 		System.err.println("Running task: " + action);
@@ -98,35 +97,31 @@ public class TaskManager {
 
 		} else if (action.equals("load-setting")) {
 
-			try {
-				NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
-				String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
-				upsert("setting", "original", settingId);
-				upsert("setting", "current", settingId);
-				loadNanopub(settingNp.getNanopub());
-				List<Document> bootstrapServices = new ArrayList<>();
-				for (IRI i : settingNp.getBootstrapServices()) {
-					bootstrapServices.add(new Document("_id", i.stringValue()));
-				}
-				upsert("setting", "bootstrap-services", bootstrapServices);
-				upsert("server-info", "status", "loaded");
-
-				add("trust-paths", new Document("_id", "@").append("sorthash", "").append("agent", "@").append("pubkey", "@")
-						.append("depth", 0).append("ratio", 1.0d));
-				NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(settingNp.getAgentIntroCollection().stringValue()));
-				loadNanopub(agentIndex);
-				for (IRI el : agentIndex.getElements()) {
-					String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
-					add("endorsements", new Document("agent", "@").append("pubkey", "@").append("endorsed-nanopub", declarationAc)
-							.append("source", settingId).append("status", "to-retrieve"));
-				}
-				add("agents", new Document("agent", "@").append("pubkey", "@").append("status", "visited").append("depth", 0));
-
-				schedule(task("load-declarations").append("depth", 1));
-			} catch (RDF4JException | MalformedNanopubException | IOException ex) {
-				ex.printStackTrace();
-				error(ex.getMessage());
+			NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
+			String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
+			upsert("setting", "original", settingId);
+			upsert("setting", "current", settingId);
+			loadNanopub(settingNp.getNanopub());
+			List<Document> bootstrapServices = new ArrayList<>();
+			for (IRI i : settingNp.getBootstrapServices()) {
+				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
+			upsert("setting", "bootstrap-services", bootstrapServices);
+			upsert("server-info", "status", "loading");
+
+			add("trust-paths", new Document("_id", "@").append("sorthash", "").append("agent", "@").append("pubkey", "@")
+					.append("depth", 0).append("ratio", 1.0d));
+			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(settingNp.getAgentIntroCollection().stringValue()));
+			loadNanopub(agentIndex);
+			for (IRI el : agentIndex.getElements()) {
+				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
+				add("endorsements", new Document("agent", "@").append("pubkey", "@").append("endorsed-nanopub", declarationAc)
+						.append("source", settingId).append("status", "to-retrieve"));
+			}
+			add("agents", new Document("agent", "@").append("pubkey", "@").append("status", "visited").append("depth", 0));
+
+			System.err.println("Starting iteration at depth 0");
+			schedule(task("load-declarations").append("depth", 1));
 
 		} else if (action.equals("load-declarations")) {
 
@@ -169,7 +164,6 @@ public class TaskManager {
 		} else if (action.equals("expand-trust-paths")) {
 
 			int depth = task.getInteger("depth");
-			System.err.println("DEPTH " + depth);
 			String currentSetting = get("setting", "current").toString();
 
 			Document findAgents = new Document("status", "visited").append("depth", depth - 1);
@@ -181,8 +175,6 @@ public class TaskManager {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				System.err.println(agentId + " / " + pubkeyHash);
-
 				// TODO Consider also maximum ratio?
 				Document trustPath = collection("trust-paths").find(
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
@@ -190,25 +182,23 @@ public class TaskManager {
 
 				if (trustPath != null) {
 					// Only first matching trust path is considered
-					System.err.println("Trust path: " + trustPath.getString("_id"));
-
 					Document findTerm = new Document("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
 					MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
-					// TODO Count only unique:
-					long count = collection("trust-edges").countDocuments(findTerm);
+					Map<String,Document> newPaths = new HashMap<>();
 					while (edgeCursor.hasNext()) {
 						Document edgeDoc = edgeCursor.next();
 						String targetAgentId = edgeDoc.getString("to-agent");
 						String targetPubkeyHash = edgeDoc.getString("to-pubkey");
-						System.err.println("Trust path target: " + targetAgentId + " / " + targetPubkeyHash);
 						String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
 						String sortHash = Utils.getHash(currentSetting + " " + pathId);
-						double parentRatio = trustPath.getDouble("ratio");
-						if (!has("trust-paths", new Document("_id", pathId))) {
-							// TODO has-check shouldn't be necessary if duplicates are removed above?
-							add("trust-paths", new Document("_id", pathId).append("sorthash", sortHash)
-									.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth).append("ratio", (parentRatio*0.9) / count));
+						if (!newPaths.containsKey(pathId)) {
+							newPaths.put(pathId, new Document("_id", pathId).append("sorthash", sortHash)
+									.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth));
 						}
+					}
+					double ratio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
+					for (String pathId : newPaths.keySet()) {
+						add("trust-paths", newPaths.get(pathId).append("ratio", ratio));
 					}
 					// TODO Make status dependent on ratio:
 					set("agents", d, new Document("status", "processed"));
@@ -288,24 +278,16 @@ public class TaskManager {
 
 			int depth = task.getInteger("depth");
 			if (depth == 10) {
-				schedule(task("run-test"));
+				schedule(task("loading-done"));
 			} else {
+				System.err.println("Progressing iteration at depth " + (depth + 1));
 				schedule(task("load-declarations").append("depth", depth + 1));
 			}
 
-		} else if (action.equals("run-test")) {
+		} else if (action.equals("loading-done")) {
 
-			System.err.println("EVERYTHING DONE");
-
-//			MongoCursor<Document> cursor = get("nanopubs");
-//			while (cursor.hasNext()) {
-//				Document d = cursor.next();
-//				if (RegistryDB.hasStrongInvalidation(d.getString("_id"), d.getString("pubkey"))) {
-//					System.err.println("INVALID: " + d.getString("_id"));
-//				} else {
-//					System.err.println("VALID: " + d.getString("_id"));
-//				}
-//			}
+			upsert("server-info", "status", "ready");
+			System.err.println("Loading done");
 
 		} else {
 
