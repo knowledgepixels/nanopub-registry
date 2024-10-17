@@ -1,14 +1,14 @@
 package com.knowledgepixels.registry;
 
-import static com.knowledgepixels.registry.RegistryDB.add;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
 import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
+import static com.knowledgepixels.registry.RegistryDB.insert;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.set;
-import static com.knowledgepixels.registry.RegistryDB.upsert;
+import static com.knowledgepixels.registry.RegistryDB.setValue;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 
@@ -33,7 +33,6 @@ import org.nanopub.extra.setting.NanopubSetting;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.UpdateOptions;
 
 import net.trustyuri.TrustyUriUtils;
 
@@ -49,16 +48,14 @@ public class TaskManager {
 		}
 		while (true) {
 			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
-			if (taskResult.cursor().hasNext()) {
-				Document task = taskResult.cursor().next();
-				if (task.getLong("not-before") < System.currentTimeMillis()) {
-					try {
-						runTask(task);
-					} catch (Exception ex) {
-						ex.printStackTrace();
-						error(ex.getMessage());
-						break;
-					}
+			Document task = taskResult.first();
+			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
+				try {
+					runTask(task);
+				} catch (Exception ex) {
+					ex.printStackTrace();
+					error(ex.getMessage());
+					break;
 				}
 			}
 			try {
@@ -78,47 +75,66 @@ public class TaskManager {
 
 		if (action.equals("init-db")) {
 
-			upsert("server-info", "status", "launching");
+			setValue("server-info", "status", "launching");
 			increateStateCounter();
 			if (RegistryDB.isInitialized()) error("DB already initialized");
-			upsert("server-info", "setup-id", Math.abs(new Random().nextLong()));
+			setValue("server-info", "setup-id", Math.abs(new Random().nextLong()));
 			schedule(task("load-config"));
 
 		} else if (action.equals("load-config")) {
 
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
-				upsert("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
+				setValue("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
 			}
 			if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
-				upsert("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
+				setValue("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
-			upsert("server-info", "status", "initializing");
+			setValue("server-info", "status", "initializing");
 			schedule(task("load-setting"));
 
 		} else if (action.equals("load-setting")) {
 
 			NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
 			String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
-			upsert("setting", "original", settingId);
-			upsert("setting", "current", settingId);
+			setValue("setting", "original", settingId);
+			setValue("setting", "current", settingId);
 			loadNanopub(settingNp.getNanopub());
 			List<Document> bootstrapServices = new ArrayList<>();
 			for (IRI i : settingNp.getBootstrapServices()) {
 				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
-			upsert("setting", "bootstrap-services", bootstrapServices);
-			upsert("server-info", "status", "loading");
+			setValue("setting", "bootstrap-services", bootstrapServices);
+			setValue("server-info", "status", "loading");
 
-			add("trust-paths", new Document("_id", "@").append("sorthash", "").append("agent", "@").append("pubkey", "@")
-					.append("depth", 0).append("ratio", 1.0d));
+			insert("trust-paths",
+					new Document("_id", "@")
+						.append("sorthash", "")
+						.append("agent", "@")
+						.append("pubkey", "@")
+						.append("depth", 0)
+						.append("ratio", 1.0d)
+				);
+
 			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(settingNp.getAgentIntroCollection().stringValue()));
 			loadNanopub(agentIndex);
 			for (IRI el : agentIndex.getElements()) {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
-				add("endorsements", new Document("agent", "@").append("pubkey", "@").append("endorsed-nanopub", declarationAc)
-						.append("source", settingId).append("status", "to-retrieve"));
+
+				insert("endorsements",
+						new Document("agent", "@")
+							.append("pubkey", "@")
+							.append("endorsed-nanopub", declarationAc)
+							.append("source", settingId)
+							.append("status", "to-retrieve")
+					);
+
 			}
-			add("agents", new Document("agent", "@").append("pubkey", "@").append("status", "visited").append("depth", 0));
+			insert("agents",
+					new Document("agent", "@")
+						.append("pubkey", "@")
+						.append("status", "visited")
+						.append("depth", 0)
+				);
 
 			System.err.println("Starting iteration at depth 0");
 			schedule(task("load-declarations").append("depth", 1));
@@ -137,16 +153,19 @@ public class TaskManager {
 					String agentId = agentIntro.getUser().stringValue();
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-						Document o = new Document("from-agent", d.getString("agent"))
-								.append("from-pubkey", d.getString("pubkey"))
-								.append("to-agent", agentId)
-								.append("to-pubkey", pubkeyHash)
-								.append("source", d.getString("source"))
-								.append("invalidated", false);
-						collection("trust-edges").updateOne(o, new Document("$set", o), new UpdateOptions().upsert(true));
+
+						insert("trust-edges",
+								new Document("from-agent", d.getString("agent"))
+									.append("from-pubkey", d.getString("pubkey"))
+									.append("to-agent", agentId)
+									.append("to-pubkey", pubkeyHash)
+									.append("source", d.getString("source"))
+									.append("invalidated", false)
+							);
+
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
 						if (!has("agents", agent)) {
-							add("agents", agent.append("status", "seen").append("depth", depth));
+							insert("agents", agent.append("status", "seen").append("depth", depth));
 						}
 					}
 
@@ -198,7 +217,7 @@ public class TaskManager {
 					}
 					double ratio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
 					for (String pathId : newPaths.keySet()) {
-						add("trust-paths", newPaths.get(pathId).append("ratio", ratio));
+						insert("trust-paths", newPaths.get(pathId).append("ratio", ratio));
 					}
 					// TODO Make status dependent on ratio:
 					set("agents", d, new Document("status", "processed"));
@@ -230,7 +249,7 @@ public class TaskManager {
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", introTypeHash))) {
 					// TODO Why/when is list already loaded?
 					Document introList = new Document("pubkey", pubkeyHash).append("type", introTypeHash).append("status", "loading");
-					add("lists", introList);
+					insert("lists", introList);
 					NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, e -> {
 						loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), introType, pubkeyHash);
 					});
@@ -242,7 +261,7 @@ public class TaskManager {
 				String endorseTypeHash = Utils.getHash(endorseType);
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
 					Document endorseList = new Document("pubkey", pubkeyHash).append("type", endorseTypeHash).append("status", "loading");
-					add("lists", endorseList);
+					insert("lists", endorseList);
 					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
 						Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
 						loadNanopub(nanopub, endorseType, pubkeyHash);
@@ -286,7 +305,7 @@ public class TaskManager {
 
 		} else if (action.equals("loading-done")) {
 
-			upsert("server-info", "status", "ready");
+			setValue("server-info", "status", "ready");
 			System.err.println("Loading done");
 
 		} else {
@@ -299,7 +318,7 @@ public class TaskManager {
 	}
 
 	private static void error(String message) {
-		upsert("server-info", "status", "hanging");
+		setValue("server-info", "status", "hanging");
 		throw new RuntimeException(message);
 	}
 

@@ -162,7 +162,7 @@ public class RegistryDB {
 		set(collection, find, set);
 	}
 
-	public static void add(String collection, Document doc) {
+	public static void insert(String collection, Document doc) {
 		collection(collection).insertOne(doc);
 	}
 
@@ -175,17 +175,15 @@ public class RegistryDB {
 	}
 
 	public static Document getOne(String collection, Bson find) {
-		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
-		if (cursor.hasNext()) return cursor.next();
-		return null;
+		return collection(collection).find(find).first();
 	}
 
-	public static void upsert(String collection, String elementId, Object value) {
-		upsert(collection, new Document("_id", elementId), new Document("value", value));
-	}
-
-	public static void upsert(String collection, Bson find, Bson update) {
-		collection(collection).updateOne(find, new Document("$set", update), new UpdateOptions().upsert(true));
+	public static void setValue(String collection, String elementId, Object value) {
+		collection(collection).updateOne(
+				new Document("_id", elementId),
+				new Document("$set", new Document("value", value)),
+				new UpdateOptions().upsert(true)
+			);
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
@@ -200,7 +198,7 @@ public class RegistryDB {
 		}
 		String ph = Utils.getHash(pubkey);
 		if (!has("pubkeys", ph)) {
-			add("pubkeys", new Document("_id", ph).append("full-pubkey", pubkey));
+			insert("pubkeys", new Document("_id", ph).append("full-pubkey", pubkey));
 		}
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
