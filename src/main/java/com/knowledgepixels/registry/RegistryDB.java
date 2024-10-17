@@ -97,7 +97,7 @@ public class RegistryDB {
 	}
 
 	public static boolean isInitialized() {
-		return get("server-info", "setup-id") != null;
+		return getValue("server-info", "setup-id") != null;
 	}
 
 	public static void increateStateCounter() {
@@ -118,16 +118,14 @@ public class RegistryDB {
 		return collection(collection).find(find).cursor().hasNext();
 	}
 
-	public static Object get(String collection, String elementName) {
-		return get(collection, new Document("_id", elementName), "value");
-	}
-
-	public static Object get(String collection, Bson find, String field) {
-		return collection(collection).find(find).first();
-	}
-
 	public static MongoCursor<Document> get(String collection, Bson find) {
 		return collection(collection).find(find).cursor();
+	}
+
+	public static Object getValue(String collection, String elementName) {
+		Document d = collection(collection).find(new Document("_id", elementName)).first();
+		if (d == null) return null;
+		return d.get("value");
 	}
 
 	public static Document getOne(String collection, Bson find) {

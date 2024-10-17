@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
+import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.insert;
@@ -203,7 +204,7 @@ public class TaskManager {
 					// Only first matching trust path is considered
 
 					Map<String,Document> newPaths = new HashMap<>();
-					String currentSetting = get("setting", "current").toString();
+					String currentSetting = getValue("setting", "current").toString();
 
 					MongoCursor<Document> edgeCursor = get("trust-edges",
 							new Document("from-agent", agentId)

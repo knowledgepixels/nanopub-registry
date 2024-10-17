@@ -7,7 +7,8 @@ import org.bson.Document;
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
-import static com.knowledgepixels.registry.RegistryDB.get;
+import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 
 public class MainPage extends Page {
@@ -42,22 +43,23 @@ public class MainPage extends Page {
 			println("<h1>Nanopub Registry</h1>");
 			println("<p>Server Info:</p>");
 			println("<ul>");
-			println("<li><em>setup-id:</em> " + get("server-info", "setup-id") + "</li>");
-			println("<li><em>status:</em> " + get("server-info", "status") + "</li>");
-			println("<li><em>state-counter:</em> " + get("server-info", "state-counter") + "</li>");
-			println("<li><em>coverage-types:</em> " + get("server-info", "coverage-types") + "</li>");
-			println("<li><em>coverage-agents:</em> " + get("server-info", "coverage-agents") + "</li>");
+			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
+			println("<li><em>status:</em> " + getValue("server-info", "status") + "</li>");
+			println("<li><em>state-counter:</em> " + getValue("server-info", "state-counter") + "</li>");
+			println("<li><em>coverage-types:</em> " + getValue("server-info", "coverage-types") + "</li>");
+			println("<li><em>coverage-agents:</em> " + getValue("server-info", "coverage-agents") + "</li>");
 			println("</ul>");
 			println("<p>Setting:</p>");
 			println("<ul>");
-			println("<li><em>original:</em> " + get("setting", "original") + "</li>");
-			println("<li><em>current:</em> " + get("setting", "current") + "</li>");
+			println("<li><em>original:</em> " + getValue("setting", "original") + "</li>");
+			println("<li><em>current:</em> " + getValue("setting", "current") + "</li>");
 			println("</ul>");
-			println("<p>Base Agents:</p>");
+			println("<p>Agents:</p>");
 			println("<ul>");
-			MongoCursor<Document> baseAgents = get("agents", new Document("type", "base"));
-			while (baseAgents.hasNext()) {
-				Document d = baseAgents.next();
+			MongoCursor<Document> agents = collection("agents").find().cursor();
+			while (agents.hasNext()) {
+				Document d = agents.next();
+				if (d.get("agent").equals("@")) continue;
 				println("<li>" + d.get("agent") + " - " + d.get("pubkey") + "</li>");
 			}
 			println("</ul>");
