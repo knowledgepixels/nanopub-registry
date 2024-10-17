@@ -118,18 +118,20 @@ public class RegistryDB {
 		return collection(collection).find(find).cursor().hasNext();
 	}
 
-	public static boolean hasStrongInvalidation(String npId, String pubkey) {
-		return has("invalidations", new Document("invalidated-np", npId).append("invalidating-pubkey", pubkey));
-	}
-
 	public static Object get(String collection, String elementName) {
 		return get(collection, new Document("_id", elementName), "value");
 	}
 
 	public static Object get(String collection, Bson find, String field) {
-		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
-		if (!cursor.hasNext()) return null;
-		return cursor.next().get(field);
+		return collection(collection).find(find).first();
+	}
+
+	public static MongoCursor<Document> get(String collection, Bson find) {
+		return collection(collection).find(find).cursor();
+	}
+
+	public static Document getOne(String collection, Bson find) {
+		return collection(collection).find(find).first();
 	}
 
 	public static Object getMaxValue(String collection, String fieldName) {
@@ -150,32 +152,16 @@ public class RegistryDB {
 		return cursor.next();
 	}
 
-	public static void set(String collection, Bson find, Bson set) {
+	public static void set(String collection, Document update) {
+		Bson find = new Document("_id", update.get("_id"));
 		MongoCursor<Document> cursor = collection(collection).find(find).cursor();
 		if (cursor.hasNext()) {
-			collection(collection).updateOne(find, new Document("$set", set));
+			collection(collection).updateOne(find, new Document("$set", update));
 		}
-	}
-
-	public static void set(String collection, Document doc, Bson set) {
-		Bson find = new Document("_id", doc.get("_id"));
-		set(collection, find, set);
 	}
 
 	public static void insert(String collection, Document doc) {
 		collection(collection).insertOne(doc);
-	}
-
-	public static MongoCursor<Document> get(String collection) {
-		return collection(collection).find().cursor();
-	}
-
-	public static MongoCursor<Document> get(String collection, Bson find) {
-		return collection(collection).find(find).cursor();
-	}
-
-	public static Document getOne(String collection, Bson find) {
-		return collection(collection).find(find).first();
 	}
 
 	public static void setValue(String collection, String elementId, Object value) {

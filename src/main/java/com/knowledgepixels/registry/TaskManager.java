@@ -169,9 +169,9 @@ public class TaskManager {
 						}
 					}
 
-					set("endorsements", d, new Document("status", "retrieved"));
+					set("endorsements", d.append("status", "retrieved"));
 				} else {
-					set("endorsements", d, new Document("status", "discarded"));
+					set("endorsements", d.append("status", "discarded"));
 				}
 
 				schedule(task("load-declarations").append("depth", depth));
@@ -183,13 +183,13 @@ public class TaskManager {
 		} else if (action.equals("expand-trust-paths")) {
 
 			int depth = task.getInteger("depth");
-			String currentSetting = get("setting", "current").toString();
 
-			Document findAgents = new Document("status", "visited").append("depth", depth - 1);
+			Document d = getOne("agents",
+					new Document("status", "visited")
+						.append("depth", depth - 1)
+				);
 
-			if (has("agents", findAgents)) {
-
-				Document d = collection("agents").find(findAgents).cursor().next();
+			if (d != null) {
 	
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
@@ -197,33 +197,40 @@ public class TaskManager {
 				// TODO Consider also maximum ratio?
 				Document trustPath = collection("trust-paths").find(
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
-					).sort(new Document("sorthash", 1)).cursor().tryNext();
+					).sort(new Document("sorthash", 1)).first();
 
 				if (trustPath != null) {
 					// Only first matching trust path is considered
-					Document findTerm = new Document("from-agent", agentId).append("from-pubkey", pubkeyHash).append("invalidated", false);
-					MongoCursor<Document> edgeCursor = collection("trust-edges").find(findTerm).cursor();
+
 					Map<String,Document> newPaths = new HashMap<>();
+					String currentSetting = get("setting", "current").toString();
+
+					MongoCursor<Document> edgeCursor = get("trust-edges",
+							new Document("from-agent", agentId)
+								.append("from-pubkey", pubkeyHash)
+								.append("invalidated", false)
+						);
 					while (edgeCursor.hasNext()) {
-						Document edgeDoc = edgeCursor.next();
-						String targetAgentId = edgeDoc.getString("to-agent");
-						String targetPubkeyHash = edgeDoc.getString("to-pubkey");
-						String pathId = trustPath.getString("_id") + " " + targetAgentId + ">" + targetPubkeyHash;
-						String sortHash = Utils.getHash(currentSetting + " " + pathId);
-						if (!newPaths.containsKey(pathId)) {
-							newPaths.put(pathId, new Document("_id", pathId).append("sorthash", sortHash)
-									.append("agent", targetAgentId).append("pubkey", targetPubkeyHash).append("depth", depth));
-						}
+						Document e = edgeCursor.next();
+
+						String pathId = trustPath.getString("_id") + " " + e.get("to-agent") + ">" + e.get("to-pubkey");
+						newPaths.put(pathId,
+								new Document("_id", pathId)
+									.append("sorthash", Utils.getHash(currentSetting + " " + pathId))
+									.append("agent", e.get("to-agent"))
+									.append("pubkey", e.get("to-pubkey"))
+									.append("depth", depth)
+							);
 					}
 					double ratio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
 					for (String pathId : newPaths.keySet()) {
 						insert("trust-paths", newPaths.get(pathId).append("ratio", ratio));
 					}
 					// TODO Make status dependent on ratio:
-					set("agents", d, new Document("status", "processed"));
+					set("agents", d.append("status", "processed"));
 				} else {
 					// Check it again in next iteration:
-					set("agents", d, new Document("depth", depth + 1));
+					set("agents", d.append("depth", depth + 1));
 				}
 				schedule(task("expand-trust-paths").append("depth", depth));
 	
@@ -248,19 +255,25 @@ public class TaskManager {
 				String introTypeHash = Utils.getHash(introType);
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", introTypeHash))) {
 					// TODO Why/when is list already loaded?
-					Document introList = new Document("pubkey", pubkeyHash).append("type", introTypeHash).append("status", "loading");
+					Document introList = new Document()
+							.append("pubkey", pubkeyHash)
+							.append("type", introTypeHash)
+							.append("status", "loading");
 					insert("lists", introList);
 					NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, e -> {
 						loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), introType, pubkeyHash);
 					});
-					set("lists", introList, new Document("status", "loaded"));
+					set("lists", introList.append("status", "loaded"));
 				}
 
 				// TODO check endorsement limit
 				String endorseType = Utils.APPROVAL_TYPE.stringValue();
 				String endorseTypeHash = Utils.getHash(endorseType);
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
-					Document endorseList = new Document("pubkey", pubkeyHash).append("type", endorseTypeHash).append("status", "loading");
+					Document endorseList = new Document()
+							.append("pubkey", pubkeyHash)
+							.append("type", endorseTypeHash)
+							.append("status", "loading");
 					insert("lists", endorseList);
 					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
 						Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
@@ -273,7 +286,7 @@ public class TaskManager {
 							String objStr = st.getObject().stringValue();
 							if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
 							String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
-							collection("endorsements").insertOne(
+							insert("endorsements",
 									new Document("agent", agentId)
 										.append("pubkey", pubkeyHash)
 										.append("endorsed-nanopub", endorsedNpId)
@@ -282,10 +295,10 @@ public class TaskManager {
 								);
 						}
 					});
-					set("lists", endorseList, new Document("status", "loaded"));
+					set("lists", endorseList.append("status", "loaded"));
 				}
 
-				set("agents", d, new Document("status", "visited"));
+				set("agents", d.append("status", "visited"));
 
 				schedule(task("load-core").append("depth", depth));
 
@@ -331,7 +344,9 @@ public class TaskManager {
 	}
 
 	private static Document task(String name, long delay) {
-		return new Document("not-before", System.currentTimeMillis() + delay).append("action", name);
+		return new Document()
+				.append("not-before", System.currentTimeMillis() + delay)
+				.append("action", name);
 	}
 
 }
