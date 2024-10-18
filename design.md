@@ -191,51 +191,51 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 Agent account seen:
 
-          o
-    -->> /#\  /o\___
-         / \  \_/^^^
-           (seen)
+         o
+    --> /#\  /o\___
+        / \  \_/^^^
+          (seen)
     
-    =========[X] trust path
+    ========[X] trust path
 
 
 Agent account visited:
 
-          o      ----endorses----> [intro]
-    -->> /#\  /o\___            (to-retrieve)
-         / \  \_/^^^
-          (visited)
+         o      ----endorses----> [intro]
+    ->> /#\  /o\___            (to-retrieve)
+        / \  \_/^^^
+         (visited)
     
-    =========[X] trust path
+    ========[X] trust path
 
 
 Agent intro retrieved:
 
 
-          o      ----endorses---->  [intro]
-    -->> /#\  /o\___                o     
-         / \  \_/^^^ ---trusts---> /#\  /o\___
-          (visited)                / \  \_/^^^
-                                     (seen)
+         o      ----endorses---->  [intro]
+    --> /#\  /o\___                o     
+        / \  \_/^^^ ---trusts---> /#\  /o\___
+         (visited)                / \  \_/^^^
+                                    (seen)
     
-    =========[X] trust path
+    ========[X] trust path
 
 
 Trust path expanded:
 
-          o      ----endorses----> [intro]
-    -->> /#\  /o\___                o
-         / \  \_/^^^ ---trusts---> /#\  /o\___
-         (processed)               / \  \_/^^^
-                                     (seen)
+         o      ----endorses----> [intro]
+    --> /#\  /o\___                o
+        / \  \_/^^^ ---trusts---> /#\  /o\___
+        (processed)               / \  \_/^^^
+                                    (seen)
     
-    =========[X]======================[X] trust path
+    ========[X]======================[X] trust path
 
 
 Initialized:
 
       @@@@ ----endorses----> [intro]
-      base               (to-retrieve)
+      base                (to-retrieve)
       @@@@
     (visited)
     
