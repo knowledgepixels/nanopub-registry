@@ -207,7 +207,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
           o --endorses--> [intro]
     -->> /#\     |           o
-         / \ >>--trusts-->> /#\ 
+         / \ ----trusts---> /#\ 
       (visited)  |          / \
                  |         (seen)
                  |
@@ -217,7 +217,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
           o --endorses--> [intro]   |
     -->> /#\                 o      |
-         / \ >>--trusts-->> /#\     |
+         / \ ----trusts---> /#\     |
      (processed)            / \     |
                            (seen)   |
                                     |
