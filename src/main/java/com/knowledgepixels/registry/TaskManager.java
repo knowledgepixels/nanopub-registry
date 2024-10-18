@@ -147,11 +147,10 @@ public class TaskManager {
 			if (has("endorsements", new Document("status", "to-retrieve"))) {
 				Document d = getOne("endorsements", new Document("status", "to-retrieve"));
 
-				IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(d.getString("endorsed-nanopub")));
-				loadNanopub(agentIntro.getNanopub());
-				if (agentIntro.getUser() != null) {
-					// TODO Why/when is user null?
+				IntroNanopub agentIntro = getAgentIntro(d.getString("endorsed-nanopub"));
+				if (agentIntro != null) {
 					String agentId = agentIntro.getUser().stringValue();
+
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
 
@@ -329,6 +328,13 @@ public class TaskManager {
 		}
 
 		tasks.deleteOne(eq("_id", task.get("_id")));
+	}
+
+	private static IntroNanopub getAgentIntro(String nanopubId) {
+		IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(nanopubId));
+		if (agentIntro.getUser() == null) return null;
+		loadNanopub(agentIntro.getNanopub());
+		return agentIntro;
 	}
 
 	private static void error(String message) {
