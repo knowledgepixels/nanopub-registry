@@ -189,38 +189,38 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 ## Agent Status Life Cycle Diagram
 
-          o             |
-    -->> /#\  /o\___    |
-         / \  \_/^^^    |
-         (seen)         |
-                        |
-           >trust>paths>|
+          o                |
+    -->> /#\  /o\___       |
+         / \  \_/^^^       |
+          (seen)           |
+                           |
+              >trust>paths>|
 
 
-          o ---endorses----> [intro]
-    -->> /#\  /o\___    |  (to-retrieve)
-         / \  \_/^^^    |
-       (visited)        |
-                        |
-           >trust>paths>|
+          o      ---endorses---> [intro]
+    -->> /#\  /o\___       |   (to-retrieve)
+         / \  \_/^^^       |
+         (visited)         |
+                           |
+              >trust>paths>|
 
 
-          o ---endorses---> [intro]
-    -->> /#\  /o\___    |     o     
-         / \  \_/^^^    |    /#\  /o\___
-       (visited) --trusts--> / \  \_/^^^
-                        |    (seen)
-                        |
-           >trust>paths>|
+          o      ---endorses---> [intro]
+    -->> /#\  /o\___       |        o     
+         / \  \_/^^^ ---trusts---> /#\  /o\___
+         (visited)         |       / \  \_/^^^
+                           |       (seen)
+                           |
+              >trust>paths>|
 
 
-          o ---endorses---> [intro]         |
-    -->> /#\  /o\___          o             |
-         / \  \_/^^^         /#\  /o\___    |
-     (processed) --trusts--> / \  \_/^^^    |
-                             (seen)         |
-                                            |
-                               >trust>paths>|
+          o      ---endorses---> [intro]          |
+    -->> /#\  /o\___                o             |
+         / \  \_/^^^ ---trusts---> /#\  /o\___    |
+         (processed)               / \  \_/^^^    |
+                                    (seen)        |
+                                                  |
+                                     >trust>paths>|
 
 
 ## Process
