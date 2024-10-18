@@ -192,7 +192,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
           o                |
     -->> /#\  /o\___       |
          / \  \_/^^^       |
-          (seen)           |
+           (seen)          |
                            |
               >trust>paths>|
 
@@ -200,7 +200,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
           o      ---endorses---> [intro]
     -->> /#\  /o\___       |   (to-retrieve)
          / \  \_/^^^       |
-         (visited)         |
+          (visited)        |
                            |
               >trust>paths>|
 
@@ -208,8 +208,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
           o      ---endorses---> [intro]
     -->> /#\  /o\___       |        o     
          / \  \_/^^^ ---trusts---> /#\  /o\___
-         (visited)         |       / \  \_/^^^
-                           |       (seen)
+          (visited)        |       / \  \_/^^^
+                           |         (seen)
                            |
               >trust>paths>|
 
@@ -218,7 +218,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     -->> /#\  /o\___                o             |
          / \  \_/^^^ ---trusts---> /#\  /o\___    |
          (processed)               / \  \_/^^^    |
-                                    (seen)        |
+                                     (seen)       |
                                                   |
                                      >trust>paths>|
 
