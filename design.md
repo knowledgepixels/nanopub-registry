@@ -119,7 +119,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       status: completed
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
-    agents:
+    agent-accounts:
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
@@ -151,21 +151,21 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 - Declaration marked "to retrieve"
   - `pubkey-declarations: { declaration^:RAxyz..., status^:to-retrieve }`
 - Agent info retrieved
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:found }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:found }`
 - Agent core marked as "to load"
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-to-load }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-to-load }`
 - Agent core being loaded
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading-core }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading-core }`
 - Agent core loaded
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-loaded }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-loaded }`
 - Agent endorsements processed
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-processed }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-processed }`
 - Agent nanopubs marked as "to load":
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:to-load }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:to-load }`
 - All nanopubs of agent being loaded
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading }`
 - All nanopubs of agent loaded
-  - `agents: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loaded }`
+  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loaded }`
 
 
 ## Agent Status Life Cycle (Revisited)
@@ -177,14 +177,14 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 - Load cores by repeating (incrementing `depth`):
   - Load declarations (from `endorsements`):
     - `trust-edges: { from-agent:@, from-pubkey:@, to-agent:JohnDoe to-pubkey:a83, source^:RA... }`
-    - `agents: { agent:JohnDoe, pubkey:a83, status:to-process }`
+    - `agent-accounts: { agent:JohnDoe, pubkey:a83, status:to-process }`
     - Update: `endorsements: { agent:@, pubkey:@, endorsed-nanopub:RA..., source:RA..., status:retrieved }`
   - Expand trust paths (from `agents` + `trust-paths` + `trust-edges`):
     - `trust-paths: { id:'@ JohnDoe>a83', depth:1, agent:JohnDoe, pubkey:a83, ratio:0.01 }`
-    - Update: `agents: { pubkey:a83, agent:JohnDoe, depth:1, status:core-to-load }`
+    - Update: `agent-accounts: { pubkey:a83, agent:JohnDoe, depth:1, status:core-to-load }`
   - Load agent cores (from `agents`):
     - `endorsements: { agent:a83, pubkey:JohnDoe, endorsed-nanopub:RA..., source:RA..., status:to-retrieve }`
-    - Update: `agents: { pubkey:a83, agent:JohnDoe, depth:1, status:core-loaded }`
+    - Update: `agent-accounts: { pubkey:a83, agent:JohnDoe, depth:1, status:core-loaded }`
 
 
 ## Trust Path Calculation in Diagrams
@@ -281,7 +281,7 @@ Initialized:
       status: completed
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
-    agents:
+    agent-accounts:
       { id**:JohnDoe, pubkey**:a83, type:base }
       { id**:EveBlue, pubkey**:c43, type:base }
       ...
@@ -398,7 +398,7 @@ Extended paths:
 
 ### Trust scores calculated:
 
-    agents:
+    agent-accounts:
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:core-loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
