@@ -189,7 +189,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 ## Agent Status Life Cycle Diagram
 
-          o    _        |
+          o             |
     -->> /#\  /o\___    |
          / \  \_/^^^    |
          (seen)         |
@@ -206,7 +206,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 
           o ---endorses---> [intro]
-    -->> /#\  /o\___    |     o    _
+    -->> /#\  /o\___    |     o     
          / \  \_/^^^    |    /#\  /o\___
        (visited) --trusts--> / \  \_/^^^
                         |    (seen)
@@ -215,7 +215,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 
           o ---endorses---> [intro]         |
-    -->> /#\  /o\___          o    _        |
+    -->> /#\  /o\___          o             |
          / \  \_/^^^         /#\  /o\___    |
      (processed) --trusts--> / \  \_/^^^    |
                              (seen)         |
