@@ -212,7 +212,7 @@ Agent account visited:
 Agent intro retrieved:
 
 
-         o      ----endorses---->  [intro]
+         o      ----endorses----> [intro]
     --> /#\  /o\___                o     
         / \  \_/^^^ ---trusts---> /#\  /o\___
          (visited)                / \  \_/^^^

@@ -130,7 +130,7 @@ public class TaskManager {
 					);
 
 			}
-			insert("agents",
+			insert("agent-accounts",
 					new Document("agent", "@")
 						.append("pubkey", "@")
 						.append("status", "visited")
@@ -164,8 +164,8 @@ public class TaskManager {
 							);
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
-						if (!has("agents", agent)) {
-							insert("agents", agent.append("status", "seen").append("depth", depth));
+						if (!has("agent-accounts", agent)) {
+							insert("agent-accounts", agent.append("status", "seen").append("depth", depth));
 						}
 					}
 
@@ -184,7 +184,7 @@ public class TaskManager {
 
 			int depth = task.getInteger("depth");
 
-			Document d = getOne("agents",
+			Document d = getOne("agent-accounts",
 					new Document("status", "visited")
 						.append("depth", depth - 1)
 				);
@@ -194,11 +194,12 @@ public class TaskManager {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				// TODO Consider also maximum ratio?
+				// TODO Sort by ratio too (descending):
 				Document trustPath = collection("trust-paths").find(
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
 					).sort(new Document("sorthash", 1)).first();
 
+				// TODO Check for maximum ratio:
 				if (trustPath != null) {
 					// Only first matching trust path is considered
 
@@ -226,27 +227,28 @@ public class TaskManager {
 					for (String pathId : newPaths.keySet()) {
 						insert("trust-paths", newPaths.get(pathId).append("ratio", ratio));
 					}
-					// TODO Make status dependent on ratio:
-					set("agents", d.append("status", "processed"));
+					// TODO Add ratio too:
+					set("agent-accounts", d.append("status", "processed"));
 				} else {
 					// Check it again in next iteration:
-					set("agents", d.append("depth", depth + 1));
+					set("agent-accounts", d.append("depth", depth + 1));
 				}
 				schedule(task("expand-trust-paths").append("depth", depth));
 	
 			} else {
 
-				schedule(task("load-core").append("depth", depth));
+				schedule(task("load-core").append("depth", depth).append("load-count", 0));
 
 			}
 
 		} else if (action.equals("load-core")) {
 
 			int depth = task.getInteger("depth");
+			int loadCount = task.getInteger("load-count");
 
-			if (has("agents", new Document("status", "seen"))) {
+			if (has("agent-accounts", new Document("status", "seen"))) {
 
-				Document d = getOne("agents", new Document("status", "seen"));
+				Document d = getOne("agent-accounts", new Document("status", "seen"));
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
@@ -298,18 +300,25 @@ public class TaskManager {
 					set("lists", endorseList.append("status", "loaded"));
 				}
 
-				set("agents", d.append("status", "visited"));
+				set("agent-accounts", d.append("status", "visited"));
 
-				schedule(task("load-core").append("depth", depth));
+				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
 
-			} else {
-				schedule(task("finish-iteration").append("depth", depth));
+			} else if (loadCount > 0) {
+				// New cores loaded, so continuing iterating
+				schedule(task("finish-iteration").append("depth", depth).append("load-count", loadCount));
 			}
 
 		} else if (action.equals("finish-iteration")) {
 
 			int depth = task.getInteger("depth");
-			if (depth == 10) {
+			int loadCount = task.getInteger("load-count");
+
+			if (loadCount == 0) {
+				System.err.println("No new cores loaded; finishing iteration");
+				schedule(task("loading-done"));
+			} else if (depth == 10) {
+				System.err.println("Maximum depth reached: " + depth);
 				schedule(task("loading-done"));
 			} else {
 				System.err.println("Progressing iteration at depth " + (depth + 1));

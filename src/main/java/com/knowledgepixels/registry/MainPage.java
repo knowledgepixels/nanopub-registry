@@ -56,7 +56,7 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<p>Agents:</p>");
 			println("<ul>");
-			MongoCursor<Document> agents = collection("agents").find().cursor();
+			MongoCursor<Document> agents = collection("agent-accounts").find().cursor();
 			while (agents.hasNext()) {
 				Document d = agents.next();
 				if (d.get("agent").equals("@")) continue;
