@@ -189,27 +189,41 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
 
 ## Agent Status Life Cycle Diagram
 
-         o
-    ->> /#\
-        / \
-        (seen)
+         o      |
+    ->> /#\     |
+        / \     |
+       (seen)   |
+                |
+    trust paths |
 
-         o --(to-retrieve)--> [intro:]
-    ->> /#\
-        / \
-        (visited)
 
-         o ---(retrieved)---> [intro:]
-    ->> /#\                      o
-        / \ >>---trust-edge-->> /#\ 
-        (visited)               / \
-                                (seen)
+         o --endorses--> [intro]
+    ->> /#\     |     (to-retrieve)
+        / \     |
+     (visited)  |
+                |
+    trust paths |
 
-         o ---(retrieved)---> [intro:]
-    ->> /#\                      o
-        / \ >>===trust=path==>> /#\ 
-        (processed)             / \
-                                (seen)
+
+         o --endorses--> [intro]
+    ->> /#\     |           o
+        / \ >>--trusts-->> /#\ 
+     (visited)  |          / \
+                |         (seen)
+                |
+    trust paths |
+
+                                
+
+         o --endorses--> [intro]   |
+    ->> /#\                 o      |
+        / \ >>--trusts-->> /#\     |
+    (processed)            / \     |
+                          (seen)   |
+                                   |
+                       trust paths |
+
+                                
 
 ## Process
 
