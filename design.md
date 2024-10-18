@@ -187,44 +187,59 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     - Update: `agents: { pubkey:a83, agent:JohnDoe, depth:1, status:core-loaded }`
 
 
-## Agent Status Life Cycle Diagram
+## Trust Path Calculation in Diagrams
+
+Agent account seen:
 
           o
     -->> /#\  /o\___
          / \  \_/^^^
            (seen)
     
-    ==========X
-    trust paths
+    =========[X] trust path
 
 
-          o      ---endorses---> [intro]
-    -->> /#\  /o\___           (to-retrieve)
-         / \  \_/^^^        
+Agent account visited:
+
+          o      ----endorses----> [intro]
+    -->> /#\  /o\___            (to-retrieve)
+         / \  \_/^^^
           (visited)
     
-    ==========X
-    trust paths
+    =========[X] trust path
 
 
-          o      ---endorses---> [intro]
+Agent intro retrieved:
+
+
+          o      ----endorses---->  [intro]
     -->> /#\  /o\___                o     
          / \  \_/^^^ ---trusts---> /#\  /o\___
           (visited)                / \  \_/^^^
                                      (seen)
     
-    ==========X
-    trust paths
+    =========[X] trust path
 
 
-          o      ---endorses---> [intro]
+Trust path expanded:
+
+          o      ----endorses----> [intro]
     -->> /#\  /o\___                o
          / \  \_/^^^ ---trusts---> /#\  /o\___
          (processed)               / \  \_/^^^
                                      (seen)
     
-    ==========X========================X
-    trust paths
+    =========[X]======================[X] trust path
+
+
+Initialized:
+
+      @@@@ ----endorses----> [intro]
+      base               (to-retrieve)
+      @@@@
+    (visited)
+    
+      [X] trust path
 
 
 ## Process
