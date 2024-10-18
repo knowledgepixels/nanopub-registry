@@ -229,7 +229,7 @@ Trust path expanded:
         (processed)               / \  \_/^^^
                                     (seen)
     
-    ========[X]======================[X] trust path
+    ========[X]=====================[X+1] trust path
 
 
 Initialized:
@@ -239,7 +239,7 @@ Initialized:
       @@@@
     (visited)
     
-      [X] trust path
+      [0] trust path
 
 
 ## Process
