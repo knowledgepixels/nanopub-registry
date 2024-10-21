@@ -202,7 +202,7 @@ Agent account seen:
 Agent account visited:
 
          o      ----endorses----> [intro]
-    ->> /#\  /o\___            (to-retrieve)
+    --> /#\  /o\___            (to-retrieve)
         / \  \_/^^^
          (visited)
     
@@ -226,7 +226,7 @@ Trust path expanded:
          o      ----endorses----> [intro]
     --> /#\  /o\___                o
         / \  \_/^^^ ---trusts---> /#\  /o\___
-        (processed)               / \  \_/^^^
+        (expanded)                / \  \_/^^^
                                     (seen)
     
     ========[X]=====================[X+1] trust path

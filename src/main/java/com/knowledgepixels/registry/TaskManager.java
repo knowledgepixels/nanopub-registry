@@ -12,6 +12,8 @@ import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.knowledgepixels.registry.RegistryDB.setValue;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
+import static com.mongodb.client.model.Sorts.descending;
+import static com.mongodb.client.model.Sorts.orderBy;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -39,6 +41,10 @@ import net.trustyuri.TrustyUriUtils;
 
 public class TaskManager {
 
+	// TODO Move these to setting:
+	private static final int MAX_TRUST_PATH_DEPTH = 10;
+	private static final double MIN_TRUST_PATH_RATIO = 0.000001;
+
 	private static MongoCollection<Document> tasks = collection("tasks");
 
 	private TaskManager() {}
@@ -60,7 +66,7 @@ public class TaskManager {
 				}
 			}
 			try {
-				Thread.sleep(100);
+				Thread.sleep(10);
 			} catch (InterruptedException ex) {
 				ex.printStackTrace();
 			}
@@ -194,13 +200,15 @@ public class TaskManager {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				// TODO Sort by ratio too (descending):
 				Document trustPath = collection("trust-paths").find(
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
-					).sort(new Document("sorthash", 1)).first();
+					).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
 
 				// TODO Check for maximum ratio:
-				if (trustPath != null) {
+				if (trustPath == null || trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
+					// Check it again in next iteration:
+					set("agent-accounts", d.append("depth", depth + 1));
+				} else {
 					// Only first matching trust path is considered
 
 					Map<String,Document> newPaths = new HashMap<>();
@@ -223,15 +231,11 @@ public class TaskManager {
 									.append("depth", depth)
 							);
 					}
-					double ratio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
+					double newRatio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
 					for (String pathId : newPaths.keySet()) {
-						insert("trust-paths", newPaths.get(pathId).append("ratio", ratio));
+						insert("trust-paths", newPaths.get(pathId).append("ratio", newRatio));
 					}
-					// TODO Add ratio too:
-					set("agent-accounts", d.append("status", "processed"));
-				} else {
-					// Check it again in next iteration:
-					set("agent-accounts", d.append("depth", depth + 1));
+					set("agent-accounts", d.append("status", "expanded"));
 				}
 				schedule(task("expand-trust-paths").append("depth", depth));
 	
@@ -304,7 +308,7 @@ public class TaskManager {
 
 				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
 
-			} else if (loadCount > 0) {
+			} else {
 				// New cores loaded, so continuing iterating
 				schedule(task("finish-iteration").append("depth", depth).append("load-count", loadCount));
 			}
@@ -316,13 +320,46 @@ public class TaskManager {
 
 			if (loadCount == 0) {
 				System.err.println("No new cores loaded; finishing iteration");
-				schedule(task("loading-done"));
-			} else if (depth == 10) {
+				schedule(task("calculate-trust-scores"));
+			} else if (depth == MAX_TRUST_PATH_DEPTH) {
 				System.err.println("Maximum depth reached: " + depth);
-				schedule(task("loading-done"));
+				schedule(task("calculate-trust-scores"));
 			} else {
 				System.err.println("Progressing iteration at depth " + (depth + 1));
 				schedule(task("load-declarations").append("depth", depth + 1));
+			}
+
+		} else if (action.equals("calculate-trust-scores")) {
+
+			Document d = getOne("agent-accounts", new Document("status", "expanded"));
+
+			if (d == null) {
+				schedule(task("loading-done"));
+			} else {
+				double ratio = 0.0;
+				Map<String,Boolean> seenPathElements = new HashMap<>();
+				int pathCount = 0;
+				MongoCursor<Document> trustPaths = collection("trust-paths").find(
+						new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"))
+					).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor();
+				while (trustPaths.hasNext()) {
+					Document trustPath = trustPaths.next();
+					ratio += trustPath.getDouble("ratio");
+					boolean independentPath = true;
+					String[] pathElements = trustPath.getString("_id").split(" ");
+					// Iterate over path elements, ignoring first (root) and last (this agent/pubkey):
+					for (int i = 1 ; i < pathElements.length - 1 ; i++) {
+						String p = pathElements[i];
+						if (seenPathElements.containsKey(p)) {
+							independentPath = false;
+							break;
+						}
+						seenPathElements.put(p, true);
+					}
+					if (independentPath) pathCount += 1;
+				}
+				set("agent-accounts", d.append("status", "processed").append("ratio", ratio).append("path-count", pathCount));
+				schedule(task("calculate-trust-scores"));
 			}
 
 		} else if (action.equals("loading-done")) {

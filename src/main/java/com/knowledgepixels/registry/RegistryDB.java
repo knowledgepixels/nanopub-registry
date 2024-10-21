@@ -62,7 +62,7 @@ public class RegistryDB {
 
 		collection("list-entries").createIndex(ascending("np"));
 		collection("list-entries").createIndex(ascending("pubkey", "type", "np"), unique);
-		collection("list-entries").createIndex(compoundIndex(Indexes.ascending("pubkey"), ascending("type"), descending("position")), unique);
+		collection("list-entries").createIndex(compoundIndex(ascending("pubkey"), ascending("type"), descending("position")), unique);
 		collection("list-entries").createIndex(ascending("pubkey", "type", "checksum"), unique);
 		collection("list-entries").createIndex(ascending("invalidated"));
 
@@ -82,6 +82,8 @@ public class RegistryDB {
 		collection("agent-accounts").createIndex(ascending("agent", "pubkey"), unique);
 		collection("agent-accounts").createIndex(ascending("type"));
 		collection("agent-accounts").createIndex(ascending("status"));
+		collection("agent-accounts").createIndex(descending("radio"));
+		collection("agent-accounts").createIndex(descending("path-count"));
 
 		collection("trust-edges").createIndex(ascending("from-agent"));
 		collection("trust-edges").createIndex(ascending("from-pubkey"));
@@ -130,6 +132,10 @@ public class RegistryDB {
 
 	public static Document getOne(String collection, Bson find) {
 		return collection(collection).find(find).first();
+	}
+
+	public static Document getOne(String collection, Bson find, Bson sort) {
+		return collection(collection).find(find).sort(sort).first();
 	}
 
 	public static Object getMaxValue(String collection, String fieldName) {
