@@ -16,6 +16,7 @@ import static com.mongodb.client.model.Sorts.descending;
 import static com.mongodb.client.model.Sorts.orderBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,8 +24,10 @@ import java.util.Map;
 import java.util.Random;
 
 import org.bson.Document;
+import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Statement;
+import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.index.IndexUtils;
@@ -101,7 +104,7 @@ public class TaskManager {
 
 		} else if (action.equals("load-setting")) {
 
-			NanopubSetting settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
+			NanopubSetting settingNp = getSetting();
 			String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
 			setValue("setting", "original", settingId);
 			setValue("setting", "current", settingId);
@@ -111,8 +114,11 @@ public class TaskManager {
 				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
 			setValue("setting", "bootstrap-services", bootstrapServices);
-			setValue("server-info", "status", "loading");
+			schedule(task("init-collections"));
 
+		} else if (action.equals("init-collections")) {
+
+			setValue("server-info", "status", "loading");
 			insert("trust-paths",
 					new Document("_id", "@")
 						.append("sorthash", "")
@@ -123,7 +129,7 @@ public class TaskManager {
 						.append("type", "extended")
 				);
 
-			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(settingNp.getAgentIntroCollection().stringValue()));
+			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(getSetting().getAgentIntroCollection().stringValue()));
 			loadNanopub(agentIndex);
 			for (IRI el : agentIndex.getElements()) {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
@@ -132,7 +138,7 @@ public class TaskManager {
 						new Document("agent", "@")
 							.append("pubkey", "@")
 							.append("endorsed-nanopub", declarationAc)
-							.append("source", settingId)
+							.append("source", getValue("setting", "current"))
 							.append("status", "to-retrieve")
 					);
 
@@ -205,8 +211,7 @@ public class TaskManager {
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
 					).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
 
-				// TODO Check for maximum ratio:
-				if (trustPath == null || trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
+				if (trustPath == null) {
 					// Check it again in next iteration:
 					set("agent-accounts", d.append("depth", depth));
 				} else {
@@ -253,12 +258,29 @@ public class TaskManager {
 			int depth = task.getInteger("depth");
 			int loadCount = task.getInteger("load-count");
 
-			if (has("agent-accounts", new Document("status", "seen"))) {
+			Document agentAccount = getOne("agent-accounts", new Document("depth", depth).append("status", "seen"));
+			Document trustPath = null;
+			final String agentId;
+			final String pubkeyHash;
+			if (agentAccount != null) {
+				agentId = agentAccount.getString("agent");
+				pubkeyHash = agentAccount.getString("pubkey");
+				trustPath = getOne("trust-paths",
+						new Document("depth", depth)
+							.append("agent", agentId)
+							.append("pubkey", pubkeyHash)
+					);
+			} else {
+				agentId = null;
+				pubkeyHash = null;
+			}
 
-				Document d = getOne("agent-accounts", new Document("status", "seen"));
-				String agentId = d.getString("agent");
-				String pubkeyHash = d.getString("pubkey");
-
+			if (agentAccount == null) {
+				schedule(task("finish-iteration").append("depth", depth).append("load-count", loadCount));
+			} else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
+				set("agent-accounts", agentAccount.append("status", "skipped"));
+				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
+			} else {
 				// TODO check intro limit
 				String introType = Utils.INTRO_TYPE.stringValue();
 				String introTypeHash = Utils.getHash(introType);
@@ -307,13 +329,9 @@ public class TaskManager {
 					set("lists", endorseList.append("status", "loaded"));
 				}
 
-				set("agent-accounts", d.append("status", "visited"));
+				set("agent-accounts", agentAccount.append("status", "visited"));
 
 				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
-
-			} else {
-				// New cores loaded, so continuing iterating
-				schedule(task("finish-iteration").append("depth", depth).append("load-count", loadCount));
 			}
 
 		} else if (action.equals("finish-iteration")) {
@@ -371,7 +389,7 @@ public class TaskManager {
 			if (a == null) {
 				schedule(task("loading-done"));
 			} else {
-				Document agentId = new Document("agent", a.getString("agent"));
+				Document agentId = new Document("agent", a.getString("agent")).append("status", "processed");
 				int count = 0;
 				int pathCountSum = 0;
 				double totalRatio = 0.0d;
@@ -395,6 +413,16 @@ public class TaskManager {
 
 			setValue("server-info", "status", "ready");
 			System.err.println("Loading done");
+			schedule(task("update", 10000));
+
+		} else if (action.equals("update")) {
+
+//			collection("agent-accounts").deleteMany(new Document());
+//			collection("trust-paths").deleteMany(new Document());
+//			collection("agents").deleteMany(new Document());
+//			collection("endorsements").deleteMany(new Document());
+//
+//			schedule(task("init-collections"));
 
 		} else {
 
@@ -403,6 +431,15 @@ public class TaskManager {
 		}
 
 		tasks.deleteOne(eq("_id", task.get("_id")));
+	}
+
+	private static NanopubSetting settingNp;
+
+	private static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
+		if (settingNp == null) {
+			settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
+		}
+		return settingNp;
 	}
 
 	private static IntroNanopub getAgentIntro(String nanopubId) {
