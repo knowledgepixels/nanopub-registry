@@ -18,6 +18,7 @@ import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
 
 import com.mongodb.MongoClient;
+import com.mongodb.MongoNamespace;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -31,6 +32,8 @@ public class RegistryDB {
 
 	private RegistryDB() {}
 
+	private static final String REGISTRY_DB_NAME = "nanopub-registry";
+
 	private static MongoClient mongoClient;
 	private static MongoDatabase mongoDB;
 
@@ -42,10 +45,12 @@ public class RegistryDB {
 		return mongoDB.getCollection(name);
 	}
 
+	private final static IndexOptions unique = new IndexOptions().unique(true);
+
 	public static void init() {
 		if (mongoClient != null) return;
 		mongoClient = new MongoClient("mongodb");
-		mongoDB = mongoClient.getDatabase("nanopub-registry");
+		mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
 		if (isInitialized()) return;
 
@@ -71,25 +76,6 @@ public class RegistryDB {
 		collection("invalidations").createIndex(ascending("invalidated-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey", "invalidated-np"));
 
-		collection("endorsements").createIndex(ascending("agent"));
-		collection("endorsements").createIndex(ascending("pubkey"));
-		collection("endorsements").createIndex(ascending("endorsed-nanopub"));
-		collection("endorsements").createIndex(ascending("source"));
-		collection("endorsements").createIndex(ascending("status"));
-
-		collection("agents").createIndex(ascending("agent"), unique);
-		collection("agents").createIndex(descending("account-count"));
-		collection("agents").createIndex(descending("avg-path-count"));
-		collection("agents").createIndex(descending("total-ratio"));
-
-		collection("agent-accounts").createIndex(ascending("agent"));
-		collection("agent-accounts").createIndex(ascending("pubkey"));
-		collection("agent-accounts").createIndex(ascending("agent", "pubkey"), unique);
-		collection("agent-accounts").createIndex(ascending("type"));
-		collection("agent-accounts").createIndex(ascending("status"));
-		collection("agent-accounts").createIndex(descending("ratio"));
-		collection("agent-accounts").createIndex(descending("path-count"));
-
 		collection("trust-edges").createIndex(ascending("from-agent"));
 		collection("trust-edges").createIndex(ascending("from-pubkey"));
 		collection("trust-edges").createIndex(ascending("to-agent"));
@@ -98,13 +84,46 @@ public class RegistryDB {
 		collection("trust-edges").createIndex(ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
 		collection("trust-edges").createIndex(ascending("invalidated"));
 
-		collection("trust-paths").createIndex(ascending("agent", "pubkey", "depth", "sorthash"), unique);
-		collection("trust-paths").createIndex(ascending("depth"));
-		collection("trust-paths").createIndex(descending("ratio"));
+		initLoadingCollections();
+	}
+
+	public static void initLoadingCollections() {
+		collection("endorsements_loading").createIndex(ascending("agent"));
+		collection("endorsements_loading").createIndex(ascending("pubkey"));
+		collection("endorsements_loading").createIndex(ascending("endorsed-nanopub"));
+		collection("endorsements_loading").createIndex(ascending("source"));
+		collection("endorsements_loading").createIndex(ascending("status"));
+
+		collection("agents_loading").createIndex(ascending("agent"), unique);
+		collection("agents_loading").createIndex(descending("account-count"));
+		collection("agents_loading").createIndex(descending("avg-path-count"));
+		collection("agents_loading").createIndex(descending("total-ratio"));
+
+		collection("agent-accounts_loading").createIndex(ascending("agent"));
+		collection("agent-accounts_loading").createIndex(ascending("pubkey"));
+		collection("agent-accounts_loading").createIndex(ascending("agent", "pubkey"), unique);
+		collection("agent-accounts_loading").createIndex(ascending("type"));
+		collection("agent-accounts_loading").createIndex(ascending("status"));
+		collection("agent-accounts_loading").createIndex(descending("ratio"));
+		collection("agent-accounts_loading").createIndex(descending("path-count"));
+
+		collection("trust-paths_loading").createIndex(ascending("agent", "pubkey", "depth", "sorthash"), unique);
+		collection("trust-paths_loading").createIndex(ascending("depth"));
+		collection("trust-paths_loading").createIndex(descending("ratio"));
 	}
 
 	public static boolean isInitialized() {
 		return getValue("server-info", "setup-id") != null;
+	}
+
+	public static void drop(String collection) {
+		if (mongoDB.getCollection(collection) == null) return;
+		mongoDB.getCollection(collection).drop();
+	}
+
+	public static void rename(String oldCollectionName, String newCollectionName) {
+		drop(newCollectionName);
+		collection(oldCollectionName).renameCollection(new MongoNamespace(REGISTRY_DB_NAME, newCollectionName));
 	}
 
 	public static void increateStateCounter() {
@@ -170,6 +189,10 @@ public class RegistryDB {
 	}
 
 	public static void insert(String collection, Document doc) {
+		collection(collection).insertOne(doc);
+	}
+
+	public static void upsert(String collection, Document doc) {
 		collection(collection).insertOne(doc);
 	}
 

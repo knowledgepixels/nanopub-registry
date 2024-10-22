@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.rename;
 import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
@@ -47,6 +48,7 @@ public class TaskManager {
 	// TODO Move these to setting:
 	private static final int MAX_TRUST_PATH_DEPTH = 10;
 	private static final double MIN_TRUST_PATH_RATIO = 0.000001;
+	//private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
 
 	private static MongoCollection<Document> tasks = collection("tasks");
 
@@ -114,12 +116,11 @@ public class TaskManager {
 				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
 			setValue("setting", "bootstrap-services", bootstrapServices);
+			setValue("server-info", "status", "loading");
 			schedule(task("init-collections"));
 
 		} else if (action.equals("init-collections")) {
-
-			setValue("server-info", "status", "loading");
-			insert("trust-paths",
+			insert("trust-paths_loading",
 					new Document("_id", "@")
 						.append("sorthash", "")
 						.append("agent", "@")
@@ -134,7 +135,7 @@ public class TaskManager {
 			for (IRI el : agentIndex.getElements()) {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
 
-				insert("endorsements",
+				insert("endorsements_loading",
 						new Document("agent", "@")
 							.append("pubkey", "@")
 							.append("endorsed-nanopub", declarationAc)
@@ -143,7 +144,7 @@ public class TaskManager {
 					);
 
 			}
-			insert("agent-accounts",
+			insert("agent-accounts_loading",
 					new Document("agent", "@")
 						.append("pubkey", "@")
 						.append("status", "visited")
@@ -157,8 +158,8 @@ public class TaskManager {
 
 			int depth = task.getInteger("depth");
 
-			if (has("endorsements", new Document("status", "to-retrieve"))) {
-				Document d = getOne("endorsements", new Document("status", "to-retrieve"));
+			if (has("endorsements_loading", new Document("status", "to-retrieve"))) {
+				Document d = getOne("endorsements_loading", new Document("status", "to-retrieve"));
 
 				IntroNanopub agentIntro = getAgentIntro(d.getString("endorsed-nanopub"));
 				if (agentIntro != null) {
@@ -167,24 +168,24 @@ public class TaskManager {
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
 
-						insert("trust-edges",
-								new Document("from-agent", d.getString("agent"))
-									.append("from-pubkey", d.getString("pubkey"))
-									.append("to-agent", agentId)
-									.append("to-pubkey", pubkeyHash)
-									.append("source", d.getString("source"))
-									.append("invalidated", false)
-							);
+						Document trustEdge = new Document("from-agent", d.getString("agent"))
+								.append("from-pubkey", d.getString("pubkey"))
+								.append("to-agent", agentId)
+								.append("to-pubkey", pubkeyHash)
+								.append("source", d.getString("source"));
+						if (!has("trust-edges", trustEdge)) {
+							insert("trust-edges", trustEdge.append("invalidated", false));
+						}
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
-						if (!has("agent-accounts", agent)) {
-							insert("agent-accounts", agent.append("status", "seen").append("depth", depth));
+						if (!has("agent-accounts_loading", agent)) {
+							insert("agent-accounts_loading", agent.append("status", "seen").append("depth", depth));
 						}
 					}
 
-					set("endorsements", d.append("status", "retrieved"));
+					set("endorsements_loading", d.append("status", "retrieved"));
 				} else {
-					set("endorsements", d.append("status", "discarded"));
+					set("endorsements_loading", d.append("status", "discarded"));
 				}
 
 				schedule(task("load-declarations").append("depth", depth));
@@ -197,7 +198,7 @@ public class TaskManager {
 
 			int depth = task.getInteger("depth");
 
-			Document d = getOne("agent-accounts",
+			Document d = getOne("agent-accounts_loading",
 					new Document("status", "visited")
 						.append("depth", depth - 1)
 				);
@@ -207,13 +208,13 @@ public class TaskManager {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				Document trustPath = collection("trust-paths").find(
+				Document trustPath = collection("trust-paths_loading").find(
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
 					).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
 
 				if (trustPath == null) {
 					// Check it again in next iteration:
-					set("agent-accounts", d.append("depth", depth));
+					set("agent-accounts_loading", d.append("depth", depth));
 				} else {
 					// Only first matching trust path is considered
 
@@ -240,10 +241,10 @@ public class TaskManager {
 					}
 					double newRatio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
 					for (String pathId : newPaths.keySet()) {
-						insert("trust-paths", newPaths.get(pathId).append("ratio", newRatio));
+						insert("trust-paths_loading", newPaths.get(pathId).append("ratio", newRatio));
 					}
-					set("trust-paths", trustPath.append("type", "primary"));
-					set("agent-accounts", d.append("status", "expanded"));
+					set("trust-paths_loading", trustPath.append("type", "primary"));
+					set("agent-accounts_loading", d.append("status", "expanded"));
 				}
 				schedule(task("expand-trust-paths").append("depth", depth));
 	
@@ -258,14 +259,14 @@ public class TaskManager {
 			int depth = task.getInteger("depth");
 			int loadCount = task.getInteger("load-count");
 
-			Document agentAccount = getOne("agent-accounts", new Document("depth", depth).append("status", "seen"));
+			Document agentAccount = getOne("agent-accounts_loading", new Document("depth", depth).append("status", "seen"));
 			Document trustPath = null;
 			final String agentId;
 			final String pubkeyHash;
 			if (agentAccount != null) {
 				agentId = agentAccount.getString("agent");
 				pubkeyHash = agentAccount.getString("pubkey");
-				trustPath = getOne("trust-paths",
+				trustPath = getOne("trust-paths_loading",
 						new Document("depth", depth)
 							.append("agent", agentId)
 							.append("pubkey", pubkeyHash)
@@ -275,10 +276,10 @@ public class TaskManager {
 				pubkeyHash = null;
 			}
 
-			if (agentAccount == null) {
+			if (trustPath == null) {
 				schedule(task("finish-iteration").append("depth", depth).append("load-count", loadCount));
 			} else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
-				set("agent-accounts", agentAccount.append("status", "skipped"));
+				set("agent-accounts_loading", agentAccount.append("status", "skipped"));
 				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
 			} else {
 				// TODO check intro limit
@@ -306,30 +307,31 @@ public class TaskManager {
 							.append("type", endorseTypeHash)
 							.append("status", "loading");
 					insert("lists", endorseList);
-					NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
-						Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
-						loadNanopub(nanopub, endorseType, pubkeyHash);
-						String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-						for (Statement st : nanopub.getAssertion()) {
-							if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
-							if (!(st.getObject() instanceof IRI)) continue;
-							if (!agentId.equals(st.getSubject().stringValue())) continue;
-							String objStr = st.getObject().stringValue();
-							if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-							String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
-							insert("endorsements",
-									new Document("agent", agentId)
-										.append("pubkey", pubkeyHash)
-										.append("endorsed-nanopub", endorsedNpId)
-										.append("source", sourceNpId)
-										.append("status", "to-retrieve")
-								);
-						}
-					});
 					set("lists", endorseList.append("status", "loaded"));
 				}
+				NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
+					Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
+					loadNanopub(nanopub, endorseType, pubkeyHash);
+					String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+					for (Statement st : nanopub.getAssertion()) {
+						if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
+						if (!(st.getObject() instanceof IRI)) continue;
+						if (!agentId.equals(st.getSubject().stringValue())) continue;
+						String objStr = st.getObject().stringValue();
+						if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
+						String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+						Document endorsement = new Document("agent", agentId)
+								.append("pubkey", pubkeyHash)
+								.append("endorsed-nanopub", endorsedNpId)
+								.append("source", sourceNpId)
+								.append("status", "to-retrieve");
+						if (!has("endorsements_loading", endorsement)) {
+							insert("endorsements_loading", endorsement);
+						}
+					}
+				});
 
-				set("agent-accounts", agentAccount.append("status", "visited"));
+				set("agent-accounts_loading", agentAccount.append("status", "visited"));
 
 				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
 			}
@@ -352,7 +354,7 @@ public class TaskManager {
 
 		} else if (action.equals("calculate-trust-scores")) {
 
-			Document d = getOne("agent-accounts", new Document("status", "expanded"));
+			Document d = getOne("agent-accounts_loading", new Document("status", "expanded"));
 
 			if (d == null) {
 				schedule(task("aggregate-agents"));
@@ -360,7 +362,7 @@ public class TaskManager {
 				double ratio = 0.0;
 				Map<String,Boolean> seenPathElements = new HashMap<>();
 				int pathCount = 0;
-				MongoCursor<Document> trustPaths = collection("trust-paths").find(
+				MongoCursor<Document> trustPaths = collection("trust-paths_loading").find(
 						new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"))
 					).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor();
 				while (trustPaths.hasNext()) {
@@ -379,13 +381,13 @@ public class TaskManager {
 					}
 					if (independentPath) pathCount += 1;
 				}
-				set("agent-accounts", d.append("status", "processed").append("ratio", ratio).append("path-count", pathCount));
+				set("agent-accounts_loading", d.append("status", "processed").append("ratio", ratio).append("path-count", pathCount));
 				schedule(task("calculate-trust-scores"));
 			}
 
 		} else if (action.equals("aggregate-agents")) {
 
-			Document a = getOne("agent-accounts", new Document("status", "processed"));
+			Document a = getOne("agent-accounts_loading", new Document("status", "processed"));
 			if (a == null) {
 				schedule(task("loading-done"));
 			} else {
@@ -393,15 +395,15 @@ public class TaskManager {
 				int count = 0;
 				int pathCountSum = 0;
 				double totalRatio = 0.0d;
-				MongoCursor<Document> agentAccounts = collection("agent-accounts").find(agentId).cursor();
+				MongoCursor<Document> agentAccounts = collection("agent-accounts_loading").find(agentId).cursor();
 				while (agentAccounts.hasNext()) {
 					Document d = agentAccounts.next();
 					count++;
 					pathCountSum += d.getInteger("path-count");
 					totalRatio += d.getDouble("ratio");
 				}
-				collection("agent-accounts").updateMany(agentId, new Document("$set", new Document("status", "aggregated")));
-				insert("agents",
+				collection("agent-accounts_loading").updateMany(agentId, new Document("$set", new Document("status", "aggregated")));
+				insert("agents_loading",
 						agentId.append("account-count", count)
 							.append("avg-path-count", (double) pathCountSum / count)
 							.append("total-ratio", totalRatio)
@@ -411,18 +413,26 @@ public class TaskManager {
 
 		} else if (action.equals("loading-done")) {
 
+			rename("agent-accounts_loading", "agent-accounts");
+			rename("trust-paths_loading", "trust-paths");
+			rename("agents_loading", "agents");
+			rename("endorsements_loading", "endorsements");
+			RegistryDB.initLoadingCollections();
+
+			// TODO Only increase counter when state has actually changed:
+			increateStateCounter();
 			setValue("server-info", "status", "ready");
+
 			System.err.println("Loading done");
-			schedule(task("update", 10000));
+
+			// Run update after 1h:
+			schedule(task("update", 60 * 60 * 1000));
 
 		} else if (action.equals("update")) {
 
-//			collection("agent-accounts").deleteMany(new Document());
-//			collection("trust-paths").deleteMany(new Document());
-//			collection("agents").deleteMany(new Document());
-//			collection("endorsements").deleteMany(new Document());
-//
-//			schedule(task("init-collections"));
+			setValue("server-info", "status", "updating");
+
+			schedule(task("init-collections"));
 
 		} else {
 
@@ -432,6 +442,7 @@ public class TaskManager {
 
 		tasks.deleteOne(eq("_id", task.get("_id")));
 	}
+
 
 	private static NanopubSetting settingNp;
 
