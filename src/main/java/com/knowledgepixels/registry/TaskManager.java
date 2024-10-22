@@ -120,6 +120,7 @@ public class TaskManager {
 						.append("pubkey", "@")
 						.append("depth", 0)
 						.append("ratio", 1.0d)
+						.append("type", "extended")
 				);
 
 			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(settingNp.getAgentIntroCollection().stringValue()));
@@ -201,13 +202,13 @@ public class TaskManager {
 				String pubkeyHash = d.getString("pubkey");
 
 				Document trustPath = collection("trust-paths").find(
-						new Document("agent", agentId).append("pubkey", pubkeyHash).append("depth", depth - 1)
+						new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
 					).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
 
 				// TODO Check for maximum ratio:
 				if (trustPath == null || trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
 					// Check it again in next iteration:
-					set("agent-accounts", d.append("depth", depth + 1));
+					set("agent-accounts", d.append("depth", depth));
 				} else {
 					// Only first matching trust path is considered
 
@@ -229,12 +230,14 @@ public class TaskManager {
 									.append("agent", e.get("to-agent"))
 									.append("pubkey", e.get("to-pubkey"))
 									.append("depth", depth)
+									.append("type", "extended")
 							);
 					}
 					double newRatio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
 					for (String pathId : newPaths.keySet()) {
 						insert("trust-paths", newPaths.get(pathId).append("ratio", newRatio));
 					}
+					set("trust-paths", trustPath.append("type", "primary"));
 					set("agent-accounts", d.append("status", "expanded"));
 				}
 				schedule(task("expand-trust-paths").append("depth", depth));
@@ -334,7 +337,7 @@ public class TaskManager {
 			Document d = getOne("agent-accounts", new Document("status", "expanded"));
 
 			if (d == null) {
-				schedule(task("loading-done"));
+				schedule(task("aggregate-agents"));
 			} else {
 				double ratio = 0.0;
 				Map<String,Boolean> seenPathElements = new HashMap<>();
@@ -360,6 +363,32 @@ public class TaskManager {
 				}
 				set("agent-accounts", d.append("status", "processed").append("ratio", ratio).append("path-count", pathCount));
 				schedule(task("calculate-trust-scores"));
+			}
+
+		} else if (action.equals("aggregate-agents")) {
+
+			Document a = getOne("agent-accounts", new Document("status", "processed"));
+			if (a == null) {
+				schedule(task("loading-done"));
+			} else {
+				Document agentId = new Document("agent", a.getString("agent"));
+				int count = 0;
+				int pathCountSum = 0;
+				double totalRatio = 0.0d;
+				MongoCursor<Document> agentAccounts = collection("agent-accounts").find(agentId).cursor();
+				while (agentAccounts.hasNext()) {
+					Document d = agentAccounts.next();
+					count++;
+					pathCountSum += d.getInteger("path-count");
+					totalRatio += d.getDouble("ratio");
+				}
+				collection("agent-accounts").updateMany(agentId, new Document("$set", new Document("status", "aggregated")));
+				insert("agents",
+						agentId.append("account-count", count)
+							.append("avg-path-count", (double) pathCountSum / count)
+							.append("total-ratio", totalRatio)
+					);
+				schedule(task("aggregate-agents"));
 			}
 
 		} else if (action.equals("loading-done")) {

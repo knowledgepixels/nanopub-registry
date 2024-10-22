@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
+import static com.mongodb.client.model.Indexes.descending;
 
 public class MainPage extends Page {
 
@@ -39,8 +40,8 @@ public class MainPage extends Page {
 			// TODO
 			//println(ServerConf.getInfo().asJson());
 		} else {
-			printHtmlHeader("Nanopub Registry");
-			println("<h1>Nanopub Registry</h1>");
+			printHtmlHeader("Nanopub Registry - alpha");
+			println("<h1>Nanopub Registry - alpha</h1>");
 			println("<p>Server Info:</p>");
 			println("<ul>");
 			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
@@ -54,18 +55,35 @@ public class MainPage extends Page {
 			println("<li><em>original:</em> " + getValue("setting", "original") + "</li>");
 			println("<li><em>current:</em> " + getValue("setting", "current") + "</li>");
 			println("</ul>");
-			println("<p>Agents:</p>");
+			println("<p>Agent accounts:</p>");
 			println("<ul>");
-			MongoCursor<Document> agents = collection("agent-accounts").find().cursor();
+			println("<li><em>count:</em> " + collection("agent-accounts").countDocuments() + "</li>");
+			println("</ul>");
+			println("<p>Top agent accounts:</p>");
+			println("<ul>");
+			MongoCursor<Document> agentAccounts = collection("agent-accounts").find().sort(descending("ratio")).limit(20).cursor();
+			while (agentAccounts.hasNext()) {
+				Document d = agentAccounts.next();
+				if (d.get("agent").equals("@")) continue;
+				println("<li>" + d.get("agent") + " - " + d.getString("pubkey").substring(0, 10) + ", ratio " + d.get("ratio") + ", path count " + d.get("path-count") + "</li>");
+			}
+			println("</ul>");
+			println("<p>Top agents:</p>");
+			println("<ul>");
+			MongoCursor<Document> agents = collection("agents").find().sort(descending("total-ratio")).limit(20).cursor();
 			while (agents.hasNext()) {
 				Document d = agents.next();
 				if (d.get("agent").equals("@")) continue;
-				println("<li>" + d.get("agent") + " - " + d.get("pubkey") + "</li>");
+				println("<li>" + d.get("agent") + ", ratio " + d.get("total-ratio") + ", avg. path count " + d.get("avg-path-count") + "</li>");
 			}
+			println("</ul>");
+			println("<p>Trust edges:</p>");
+			println("<ul>");
+			println("<li><em>count:</em> " + collection("trust-edges").countDocuments() + "</li>");
 			println("</ul>");
 			println("<p>Nanopubs:</p>");
 			println("<ul>");
-			println("<li><em>counter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
+			println("<li><em>count:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("</ul>");
 			printHtmlFooter();
 		}

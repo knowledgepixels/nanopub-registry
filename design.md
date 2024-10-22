@@ -369,7 +369,7 @@ Initialized:
 
 ### Trust path calculation scheme
 
-Strong paths:
+Primary paths:
 
     A
     A > X

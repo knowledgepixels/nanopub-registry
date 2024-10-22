@@ -77,12 +77,17 @@ public class RegistryDB {
 		collection("endorsements").createIndex(ascending("source"));
 		collection("endorsements").createIndex(ascending("status"));
 
+		collection("agents").createIndex(ascending("agent"), unique);
+		collection("agents").createIndex(descending("account-count"));
+		collection("agents").createIndex(descending("avg-path-count"));
+		collection("agents").createIndex(descending("total-ratio"));
+
 		collection("agent-accounts").createIndex(ascending("agent"));
 		collection("agent-accounts").createIndex(ascending("pubkey"));
 		collection("agent-accounts").createIndex(ascending("agent", "pubkey"), unique);
 		collection("agent-accounts").createIndex(ascending("type"));
 		collection("agent-accounts").createIndex(ascending("status"));
-		collection("agent-accounts").createIndex(descending("radio"));
+		collection("agent-accounts").createIndex(descending("ratio"));
 		collection("agent-accounts").createIndex(descending("path-count"));
 
 		collection("trust-edges").createIndex(ascending("from-agent"));
