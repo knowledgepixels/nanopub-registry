@@ -157,7 +157,7 @@ See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB
 
 ## Trust Paths
 
-Every agent account has at most one primary (`>`) path leading it it:
+Every agent account has at most one primary path (`>`) leading to it:
 
     @ > A
     @ > A > X
@@ -172,4 +172,5 @@ Extended paths add a single extended edge (`~`) to the end of a primary path tha
     @ > A > X ~ D
     @ > B > C ~ A
 
-These extended paths can themselves not be further extended. Therefore, each agent account has only append its endorsements to the location in its primary path.
+These extended paths can themselves not be further extended.
+Therefore, each agent account can only append its endorsements to the location in its primary path.
