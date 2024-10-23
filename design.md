@@ -67,6 +67,11 @@ Quotas:
 - Once a compromised pubkey is identified as such, the respective nanopublications can be efficiently unloaded from a registry, as all lists are clearly separated by pubkey
 
 
+## Task Workflow
+
+See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
+
+
 ## Data Structure
 
 Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)
@@ -104,6 +109,9 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     invalidations:
       { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
       ...
+    nanopubs:
+      { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
+      ...
     pubkey-declarations:
       { declaration^:RA..., status^:loaded , agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83}
       { declaration^:RA..., status^:to-load }
@@ -123,6 +131,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
+    agents:
+      { agent**:JohnDoe, total-ratio^:0.1732, account-count:3, avg-path-count:2.5 }
+      { agent**:SueRich, ... }
+      ...
     trust-edges:
       { from-agent^:@, from-pubkey^:@, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
       { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
@@ -134,201 +146,30 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
-    nanopubs:
-      { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
-      ...
     tasks:
       { not-before^:20240317-..., action^:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
       { not-before^:20240317-..., ... }
       ...
       { not-before^:20240229-..., ... }
 
-
-## Agent Status Life Cycle
-
-- Declaration endorsed
-  - `endorsements: { agent^:..., pubkey^:..., endorsed-nanopub^:RAxyz..., source^:... }`
-- Declaration marked "to retrieve"
-  - `pubkey-declarations: { declaration^:RAxyz..., status^:to-retrieve }`
-- Agent info retrieved
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:found }`
-- Agent core marked as "to load"
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-to-load }`
-- Agent core being loaded
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading-core }`
-- Agent core loaded
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-loaded }`
-- Agent endorsements processed
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:core-processed }`
-- Agent nanopubs marked as "to load":
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:to-load }`
-- All nanopubs of agent being loaded
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loading }`
-- All nanopubs of agent loaded
-  - `agent-accounts: { pubkey**:4c5, agent**:JaneBlack, type^:base, status^:loaded }`
+See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java).
 
 
-## Process
+## Trust Paths
 
-### Database initialized:
+Every agent account has at most one primary (`>`) path leading it it:
 
-    server-info:
-      setup-id: 1332309348
-      status: launching
-      state-counter: 0
-    tasks:
-      { not-before^:20240317-..., action:load-config }
+    @ > A
+    @ > A > X
+    @ > A > Y
+    @ > B
+    @ > B > C
+    @ > B > C > D
 
-### Config loaded:
+Extended paths add a single extended edge (`~`) to the end of a primary path that can reach any other account, including those with their own primary paths:
 
-    server-info:
-      ...
-      coverage-agents:_via-setting_
-      coverage-types:_all_
-      global-quota: 1000000
-    quotas:
-      { for#:_anyone_ quota:10 }
-      { for#:_approved_ quota:'global*ratio' }
-      { for#:JohnDoe/a83 quota:'global*ratio*10' }
-      { for#:SueRich/b55 quota:1000000 }
-      ...
-    tasks:
-      { not-before^:20240317-..., action:load-setting }
+    @ > A ~ B
+    @ > A > X ~ D
+    @ > B > C ~ A
 
-### Setting loaded:
-
-    pubkeys:
-      { id#:a83, full-pubkey:4e8d9x... }
-      ...
-    setting:
-      original: RA123...
-      current: RA...
-      last-update: 20240316-...
-      status: completed
-      link-threshold: 0.000001
-      bootstrap-services: [..., ...]
-    agent-accounts:
-      { id**:JohnDoe, pubkey**:a83, type:base }
-      { id**:EveBlue, pubkey**:c43, type:base }
-      ...
-    nanopubs:
-      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:1, pubkey^:a83, content:'@prefix ...' }
-      ...
-    tasks:
-      { not-before^:20240317-..., action:load-agent-core, agent:JohnDoe/a83, path:@, ratio:0.1 }
-      { not-before^:20240317-..., action:load-agent-core, agent:EveBlue/c43, path:@, ratio:0.1 }
-      ...
-      { not-before^:20240317-..., action:load-core-info }
-
-### Loading agent core info:
-
-- load base declarations:
-  - -> pubkey-declarations
-    - `{ declaration^:RA..., status^:to-retrieve }`
-- repeat:
-  - load newly accepted declarations:
-    - load intro:
-      - get agent-id/pubkeys
-    - repeat for each pubkey:
-      - load intro list nanopubs:
-        - `network.getIntroCount(a83) > introlimit`: stop
-        - `network.getIntros(a83)` -> pubkey-declarations
-          - `{ agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83, declaration^:RA..., status^:loading }`
-      - load approval list nanopubs:
-        - `network.getEndorsementCount(a83) > endorselimit`: stop
-        - `network.getEndorsements(a83)` -> endorsements
-          - `{ agent^:JohnDoe, pubkey^:a83, endorsed-nanopub^:RA.. }`
-        - `get(endorsedNp)` -> trust-edges (if endorsed-nanopub is already found in DB)
-          - `{ from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }`
-      - load incoming edges:
-        - endorsements -> trust-edges
-          - `{ from-agent^:SueRich, from-pubkey^:b55, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }`
-      - mark agent-id/pubkey as loaded:
-        - -> agents
-          - `{ agent**:JohnDoe, pubkey**:a83, type^:base, status^:loaded }`
-    - calculate trust paths:
-      - agents+trust-edges -> trust-paths
-        - `{ id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }`
-    - determine newly accepted intros (stop if none)
-      - trust-paths+endorsements -> pubkey-declarations
-        - `{ declaration^:RA..., status^:to-try }`
-
-### Agent core info loaded:
-
-    server-info:
-      ...
-      state-counter: 132
-    pubkeys:
-      ...
-    lists:
-      { pubkey**:a83, type**:_all_, status^:loading }
-      ...
-    list-entries:
-      { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX... }
-      { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX... }
-      { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX... }
-      ...
-      { pubkey**:a83, type**:intro, position**:0, np**:RA..., checksum**:XX... }
-      { pubkey**:a83, type**:intro, position**:1, np**:RA..., checksum**:XX... }
-      { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX... }
-      ...
-    invalidations:
-      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
-      ...
-    trust-edges:
-      { from-agent^:@, from-pubkey^:@ to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
-      { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
-      { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
-      ...
-    trust-paths:
-      { id#:'JohnDoe>a83', depth^:1, agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
-      { id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
-      { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
-      { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
-      ...
-    nanopubs:
-      ...
-      { id#:RA123..., full-id*:'https://w3id.org/np/RA123...', counter*:59, pubkey^:a83, content:'@prefix ...' }
-      ...
-    tasks:
-      { not-before^:20240317-..., action:calculate-trust-network }
-
-### Trust path calculation scheme
-
-Primary paths:
-
-    A
-    A > X
-    A > Y
-    B
-    B > C
-    B > C > D
-
-Trust edges:
-
-    A ~ B
-    C ~ X
-    X ~ Y
-
-Extended paths:
-
-    A
-    A > X
-    (A > X ~ Y)
-    A > Y
-    A ~ B
-    B
-    B > C
-    B > C ~ X
-    B > C > D
-
-### Trust scores calculated:
-
-    agent-accounts:
-      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:core-loaded }
-      { pubkey**:d28, agent**:JohnDoe, ... }
-      ...
-    tasks:
-      { not-before^:20240317-..., action:load-nanopubs }
-
-### _to be continued..._
+These extended paths can themselves not be further extended. Therefore, each agent account has only append its endorsements to the location in its primary path.
