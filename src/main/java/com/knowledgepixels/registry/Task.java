@@ -130,9 +130,36 @@ public enum Task implements Serializable {
 			schedule(LOAD_DECLARATIONS.with("depth", 1));
 		}
 
+		// At the end of this task, the base agent is initialized:
+		// ------------------------------------------------------------
+		//
+        //	      @@@@ ----endorses----> [intro]
+        //	      base                (to-retrieve)
+        //	      @@@@
+        //	    (visited)
+        //	    
+        //	      [0] trust path
+		//
+		// ------------------------------------------------------------
+		// Only one endorses-link to an introduction is shown here,
+		// but there are typically several.
+
 	},
 
 	LOAD_DECLARATIONS {
+
+		// In general, we have at this point agent accounts with
+		// endorsement links to unvisited agent introductions:
+		// ------------------------------------------------------------
+		//
+		//         o      ----endorses----> [intro]
+		//    --> /#\  /o\___            (to-retrieve)
+		//        / \  \_/^^^
+		//         (visited)
+		//    
+		//    ========[X] trust path
+		//
+		// ------------------------------------------------------------
 
 		public void run(Document taskDoc) {
 
@@ -174,6 +201,23 @@ public enum Task implements Serializable {
 				schedule(EXPAND_TRUST_PATHS.with("depth", depth));
 			}
 		}
+
+		// At the end of this step, the key declarations in the agent
+		// introductions are loaded and the corresponding trust edges
+		// established:
+		// ------------------------------------------------------------
+		//
+		//        o      ----endorses----> [intro]
+		//   --> /#\  /o\___                o     
+		//       / \  \_/^^^ ---trusts---> /#\  /o\___
+		//        (visited)                / \  \_/^^^
+		//                                   (seen)
+		//
+		//   ========[X] trust path
+		//
+		// ------------------------------------------------------------
+		// Only one trust edge per introduction is shown here, but
+		// there can be several.
 
 	},
 
@@ -241,9 +285,37 @@ public enum Task implements Serializable {
 			
 		}
 
+		// At the end of this step, trust paths are updated to include
+		// the new agent accounts:
+		// ------------------------------------------------------------
+		//
+		//         o      ----endorses----> [intro]
+		//    --> /#\  /o\___                o
+		//        / \  \_/^^^ ---trusts---> /#\  /o\___
+		//        (expanded)                / \  \_/^^^
+		//                                    (seen)
+		//    
+		//    ========[X]=====================[X+1] trust path
+		//
+		// ------------------------------------------------------------
+		// Only one trust path is shown here, but they branch out if
+		// several trust edges are present.
+
 	},
 
 	LOAD_CORE {
+
+		// From here on, we refocus on the head of the trust paths:
+		// ------------------------------------------------------------
+		//
+        //         o
+		//    --> /#\  /o\___
+		//        / \  \_/^^^
+		//          (seen)
+		//    
+		//    ========[X] trust path
+		//
+		// ------------------------------------------------------------
 
 		public void run(Document taskDoc) {
 
@@ -328,6 +400,21 @@ public enum Task implements Serializable {
 			}
 			
 		}
+
+		// At the end of this step, we have added new endorsement
+		// links to yet-to-retrieve agent introductions:
+		// ------------------------------------------------------------
+		//
+		//         o      ----endorses----> [intro]
+		//    --> /#\  /o\___            (to-retrieve)
+		//        / \  \_/^^^
+		//         (visited)
+		//    
+		//    ========[X] trust path
+		//
+		// ------------------------------------------------------------
+		// Only one endorsement is shown here, but there are typically
+		// several.
 		
 	},
 
