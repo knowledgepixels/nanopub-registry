@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
 
 import org.bson.Document;
 
@@ -23,6 +24,9 @@ public class MainPage extends Page {
 		super(req, httpResp);
 	}
 
+	private static final DecimalFormat df4 = new DecimalFormat("0.0000");
+	private static final DecimalFormat df1 = new DecimalFormat("0.0");
+
 	public void show() throws IOException {
 		String format;
 		String ext = getReq().getExtension();
@@ -42,7 +46,7 @@ public class MainPage extends Page {
 		} else {
 			printHtmlHeader("Nanopub Registry - alpha");
 			println("<h1>Nanopub Registry - alpha</h1>");
-			println("<p>Server Info:</p>");
+			println("<h3>Server Info</h3>");
 			println("<ul>");
 			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
 			println("<li><em>status:</em> " + getValue("server-info", "status") + "</li>");
@@ -50,23 +54,18 @@ public class MainPage extends Page {
 			println("<li><em>coverage-types:</em> " + getValue("server-info", "coverage-types") + "</li>");
 			println("<li><em>coverage-agents:</em> " + getValue("server-info", "coverage-agents") + "</li>");
 			println("</ul>");
-			println("<p>Setting:</p>");
+			println("<h3>Setting</h3>");
 			println("<ul>");
-			println("<li><em>original:</em> " + getValue("setting", "original") + "</li>");
-			println("<li><em>current:</em> " + getValue("setting", "current") + "</li>");
+			println("<li><em>original:</em> <code>" + getValue("setting", "original") + "</code></li>");
+			println("<li><em>current:</em> <code>" + getValue("setting", "current") + "</code></li>");
 			println("</ul>");
-			println("<p>Agent accounts:</p>");
+			println("<h3>Agent accounts</h3>");
 			println("<ul>");
 			println("<li><em>count:</em> " + collection("agent-accounts").countDocuments() + "</li>");
 			println("</ul>");
-			println("<p>Top agent accounts:</p>");
+			println("<h3>Agents</h3>");
 			println("<ul>");
-			MongoCursor<Document> agentAccounts = collection("agent-accounts").find().sort(descending("ratio")).limit(20).cursor();
-			while (agentAccounts.hasNext()) {
-				Document d = agentAccounts.next();
-				if (d.get("agent").equals("@")) continue;
-				println("<li>" + d.get("agent") + " - " + d.getString("pubkey").substring(0, 10) + ", ratio " + d.get("ratio") + ", path count " + d.get("path-count") + "</li>");
-			}
+			println("<li><em>count:</em> " + collection("agents").countDocuments() + "</li>");
 			println("</ul>");
 			println("<p>Top agents:</p>");
 			println("<ul>");
@@ -74,14 +73,15 @@ public class MainPage extends Page {
 			while (agents.hasNext()) {
 				Document d = agents.next();
 				if (d.get("agent").equals("@")) continue;
-				println("<li>" + d.get("agent") + ", ratio " + d.get("total-ratio") + ", avg. path count " + d.get("avg-path-count") + "</li>");
+				String a = d.getString("agent");
+				println("<li><a href=\"" + a + "\">" + a + "</a>, ratio " + df4.format(d.get("total-ratio")) + ", paths " + df1.format(d.get("avg-path-count")) + "</li>");
 			}
 			println("</ul>");
-			println("<p>Trust edges:</p>");
+			println("<h3>Trust edges</h3>");
 			println("<ul>");
 			println("<li><em>count:</em> " + collection("trust-edges").countDocuments() + "</li>");
 			println("</ul>");
-			println("<p>Nanopubs:</p>");
+			println("<h3>Nanopubs:</h3>");
 			println("<ul>");
 			println("<li><em>count:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("</ul>");
