@@ -133,12 +133,12 @@ public enum Task implements Serializable {
 		// At the end of this task, the base agent is initialized:
 		// ------------------------------------------------------------
 		//
-        //	      @@@@ ----endorses----> [intro]
-        //	      base                (to-retrieve)
-        //	      @@@@
-        //	    (visited)
-        //	    
-        //	      [0] trust path
+		//	      @@@@ ----endorses----> [intro]
+		//	      base                (to-retrieve)
+		//	      @@@@
+		//	    (visited)
+		//	    
+		//	      [0] trust path
 		//
 		// ------------------------------------------------------------
 		// Only one endorses-link to an introduction is shown here,
@@ -308,7 +308,7 @@ public enum Task implements Serializable {
 		// From here on, we refocus on the head of the trust paths:
 		// ------------------------------------------------------------
 		//
-        //         o
+		//         o
 		//    --> /#\  /o\___
 		//        / \  \_/^^^
 		//          (seen)
