@@ -18,7 +18,7 @@ public class RegistryServlet extends HttpServlet {
 		RegistryDB.init();
 
 		new Thread(() -> {
-			TaskManager.runTasks();
+			Task.runTasks();
 		}).start();
 	}
 

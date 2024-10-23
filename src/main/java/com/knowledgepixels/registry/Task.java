@@ -18,6 +18,7 @@ import static com.mongodb.client.model.Sorts.orderBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,58 +44,23 @@ import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
 
-public class TaskManager {
+public enum Task implements Serializable {
 
-	// TODO Move these to setting:
-	private static final int MAX_TRUST_PATH_DEPTH = 10;
-	private static final double MIN_TRUST_PATH_RATIO = 0.000001;
-	//private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
+	INIT_DB {
 
-	private static MongoCollection<Document> tasks = collection("tasks");
-
-	private TaskManager() {}
-
-	static void runTasks() {
-		if (!RegistryDB.isInitialized()) {
-			schedule(task("init-db"));
-		}
-		while (true) {
-			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
-			Document task = taskResult.first();
-			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
-				try {
-					runTask(task);
-				} catch (Exception ex) {
-					ex.printStackTrace();
-					error(ex.getMessage());
-					break;
-				}
-			}
-			try {
-				Thread.sleep(10);
-			} catch (InterruptedException ex) {
-				ex.printStackTrace();
-			}
-		}
-	}
-
-	static void runTask(Document task) throws Exception {
-		String action = task.getString("action");
-		if (action == null) throw new RuntimeException("Action is null");
-		System.err.println("Running task: " + action);
-
-		// TODO Proper transactions / roll-back
-
-		if (action.equals("init-db")) {
-
+		public void run(Document taskDoc) {
 			setValue("server-info", "status", "launching");
 			increateStateCounter();
 			if (RegistryDB.isInitialized()) error("DB already initialized");
 			setValue("server-info", "setup-id", Math.abs(new Random().nextLong()));
-			schedule(task("load-config"));
+			schedule(LOAD_CONFIG);
+		}
 
-		} else if (action.equals("load-config")) {
+	},
 
+	LOAD_CONFIG {
+
+		public void run(Document taskDoc) {
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
 				setValue("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
 			}
@@ -102,10 +68,14 @@ public class TaskManager {
 				setValue("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
 			setValue("server-info", "status", "initializing");
-			schedule(task("load-setting"));
+			schedule(LOAD_SETTING);
+		}
 
-		} else if (action.equals("load-setting")) {
+	},
 
+	LOAD_SETTING {
+
+		public void run(Document taskDoc) throws Exception {
 			NanopubSetting settingNp = getSetting();
 			String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
 			setValue("setting", "original", settingId);
@@ -117,9 +87,14 @@ public class TaskManager {
 			}
 			setValue("setting", "bootstrap-services", bootstrapServices);
 			setValue("server-info", "status", "loading");
-			schedule(task("init-collections"));
+			schedule(INIT_COLLECTIONS);
+		}
 
-		} else if (action.equals("init-collections")) {
+	},
+
+	INIT_COLLECTIONS {
+
+		public void run(Document taskDoc) throws Exception {
 			insert("trust-paths_loading",
 					new Document("_id", "@")
 						.append("sorthash", "")
@@ -152,11 +127,16 @@ public class TaskManager {
 				);
 
 			System.err.println("Starting iteration at depth 0");
-			schedule(task("load-declarations").append("depth", 1));
+			schedule(LOAD_DECLARATIONS.with("depth", 1));
+		}
 
-		} else if (action.equals("load-declarations")) {
+	},
 
-			int depth = task.getInteger("depth");
+	LOAD_DECLARATIONS {
+
+		public void run(Document taskDoc) {
+
+			int depth = taskDoc.getInteger("depth");
 
 			if (has("endorsements_loading", new Document("status", "to-retrieve"))) {
 				Document d = getOne("endorsements_loading", new Document("status", "to-retrieve"));
@@ -188,15 +168,20 @@ public class TaskManager {
 					set("endorsements_loading", d.append("status", "discarded"));
 				}
 
-				schedule(task("load-declarations").append("depth", depth));
+				schedule(LOAD_DECLARATIONS.with("depth", depth));
 
 			} else {
-				schedule(task("expand-trust-paths").append("depth", depth));
+				schedule(EXPAND_TRUST_PATHS.with("depth", depth));
 			}
+		}
 
-		} else if (action.equals("expand-trust-paths")) {
+	},
 
-			int depth = task.getInteger("depth");
+	EXPAND_TRUST_PATHS {
+
+		public void run(Document taskDoc) {
+
+			int depth = taskDoc.getInteger("depth");
 
 			Document d = getOne("agent-accounts_loading",
 					new Document("status", "visited")
@@ -246,18 +231,24 @@ public class TaskManager {
 					set("trust-paths_loading", trustPath.append("type", "primary"));
 					set("agent-accounts_loading", d.append("status", "expanded"));
 				}
-				schedule(task("expand-trust-paths").append("depth", depth));
+				schedule(EXPAND_TRUST_PATHS.with("depth", depth));
 	
 			} else {
 
-				schedule(task("load-core").append("depth", depth).append("load-count", 0));
+				schedule(LOAD_CORE.with("depth", depth).append("load-count", 0));
 
 			}
+			
+		}
 
-		} else if (action.equals("load-core")) {
+	},
 
-			int depth = task.getInteger("depth");
-			int loadCount = task.getInteger("load-count");
+	LOAD_CORE {
+
+		public void run(Document taskDoc) {
+
+			int depth = taskDoc.getInteger("depth");
+			int loadCount = taskDoc.getInteger("load-count");
 
 			Document agentAccount = getOne("agent-accounts_loading", new Document("depth", depth).append("status", "seen"));
 			Document trustPath = null;
@@ -277,10 +268,10 @@ public class TaskManager {
 			}
 
 			if (trustPath == null) {
-				schedule(task("finish-iteration").append("depth", depth).append("load-count", loadCount));
+				schedule(FINISH_ITERATION.with("depth", depth).append("load-count", loadCount));
 			} else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
 				set("agent-accounts_loading", agentAccount.append("status", "skipped"));
-				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
+				schedule(LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			} else {
 				// TODO check intro limit
 				String introType = Utils.INTRO_TYPE.stringValue();
@@ -333,31 +324,43 @@ public class TaskManager {
 
 				set("agent-accounts_loading", agentAccount.append("status", "visited"));
 
-				schedule(task("load-core").append("depth", depth).append("load-count", loadCount + 1));
+				schedule(LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			}
+			
+		}
+		
+	},
 
-		} else if (action.equals("finish-iteration")) {
+	FINISH_ITERATION {
 
-			int depth = task.getInteger("depth");
-			int loadCount = task.getInteger("load-count");
+		public void run(Document taskDoc) {
+
+			int depth = taskDoc.getInteger("depth");
+			int loadCount = taskDoc.getInteger("load-count");
 
 			if (loadCount == 0) {
 				System.err.println("No new cores loaded; finishing iteration");
-				schedule(task("calculate-trust-scores"));
+				schedule(CALCULATE_TRUST_SCORES);
 			} else if (depth == MAX_TRUST_PATH_DEPTH) {
 				System.err.println("Maximum depth reached: " + depth);
-				schedule(task("calculate-trust-scores"));
+				schedule(CALCULATE_TRUST_SCORES);
 			} else {
 				System.err.println("Progressing iteration at depth " + (depth + 1));
-				schedule(task("load-declarations").append("depth", depth + 1));
+				schedule(LOAD_DECLARATIONS.with("depth", depth + 1));
 			}
+			
+		}
+		
+	},
 
-		} else if (action.equals("calculate-trust-scores")) {
+	CALCULATE_TRUST_SCORES {
+
+		public void run(Document taskDoc) {
 
 			Document d = getOne("agent-accounts_loading", new Document("status", "expanded"));
 
 			if (d == null) {
-				schedule(task("aggregate-agents"));
+				schedule(AGGREGATE_AGENTS);
 			} else {
 				double ratio = 0.0;
 				Map<String,Boolean> seenPathElements = new HashMap<>();
@@ -382,14 +385,20 @@ public class TaskManager {
 					if (independentPath) pathCount += 1;
 				}
 				set("agent-accounts_loading", d.append("status", "processed").append("ratio", ratio).append("path-count", pathCount));
-				schedule(task("calculate-trust-scores"));
+				schedule(CALCULATE_TRUST_SCORES);
 			}
+			
+		}
+		
+	},
 
-		} else if (action.equals("aggregate-agents")) {
+	AGGREGATE_AGENTS {
+
+		public void run(Document taskDoc) {
 
 			Document a = getOne("agent-accounts_loading", new Document("status", "processed"));
 			if (a == null) {
-				schedule(task("loading-done"));
+				schedule(LOADING_DONE);
 			} else {
 				Document agentId = new Document("agent", a.getString("agent")).append("status", "processed");
 				int count = 0;
@@ -408,10 +417,16 @@ public class TaskManager {
 							.append("avg-path-count", (double) pathCountSum / count)
 							.append("total-ratio", totalRatio)
 					);
-				schedule(task("aggregate-agents"));
+				schedule(AGGREGATE_AGENTS);
 			}
+			
+		}
+		
+	},
 
-		} else if (action.equals("loading-done")) {
+	LOADING_DONE {
+
+		public void run(Document taskDoc) {
 
 			rename("agent-accounts_loading", "agent-accounts");
 			rename("trust-paths_loading", "trust-paths");
@@ -426,21 +441,83 @@ public class TaskManager {
 			System.err.println("Loading done");
 
 			// Run update after 1h:
-			schedule(task("update", 60 * 60 * 1000));
+			schedule(UPDATE.withDelay(60 * 60 * 1000));
+			
+		}
+		
+	},
 
-		} else if (action.equals("update")) {
+	UPDATE {
+
+		public void run(Document taskDoc) {
 
 			setValue("server-info", "status", "updating");
 
-			schedule(task("init-collections"));
-
-		} else {
-
-			error("Unknown task: " + action);
-
+			schedule(INIT_COLLECTIONS);
+			
 		}
+		
+	};
 
-		tasks.deleteOne(eq("_id", task.get("_id")));
+	public abstract void run(Document taskDoc) throws Exception;
+
+
+	private Document doc() {
+        return withDelay(0l);
+	}
+
+	private Document withDelay(long delay) {
+		return new Document()
+				.append("not-before", System.currentTimeMillis() + delay)
+				.append("action", name());
+	}
+
+	private Document with(String key, Object value) {
+		return doc().append(key, value);
+	}
+
+	// TODO Move these to setting:
+	private static final int MAX_TRUST_PATH_DEPTH = 10;
+	private static final double MIN_TRUST_PATH_RATIO = 0.000001;
+	//private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
+
+	private static MongoCollection<Document> tasks = collection("tasks");
+
+	static void runTasks() {
+		if (!RegistryDB.isInitialized()) {
+			schedule(INIT_DB);
+		}
+		while (true) {
+			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
+			Document task = taskResult.first();
+			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
+				try {
+					runTask(task);
+				} catch (Exception ex) {
+					ex.printStackTrace();
+					error(ex.getMessage());
+					break;
+				}
+			}
+			try {
+				Thread.sleep(10);
+			} catch (InterruptedException ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	static void runTask(Document taskDoc) throws Exception {
+		String action = taskDoc.getString("action");
+		if (action == null) throw new RuntimeException("Action is null");
+		System.err.println("Running task: " + action);
+		try {
+			Task task = valueOf(action);
+			task.run(taskDoc);
+		} catch (IllegalArgumentException ex) {
+			error(ex.getMessage());
+		}
+		tasks.deleteOne(eq("_id", taskDoc.get("_id")));
 	}
 
 
@@ -465,18 +542,12 @@ public class TaskManager {
 		throw new RuntimeException(message);
 	}
 
-	private static void schedule(Document task) {
-		tasks.insertOne(task);
+	private static void schedule(Task task) {
+		schedule(task.doc());
 	}
 
-	private static Document task(String name) {
-		return task(name, 0l);
-	}
-
-	private static Document task(String name, long delay) {
-		return new Document()
-				.append("not-before", System.currentTimeMillis() + delay)
-				.append("action", name);
+	private static void schedule(Document taskDoc) {
+		tasks.insertOne(taskDoc);
 	}
 
 }
