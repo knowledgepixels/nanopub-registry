@@ -38,14 +38,14 @@ public abstract class Page {
 		httpResp.getOutputStream().print(s);
 	}
 
-	public abstract void show() throws IOException;
+	protected abstract void show() throws IOException;
 
 	public void printHtmlHeader(String title) throws IOException {
 		println("<!DOCTYPE HTML>");
 		println("<html><head>");
 		println("<title>" + title + "</title>");
 		println("<meta charset=\"utf-8\"/>");
-		println("<script type=\"text/javascript\" src=\"scripts/nanopub.js\"></script>");
+		println("<script type=\"text/javascript\" src=\"/scripts/nanopub.js\"></script>");
 		println("<link rel=\"stylesheet\" href=\"style/plain.css\" type=\"text/css\" media=\"screen\" title=\"Stylesheet\" />");
 		// TODO favicon.ico is currently broken:
 		//println("<link rel=\"icon\" href=\"style/favicon.ico\" type=\"image/x-icon\" />");

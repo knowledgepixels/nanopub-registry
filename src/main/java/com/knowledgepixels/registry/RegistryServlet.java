@@ -29,6 +29,8 @@ public class RegistryServlet extends HttpServlet {
 			ServerRequest r = new ServerRequest(req);
 			if (r.isEmpty()) {
 				MainPage.show(r, resp);
+			} else if (r.getFullRequest().matches("/list/[0-9a-f]{64}/[0-9a-f]{64}")) {
+				ListPage.show(r, resp);
 			} else if (r.getFullRequest().equals("/style/plain.css")) {
 				ResourcePage.show(r, resp, "style.css", "text/css");
 			}

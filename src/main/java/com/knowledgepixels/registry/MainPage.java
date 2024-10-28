@@ -1,5 +1,10 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
+import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.mongodb.client.model.Indexes.descending;
+
 import java.io.IOException;
 import java.text.DecimalFormat;
 
@@ -8,10 +13,6 @@ import org.bson.Document;
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
-import static com.knowledgepixels.registry.RegistryDB.getValue;
-import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
-import static com.mongodb.client.model.Indexes.descending;
 
 public class MainPage extends Page {
 
@@ -20,14 +21,14 @@ public class MainPage extends Page {
 		obj.show();
 	}
 
-	public MainPage(ServerRequest req, HttpServletResponse httpResp) {
+	private MainPage(ServerRequest req, HttpServletResponse httpResp) {
 		super(req, httpResp);
 	}
 
 	private static final DecimalFormat df4 = new DecimalFormat("0.0000");
 	private static final DecimalFormat df1 = new DecimalFormat("0.0");
 
-	public void show() throws IOException {
+	protected void show() throws IOException {
 		String format;
 		String ext = getReq().getExtension();
 		if ("json".equals(ext)) {
