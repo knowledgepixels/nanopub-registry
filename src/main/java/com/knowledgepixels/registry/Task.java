@@ -471,7 +471,19 @@ public enum Task implements Serializable {
 					}
 					if (independentPath) pathCount += 1;
 				}
-				set("agent-accounts_loading", d.append("status", "processed").append("ratio", ratio).append("path-count", pathCount));
+				double rawQuota = GLOBAL_QUOTA * ratio;
+				int quota = (int) rawQuota;
+				if (rawQuota < MIN_USER_QUOTA) {
+					quota = MIN_USER_QUOTA;
+				} else if (rawQuota > MAX_USER_QUOTA) {
+					quota = MAX_USER_QUOTA;
+				}
+				set("agent-accounts_loading",
+						d.append("status", "processed")
+							.append("ratio", ratio)
+							.append("path-count", pathCount)
+							.append("quota", quota)
+					);
 				schedule(CALCULATE_TRUST_SCORES);
 			}
 			
@@ -567,6 +579,9 @@ public enum Task implements Serializable {
 	private static final int MAX_TRUST_PATH_DEPTH = 10;
 	private static final double MIN_TRUST_PATH_RATIO = 0.000001;
 	//private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
+	private static final int GLOBAL_QUOTA = 10000000;
+	private static final int MIN_USER_QUOTA = 100;
+	private static final int MAX_USER_QUOTA = 10000;
 
 	private static MongoCollection<Document> tasks = collection("tasks");
 
