@@ -36,8 +36,8 @@ public class ListPage extends Page {
 			return;
 		}
 		if (req.matches("/list/[0-9a-f]{64}/[0-9a-f]{64}")) {
-			String pubkey = getReq().getFullRequest().replaceFirst("/list/([0-9a-f]{64})/[0-9a-f]{64}", "$1");
-			String type = getReq().getFullRequest().replaceFirst("/list/[0-9a-f]{64}/([0-9a-f]{64})", "$1");
+			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/[0-9a-f]{64}", "$1");
+			String type = req.replaceFirst("/list/[0-9a-f]{64}/([0-9a-f]{64})", "$1");
 	//		String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
 				// TODO
@@ -57,7 +57,7 @@ public class ListPage extends Page {
 					).sort(ascending("position")).cursor();
 				while (entries.hasNext()) {
 					Document d = entries.next();
-					println("<li><code>" + d.getString("np") + "</code></li>");
+					println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + d.getString("np") + "</code></a></li>");
 				}
 				println("</ol>");
 				printHtmlFooter();
