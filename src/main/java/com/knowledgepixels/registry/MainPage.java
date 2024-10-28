@@ -63,14 +63,10 @@ public class MainPage extends Page {
 			println("<li><em>current:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting + "</code></a></li>");
 			println("</ul>");
 			println("<h3>Agent accounts</h3>");
-			println("<ul>");
-			println("<li><em>count:</em> " + collection("agent-accounts").countDocuments() + "</li>");
-			println("<li><a href=\"/list\">list</a></li>");
-			println("</ul>");
+			println("<p>Count: " + collection("agent-accounts").countDocuments() + "</p>");
+			println("<p><a href=\"/list\">&gt; Full list</a></pi>");
 			println("<h3>Agents</h3>");
-			println("<ul>");
-			println("<li><em>count:</em> " + collection("agents").countDocuments() + "</li>");
-			println("</ul>");
+			println("<p>Count: " + collection("agents").countDocuments() + "</p>");
 			println("<p>Top agents:</p>");
 			println("<ul>");
 			MongoCursor<Document> agents = collection("agents").find().sort(descending("total-ratio")).limit(20).cursor();
@@ -81,14 +77,8 @@ public class MainPage extends Page {
 				println("<li><a href=\"" + a + "\">" + a + "</a>, ratio " + df4.format(d.get("total-ratio")) + ", paths " + df1.format(d.get("avg-path-count")) + "</li>");
 			}
 			println("</ul>");
-			println("<h3>Trust edges</h3>");
-			println("<ul>");
-			println("<li><em>count:</em> " + collection("trust-edges").countDocuments() + "</li>");
-			println("</ul>");
 			println("<h3>Nanopubs:</h3>");
-			println("<ul>");
-			println("<li><em>count:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
-			println("</ul>");
+			println("<p>Count: " + getMaxValue("nanopubs", "counter") + "</p>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {
