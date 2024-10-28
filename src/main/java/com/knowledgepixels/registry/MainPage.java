@@ -63,6 +63,7 @@ public class MainPage extends Page {
 			println("<h3>Agent accounts</h3>");
 			println("<ul>");
 			println("<li><em>count:</em> " + collection("agent-accounts").countDocuments() + "</li>");
+			println("<li><a href=\"/list\">list</a></li>");
 			println("</ul>");
 			println("<h3>Agents</h3>");
 			println("<ul>");
