@@ -5,6 +5,7 @@ services:
     environment:
       - REGISTRY_COVERAGE_TYPES=*
       - REGISTRY_COVERAGE_AGENTS=via-setting
+      - NANOPUB_REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
   mongodb:
     ports:
       - 27017:27017

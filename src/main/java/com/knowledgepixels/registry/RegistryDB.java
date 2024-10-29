@@ -32,7 +32,8 @@ public class RegistryDB {
 
 	private RegistryDB() {}
 
-	private static final String REGISTRY_DB_NAME = "nanopub-registry";
+	private static final String REGISTRY_DB_NAME = Utils.getEnv("NANOPUB_REGISTRY_DB_NAME", "nanopub-registry");
+	private static final String REGISTRY_DB_HOST = Utils.getEnv("NANOPUB_REGISTRY_DB_HOST", "mongodb");
 
 	private static MongoClient mongoClient;
 	private static MongoDatabase mongoDB;
@@ -49,7 +50,7 @@ public class RegistryDB {
 
 	public static void init() {
 		if (mongoClient != null) return;
-		mongoClient = new MongoClient("mongodb");
+		mongoClient = new MongoClient(REGISTRY_DB_HOST);
 		mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
 		if (isInitialized()) return;

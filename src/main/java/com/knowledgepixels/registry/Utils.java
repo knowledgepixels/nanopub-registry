@@ -63,6 +63,12 @@ public class Utils {
 		return l;
 	}
 
+	public static String getEnv(String name, String defaultValue) {
+		String value = System.getenv(name);
+		if (value == null) value = defaultValue;
+		return value;
+	}
+
 	private static ValueFactory vf = SimpleValueFactory.getInstance();
 	public static final IRI SUPERSEDES = vf.createIRI("http://purl.org/nanopub/x/supersedes");
 	public static final IRI RETRACTS = vf.createIRI("http://purl.org/nanopub/x/retracts");
