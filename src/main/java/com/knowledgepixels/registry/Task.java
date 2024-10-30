@@ -595,12 +595,16 @@ public enum Task implements Serializable {
 			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
 				try {
 					RegistryDB.startTransaction();
+					System.err.println("Transaction started");
 					runTask(task);
 					RegistryDB.commitTransaction();
+					System.err.println("Transaction committed");
 				} catch (Exception ex) {
-					RegistryDB.abortTransaction();
+					System.err.println("Aborting transaction");
 					ex.printStackTrace();
+					RegistryDB.abortTransaction();
 					setStatus("error", ex.getMessage());
+					System.err.println("Transaction aborted");
 				} finally {
 					RegistryDB.cleanTransaction();
 				}
