@@ -497,7 +497,7 @@ public enum Task implements Serializable {
 
 			Document a = getOne("agent-accounts_loading", new Document("status", "processed"));
 			if (a == null) {
-				schedule(LOADING_DONE);
+				schedule(ASSIGN_PUBKEYS);
 			} else {
 				Document agentId = new Document("agent", a.getString("agent")).append("status", "processed");
 				int count = 0;
@@ -517,6 +517,28 @@ public enum Task implements Serializable {
 							.append("total-ratio", totalRatio)
 					);
 				schedule(AGGREGATE_AGENTS);
+			}
+			
+		}
+		
+	},
+
+	ASSIGN_PUBKEYS {
+
+		public void run(Document taskDoc) {
+
+			Document a = getOne("agent-accounts_loading", new Document("status", "aggregated"));
+			if (a == null) {
+				schedule(LOADING_DONE);
+			} else {
+				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
+				if (collection("agent-accounts_loading").countDocuments(pubkeyId) == 1) {
+					collection("agent-accounts_loading").updateMany(pubkeyId, new Document("$set", new Document("status", "approved")));
+				} else {
+					// TODO At the moment all get marked as 'contested'; implement more nuanced algorithm
+					collection("agent-accounts_loading").updateMany(pubkeyId, new Document("$set", new Document("status", "contested")));
+				}
+				schedule(ASSIGN_PUBKEYS);
 			}
 			
 		}
