@@ -221,10 +221,6 @@ public class RegistryDB {
 		collection(collection).insertOne(doc);
 	}
 
-	public static void upsert(String collection, Document doc) {
-		collection(collection).insertOne(doc);
-	}
-
 	public static void setValue(String collection, String elementId, Object value) {
 		collection(collection).updateOne(
 				new Document("_id", elementId),

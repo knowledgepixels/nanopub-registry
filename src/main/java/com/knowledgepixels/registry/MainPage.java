@@ -6,6 +6,7 @@ import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.text.DecimalFormat;
 
 import org.bson.Document;
@@ -25,8 +26,8 @@ public class MainPage extends Page {
 		super(req, httpResp);
 	}
 
-	private static final DecimalFormat df4 = new DecimalFormat("0.0000");
-	private static final DecimalFormat df1 = new DecimalFormat("0.0");
+	static final DecimalFormat df4 = new DecimalFormat("0.0000");
+	static final DecimalFormat df1 = new DecimalFormat("0.0");
 
 	protected void show() throws IOException {
 		String format;
@@ -75,9 +76,10 @@ public class MainPage extends Page {
 				Document d = agents.next();
 				if (d.get("agent").equals("@")) continue;
 				String a = d.getString("agent");
-				println("<li><a href=\"" + a + "\">" + a + "</a>, ratio " + df4.format(d.get("total-ratio")) + ", paths " + df1.format(d.get("avg-path-count")) + "</li>");
+				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, ratio " + df4.format(d.get("total-ratio")) + ", paths " + df1.format(d.get("avg-path-count")) + "</li>");
 			}
 			println("</ul>");
+			println("<p><a href=\"/agent\">&gt; Full list</a></pi>");
 			println("<h3>Nanopubs:</h3>");
 			println("<p>Count: " + getMaxValue("nanopubs", "counter") + "</p>");
 			printHtmlFooter();
