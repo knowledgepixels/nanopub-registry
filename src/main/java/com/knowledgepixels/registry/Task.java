@@ -49,7 +49,7 @@ public enum Task implements Serializable {
 	INIT_DB {
 
 		public void run(Document taskDoc) {
-			setValue("server-info", "status", "launching");
+			setStatus("launching");
 			increateStateCounter();
 			if (RegistryDB.isInitialized()) error("DB already initialized");
 			setValue("server-info", "setup-id", Math.abs(new Random().nextLong()));
@@ -67,7 +67,7 @@ public enum Task implements Serializable {
 			if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
 				setValue("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
-			setValue("server-info", "status", "initializing");
+			setStatus("initializing");
 			schedule(LOAD_SETTING);
 		}
 
@@ -86,7 +86,7 @@ public enum Task implements Serializable {
 				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
 			setValue("setting", "bootstrap-services", bootstrapServices);
-			setValue("server-info", "status", "loading");
+			setStatus("loading");
 			schedule(INIT_COLLECTIONS);
 		}
 
@@ -535,7 +535,7 @@ public enum Task implements Serializable {
 
 			// TODO Only increase counter when state has actually changed:
 			increateStateCounter();
-			setValue("server-info", "status", "ready");
+			setStatus("ready");
 
 			System.err.println("Loading done");
 
@@ -550,7 +550,7 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 
-			setValue("server-info", "status", "updating");
+			setStatus("updating");
 
 			schedule(INIT_COLLECTIONS);
 			
@@ -639,8 +639,17 @@ public enum Task implements Serializable {
 		return agentIntro;
 	}
 
+	private static void setStatus(String status) {
+		setStatus(status, "");
+	}
+
+	private static void setStatus(String status, String details) {
+		setValue("server-info", "status", status);
+		setValue("server-info", "status-details", details);
+	}
+
 	private static void error(String message) {
-		setValue("server-info", "status", "hanging");
+		setStatus("hanging", message);
 		throw new RuntimeException(message);
 	}
 
