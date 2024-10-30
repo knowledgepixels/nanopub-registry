@@ -19,6 +19,7 @@ import org.nanopub.extra.security.SignatureUtils;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoNamespace;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -115,6 +116,33 @@ public class RegistryDB {
 
 	public static boolean isInitialized() {
 		return getValue("server-info", "setup-id") != null;
+	}
+
+	private static ClientSession session = null;
+
+	public synchronized static void startTransaction() {
+		if (session != null) throw new RuntimeException("Cannot start transaction: one already running");
+		session = mongoClient.startSession();
+		session.startTransaction();
+	}
+
+	public synchronized static void commitTransaction() {
+		session.commitTransaction();
+		session.close();
+		session = null;
+	}
+
+	public synchronized static void abortTransaction() {
+		session.abortTransaction();
+		session.close();
+		session = null;
+	}
+
+	public synchronized static void cleanTransaction() {
+		if (session != null) {
+			session.close();
+			session = null;
+		}
 	}
 
 	public static void drop(String collection) {

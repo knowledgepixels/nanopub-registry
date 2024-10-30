@@ -1,7 +1,6 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.rename;
 import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
@@ -9,6 +8,7 @@ import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.insert;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
+import static com.knowledgepixels.registry.RegistryDB.rename;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.knowledgepixels.registry.RegistryDB.setValue;
 import static com.mongodb.client.model.Filters.eq;
@@ -51,7 +51,7 @@ public enum Task implements Serializable {
 		public void run(Document taskDoc) {
 			setStatus("launching");
 			increateStateCounter();
-			if (RegistryDB.isInitialized()) error("DB already initialized");
+			if (RegistryDB.isInitialized()) throw new RuntimeException("DB already initialized");
 			setValue("server-info", "setup-id", Math.abs(new Random().nextLong()));
 			schedule(LOAD_CONFIG);
 		}
@@ -594,11 +594,15 @@ public enum Task implements Serializable {
 			Document task = taskResult.first();
 			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
 				try {
+					RegistryDB.startTransaction();
 					runTask(task);
+					RegistryDB.commitTransaction();
 				} catch (Exception ex) {
+					RegistryDB.abortTransaction();
 					ex.printStackTrace();
-					error(ex.getMessage());
-					break;
+					setStatus("error", ex.getMessage());
+				} finally {
+					RegistryDB.cleanTransaction();
 				}
 			}
 			try {
@@ -613,12 +617,8 @@ public enum Task implements Serializable {
 		String action = taskDoc.getString("action");
 		if (action == null) throw new RuntimeException("Action is null");
 		System.err.println("Running task: " + action);
-		try {
-			Task task = valueOf(action);
-			task.run(taskDoc);
-		} catch (IllegalArgumentException ex) {
-			error(ex.getMessage());
-		}
+		Task task = valueOf(action);
+		task.run(taskDoc);
 		tasks.deleteOne(eq("_id", taskDoc.get("_id")));
 	}
 
@@ -646,11 +646,6 @@ public enum Task implements Serializable {
 	private static void setStatus(String status, String details) {
 		setValue("server-info", "status", status);
 		setValue("server-info", "status-details", details);
-	}
-
-	private static void error(String message) {
-		setStatus("hanging", message);
-		throw new RuntimeException(message);
 	}
 
 	private static void schedule(Task task) {
