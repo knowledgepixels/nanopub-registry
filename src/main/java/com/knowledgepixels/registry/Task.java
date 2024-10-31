@@ -614,6 +614,7 @@ public enum Task implements Serializable {
 		while (true) {
 			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
 			Document task = taskResult.first();
+			long sleepTime = 10;
 			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
 				try {
 					RegistryDB.startTransaction();
@@ -624,15 +625,15 @@ public enum Task implements Serializable {
 				} catch (Exception ex) {
 					System.err.println("Aborting transaction");
 					ex.printStackTrace();
-					RegistryDB.abortTransaction();
-					setStatus("error", ex.getMessage());
+					RegistryDB.abortTransaction(ex.getMessage());
 					System.err.println("Transaction aborted");
+					sleepTime = 1000;
 				} finally {
-					RegistryDB.cleanTransaction();
+					RegistryDB.cleanTransactionWithRetry();
 				}
 			}
 			try {
-				Thread.sleep(10);
+				Thread.sleep(sleepTime);
 			} catch (InterruptedException ex) {
 				ex.printStackTrace();
 			}
@@ -666,12 +667,8 @@ public enum Task implements Serializable {
 	}
 
 	private static void setStatus(String status) {
-		setStatus(status, "");
-	}
-
-	private static void setStatus(String status, String details) {
 		setValue("server-info", "status", status);
-		setValue("server-info", "status-details", details);
+		setValue("server-info", "status-details", "");
 	}
 
 	private static void schedule(Task task) {

@@ -132,14 +132,45 @@ public class RegistryDB {
 		session = null;
 	}
 
-	public synchronized static void abortTransaction() {
-		session.abortTransaction();
-		session.close();
-		session = null;
+	public synchronized static void abortTransaction(String message) {
+		boolean successful = false;
+		while (!successful) {
+			try {
+				setValue("server-info", "status", "error");
+				setValue("server-info", "status-details", message);
+				cleanTransaction();
+				successful = true;
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException iex) {
+					iex.printStackTrace();
+				}
+			}
+		}
+	}
+
+	public synchronized static void cleanTransactionWithRetry() {
+		boolean successful = false;
+		while (!successful) {
+			try {
+				cleanTransaction();
+				successful = true;
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException iex) {
+					iex.printStackTrace();
+				}
+			}
+		}
 	}
 
 	public synchronized static void cleanTransaction() {
 		if (session != null) {
+			if (session.hasActiveTransaction()) session.abortTransaction();
 			session.close();
 			session = null;
 		}
