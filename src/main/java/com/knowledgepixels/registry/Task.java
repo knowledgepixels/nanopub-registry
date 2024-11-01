@@ -577,6 +577,7 @@ public enum Task implements Serializable {
 				setStatus("updating");
 				schedule(INIT_COLLECTIONS);
 			} else if (status.equals("updating")) {
+				// TODO This shouldn't be happening...
 				System.err.println("Ignoring update task: already updating");
 			} else {
 				System.err.println("Postponing update; currently in status " + status);
