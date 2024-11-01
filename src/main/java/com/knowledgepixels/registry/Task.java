@@ -572,9 +572,16 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 
-			setStatus("updating");
-
-			schedule(INIT_COLLECTIONS);
+			String status = getStatus();
+			if (status.equals("ready")) {
+				setStatus("updating");
+				schedule(INIT_COLLECTIONS);
+			} else if (status.equals("updating")) {
+				System.err.println("Ignoring update task: already updating");
+			} else {
+				System.err.println("Postponing update; currently in status " + status);
+				schedule(UPDATE.withDelay(60 * 60 * 1000));
+			}
 			
 		}
 		
@@ -669,6 +676,10 @@ public enum Task implements Serializable {
 	private static void setStatus(String status) {
 		setValue("server-info", "status", status);
 		setValue("server-info", "status-details", "");
+	}
+
+	private static String getStatus() {
+		return getValue("server-info", "status").toString();
 	}
 
 	private static void schedule(Task task) {
