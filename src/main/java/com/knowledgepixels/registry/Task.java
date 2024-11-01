@@ -94,6 +94,9 @@ public enum Task implements Serializable {
 
 	INIT_COLLECTIONS {
 
+		// DB read from:
+		// DB write to:  trust-paths, endorsements, agent-accounts
+
 		public void run(Document taskDoc) throws Exception {
 			insert("trust-paths_loading",
 					new Document("_id", "@")
@@ -161,6 +164,9 @@ public enum Task implements Serializable {
 		//
 		// ------------------------------------------------------------
 
+		// DB read from: endorsements, trust-edges, agent-accounts
+		// DB write to:  endorsements, trust-edges, agent-accounts
+
 		public void run(Document taskDoc) {
 
 			int depth = taskDoc.getInteger("depth");
@@ -180,8 +186,8 @@ public enum Task implements Serializable {
 								.append("to-agent", agentId)
 								.append("to-pubkey", pubkeyHash)
 								.append("source", d.getString("source"));
-						if (!has("trust-edges", trustEdge)) {
-							insert("trust-edges", trustEdge.append("invalidated", false));
+						if (!has("trust-edges_loading", trustEdge)) {
+							insert("trust-edges_loading", trustEdge.append("invalidated", false));
 						}
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
@@ -223,6 +229,9 @@ public enum Task implements Serializable {
 
 	EXPAND_TRUST_PATHS {
 
+		// DB read from: agent-accounts, trust-paths, trust-edges
+		// DB write to:  agent-accounts, trust-paths
+
 		public void run(Document taskDoc) {
 
 			int depth = taskDoc.getInteger("depth");
@@ -250,7 +259,7 @@ public enum Task implements Serializable {
 					Map<String,Document> newPaths = new HashMap<>();
 					String currentSetting = getValue("setting", "current").toString();
 
-					MongoCursor<Document> edgeCursor = get("trust-edges",
+					MongoCursor<Document> edgeCursor = get("trust-edges_loading",
 							new Document("from-agent", agentId)
 								.append("from-pubkey", pubkeyHash)
 								.append("invalidated", false)
@@ -317,6 +326,9 @@ public enum Task implements Serializable {
 		//
 		// ------------------------------------------------------------
 
+		// DB read from: agent-accounts, trust-paths, endorsements, lists
+		// DB write to:  agent-accounts, endorsements, lists
+
 		public void run(Document taskDoc) {
 
 			int depth = taskDoc.getInteger("depth");
@@ -349,7 +361,8 @@ public enum Task implements Serializable {
 				String introType = Utils.INTRO_TYPE.stringValue();
 				String introTypeHash = Utils.getHash(introType);
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", introTypeHash))) {
-					// TODO Why/when is list already loaded?
+					// TODO Why/when is list already loaded on the first run?
+					// TODO When running updates, we need to check for updates in these lists.
 					Document introList = new Document()
 							.append("pubkey", pubkeyHash)
 							.append("type", introTypeHash)
@@ -442,6 +455,9 @@ public enum Task implements Serializable {
 
 	CALCULATE_TRUST_SCORES {
 
+		// DB read from: agent-accounts, trust-paths
+		// DB write to:  agent-accounts
+
 		public void run(Document taskDoc) {
 
 			Document d = getOne("agent-accounts_loading", new Document("status", "expanded"));
@@ -493,6 +509,9 @@ public enum Task implements Serializable {
 
 	AGGREGATE_AGENTS {
 
+		// DB read from: agent-accounts, agents
+		// DB write to:  agent-accounts, agents
+
 		public void run(Document taskDoc) {
 
 			Document a = getOne("agent-accounts_loading", new Document("status", "processed"));
@@ -525,6 +544,9 @@ public enum Task implements Serializable {
 
 	ASSIGN_PUBKEYS {
 
+		// DB read from: agent-accounts
+		// DB write to:  agent-accounts
+
 		public void run(Document taskDoc) {
 
 			Document a = getOne("agent-accounts_loading", new Document("status", "aggregated"));
@@ -553,6 +575,7 @@ public enum Task implements Serializable {
 			rename("trust-paths_loading", "trust-paths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
+			rename("trust-edges_loading", "trust-edges");
 			RegistryDB.initLoadingCollections();
 
 			// TODO Only increase counter when state has actually changed:
@@ -562,7 +585,8 @@ public enum Task implements Serializable {
 			System.err.println("Loading done");
 
 			// Run update after 1h:
-			schedule(UPDATE.withDelay(60 * 60 * 1000));
+			//schedule(UPDATE.withDelay(60 * 60 * 1000));
+			schedule(UPDATE);
 			
 		}
 		

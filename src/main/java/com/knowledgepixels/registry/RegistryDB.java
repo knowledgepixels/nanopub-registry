@@ -78,14 +78,6 @@ public class RegistryDB {
 		collection("invalidations").createIndex(ascending("invalidated-np"));
 		collection("invalidations").createIndex(ascending("invalidating-pubkey", "invalidated-np"));
 
-		collection("trust-edges").createIndex(ascending("from-agent"));
-		collection("trust-edges").createIndex(ascending("from-pubkey"));
-		collection("trust-edges").createIndex(ascending("to-agent"));
-		collection("trust-edges").createIndex(ascending("to-pubkey"));
-		collection("trust-edges").createIndex(ascending("source"));
-		collection("trust-edges").createIndex(ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
-		collection("trust-edges").createIndex(ascending("invalidated"));
-
 		initLoadingCollections();
 	}
 
@@ -112,6 +104,17 @@ public class RegistryDB {
 		collection("trust-paths_loading").createIndex(ascending("agent", "pubkey", "depth", "sorthash"), unique);
 		collection("trust-paths_loading").createIndex(ascending("depth"));
 		collection("trust-paths_loading").createIndex(descending("ratio"));
+
+		// TODO This was supposed to be a collection that doesn't need regeneration at each update,
+		//      but it is currently necessary. Updating on an existing 'trust-edges' collection leads
+		//      to not all agents being loaded/approved.
+		collection("trust-edges_loading").createIndex(ascending("from-agent"));
+		collection("trust-edges_loading").createIndex(ascending("from-pubkey"));
+		collection("trust-edges_loading").createIndex(ascending("to-agent"));
+		collection("trust-edges_loading").createIndex(ascending("to-pubkey"));
+		collection("trust-edges_loading").createIndex(ascending("source"));
+		collection("trust-edges_loading").createIndex(ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
+		collection("trust-edges_loading").createIndex(ascending("invalidated"));
 	}
 
 	public static boolean isInitialized() {
@@ -306,7 +309,7 @@ public class RegistryDB {
 						new Document("np", invalidatedAc).append("pubkey", ph),
 						new Document("$set", new Document("invalidated", true))
 					);
-				collection("trust-edges").updateMany(
+				collection("trust-edges_loading").updateMany(
 						new Document("source", invalidatedAc),
 						new Document("$set", new Document("invalidated", true))
 					);
@@ -347,7 +350,7 @@ public class RegistryDB {
 					new Document("np", ac).append("pubkey", ph),
 					new Document("$set", new Document("invalidated", true))
 				);
-			collection("trust-edges").updateMany(
+			collection("trust-edges_loading").updateMany(
 					new Document("source", ac),
 					new Document("$set", new Document("invalidated", true))
 				);
