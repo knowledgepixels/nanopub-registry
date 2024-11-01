@@ -585,8 +585,7 @@ public enum Task implements Serializable {
 			System.err.println("Loading done");
 
 			// Run update after 1h:
-			//schedule(UPDATE.withDelay(60 * 60 * 1000));
-			schedule(UPDATE);
+			schedule(UPDATE.withDelay(60 * 60 * 1000));
 			
 		}
 		
