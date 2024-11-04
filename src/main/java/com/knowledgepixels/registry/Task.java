@@ -588,6 +588,11 @@ public enum Task implements Serializable {
 			schedule(UPDATE.withDelay(60 * 60 * 1000));
 			
 		}
+
+		public boolean runAsTransaction() {
+			// DB renaming doesn't seem to work as transaction
+			return false;
+		}
 		
 	},
 
@@ -613,6 +618,9 @@ public enum Task implements Serializable {
 
 	public abstract void run(Document taskDoc) throws Exception;
 
+	public boolean runAsTransaction() {
+		return true;
+	}
 
 	private Document doc() {
 		return withDelay(0l);
@@ -644,23 +652,34 @@ public enum Task implements Serializable {
 		}
 		while (true) {
 			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
-			Document task = taskResult.first();
+			Document taskDoc = taskResult.first();
 			long sleepTime = 10;
-			if (task != null && task.getLong("not-before") < System.currentTimeMillis()) {
-				try {
-					RegistryDB.startTransaction();
-					System.err.println("Transaction started");
-					runTask(task);
-					RegistryDB.commitTransaction();
-					System.err.println("Transaction committed");
-				} catch (Exception ex) {
-					System.err.println("Aborting transaction");
-					ex.printStackTrace();
-					RegistryDB.abortTransaction(ex.getMessage());
-					System.err.println("Transaction aborted");
-					sleepTime = 1000;
-				} finally {
-					RegistryDB.cleanTransactionWithRetry();
+			if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
+				Task task = valueOf(taskDoc.getString("action"));
+				System.err.println("Running task: " + task.name());
+				if (task.runAsTransaction()) {
+					try {
+						RegistryDB.startTransaction();
+						System.err.println("Transaction started");
+						runTask(task, taskDoc);
+						RegistryDB.commitTransaction();
+						System.err.println("Transaction committed");
+					} catch (Exception ex) {
+						System.err.println("Aborting transaction");
+						ex.printStackTrace();
+						RegistryDB.abortTransaction(ex.getMessage());
+						System.err.println("Transaction aborted");
+						sleepTime = 1000;
+					} finally {
+						RegistryDB.cleanTransactionWithRetry();
+					}
+				} else {
+					try {
+						runTask(task, taskDoc);
+					} catch (Exception ex) {
+						// TODO: Properly handle fall-back of this
+						ex.printStackTrace();
+					}
 				}
 			}
 			try {
@@ -671,11 +690,7 @@ public enum Task implements Serializable {
 		}
 	}
 
-	static void runTask(Document taskDoc) throws Exception {
-		String action = taskDoc.getString("action");
-		if (action == null) throw new RuntimeException("Action is null");
-		System.err.println("Running task: " + action);
-		Task task = valueOf(action);
+	static void runTask(Task task, Document taskDoc) throws Exception {
 		task.run(taskDoc);
 		tasks.deleteOne(eq("_id", taskDoc.get("_id")));
 	}
