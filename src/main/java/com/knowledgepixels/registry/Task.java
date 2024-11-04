@@ -722,11 +722,11 @@ public enum Task implements Serializable {
 	}
 
 	private static void schedule(Task task) {
-		System.err.println("Scheduling task: " + task.name());
 		schedule(task.doc());
 	}
 
 	private static void schedule(Document taskDoc) {
+		System.err.println("Scheduling task: " + taskDoc.get("action"));
 		tasks.insertOne(taskDoc);
 	}
 
