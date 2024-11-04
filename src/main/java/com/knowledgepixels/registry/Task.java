@@ -722,6 +722,7 @@ public enum Task implements Serializable {
 	}
 
 	private static void schedule(Task task) {
+		System.err.println("Scheduling task: " + task.name());
 		schedule(task.doc());
 	}
 
