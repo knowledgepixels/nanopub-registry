@@ -175,8 +175,8 @@ public class RegistryDB {
 	}
 
 	public static void drop(String collection) {
-		if (mongoDB.getCollection(collection) == null) return;
-		mongoDB.getCollection(collection).drop(mongoSession);
+		if (collection(collection) == null) return;
+		collection(collection).drop(mongoSession);
 	}
 
 	public static void rename(String oldCollectionName, String newCollectionName) {
