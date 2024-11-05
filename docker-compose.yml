@@ -10,6 +10,7 @@ services:
   mongodb:
     image: mongo:7
     restart: unless-stopped
+    # entrypoint solution from here: https://stackoverflow.com/a/75572007
     entrypoint: >
       /bin/bash -c '
       echo "rs.initiate()" > /docker-entrypoint-initdb.d/1-init-replicaset.js &&
