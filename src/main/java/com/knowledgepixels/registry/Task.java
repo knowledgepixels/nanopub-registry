@@ -99,6 +99,8 @@ public enum Task implements Serializable {
 		// DB write to:  trust-paths, endorsements, agent-accounts
 
 		public void run(Document taskDoc) throws Exception {
+			RegistryDB.initLoadingCollections();
+
 			insert("trust-paths_loading",
 					new Document("_id", "@")
 						.append("sorthash", "")
@@ -552,7 +554,7 @@ public enum Task implements Serializable {
 
 			Document a = getOne("agent-accounts_loading", new Document("status", "aggregated"));
 			if (a == null) {
-				schedule(LOADING_DONE);
+				schedule(RELEASE_DATA);
 			} else {
 				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
 				if (collection("agent-accounts_loading").countDocuments(mongoSession, pubkeyId) == 1) {
@@ -568,28 +570,23 @@ public enum Task implements Serializable {
 		
 	},
 
-	LOADING_DONE {
+	RELEASE_DATA {
 
 		public void run(Document taskDoc) {
 
-			// TODO This is run outside of a transaction; ensure proper recovery in case of error:
+			// Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
 			rename("agent-accounts_loading", "agent-accounts");
 			rename("trust-paths_loading", "trust-paths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
 			rename("trust-edges_loading", "trust-edges");
 
-			RegistryDB.initLoadingCollections();
-
 			// TODO Only increase counter when state has actually changed:
 			increateStateCounter();
 			setStatus("ready");
 
-			System.err.println("Loading done");
-
 			// Run update after 1h:
 			schedule(UPDATE.withDelay(60 * 60 * 1000));
-			
 		}
 		
 	},

@@ -6,6 +6,7 @@ import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -80,8 +81,6 @@ public class RegistryDB {
 		collection("invalidations").createIndex(mongoSession, ascending("invalidating-pubkey"));
 		collection("invalidations").createIndex(mongoSession, ascending("invalidated-np"));
 		collection("invalidations").createIndex(mongoSession, ascending("invalidating-pubkey", "invalidated-np"));
-
-		initLoadingCollections();
 	}
 
 	public static void initLoadingCollections() {
@@ -176,9 +175,17 @@ public class RegistryDB {
 	}
 
 	public static void rename(String oldCollectionName, String newCollectionName) {
-		 // outside of transaction:
-		collection(newCollectionName).drop();
-		collection(oldCollectionName).renameCollection(new MongoNamespace(REGISTRY_DB_NAME, newCollectionName));
+		 // Designed as idempotent operation: calling multiple times has same effect as calling once
+		if (hasCollection(oldCollectionName)) {
+			if (hasCollection(newCollectionName)) {
+				collection(newCollectionName).drop();
+			}
+			collection(oldCollectionName).renameCollection(new MongoNamespace(REGISTRY_DB_NAME, newCollectionName));
+		}
+	}
+
+	public static boolean hasCollection(String collectionName) {
+		return mongoDB.listCollectionNames().into(new ArrayList<String>()).contains(collectionName);
 	}
 
 	public static void increateStateCounter() {
