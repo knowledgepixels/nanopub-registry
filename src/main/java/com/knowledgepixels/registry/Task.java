@@ -572,11 +572,13 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 
+			// TODO This is run outside of a transaction; ensure proper recovery in case of error:
 			rename("agent-accounts_loading", "agent-accounts");
 			rename("trust-paths_loading", "trust-paths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
 			rename("trust-edges_loading", "trust-edges");
+
 			RegistryDB.initLoadingCollections();
 
 			// TODO Only increase counter when state has actually changed:
@@ -588,11 +590,6 @@ public enum Task implements Serializable {
 			// Run update after 1h:
 			schedule(UPDATE.withDelay(60 * 60 * 1000));
 			
-		}
-
-		public boolean runAsTransaction() {
-			// DB renaming doesn't seem to work as transaction
-			return false;
 		}
 		
 	},
@@ -619,9 +616,6 @@ public enum Task implements Serializable {
 
 	public abstract void run(Document taskDoc) throws Exception;
 
-	public boolean runAsTransaction() {
-		return true;
-	}
 
 	private Document doc() {
 		return withDelay(0l);
@@ -658,29 +652,20 @@ public enum Task implements Serializable {
 			if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
 				Task task = valueOf(taskDoc.getString("action"));
 				System.err.println("Running task: " + task.name());
-				if (task.runAsTransaction()) {
-					try {
-						RegistryDB.startTransaction();
-						System.err.println("Transaction started");
-						runTask(task, taskDoc);
-						RegistryDB.commitTransaction();
-						System.err.println("Transaction committed");
-					} catch (Exception ex) {
-						System.err.println("Aborting transaction");
-						ex.printStackTrace();
-						RegistryDB.abortTransaction(ex.getMessage());
-						System.err.println("Transaction aborted");
-						sleepTime = 1000;
-					} finally {
-						RegistryDB.cleanTransactionWithRetry();
-					}
-				} else {
-					try {
-						runTask(task, taskDoc);
-					} catch (Exception ex) {
-						// TODO: Properly handle fall-back of this
-						ex.printStackTrace();
-					}
+				try {
+					RegistryDB.startTransaction();
+					System.err.println("Transaction started");
+					runTask(task, taskDoc);
+					RegistryDB.commitTransaction();
+					System.err.println("Transaction committed");
+				} catch (Exception ex) {
+					System.err.println("Aborting transaction");
+					ex.printStackTrace();
+					RegistryDB.abortTransaction(ex.getMessage());
+					System.err.println("Transaction aborted");
+					sleepTime = 1000;
+				} finally {
+					RegistryDB.cleanTransactionWithRetry();
 				}
 			}
 			try {

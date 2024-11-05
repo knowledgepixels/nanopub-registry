@@ -175,14 +175,10 @@ public class RegistryDB {
 		}
 	}
 
-	public static void drop(String collection) {
-		if (collection(collection) == null) return;
-		collection(collection).drop(mongoSession);
-	}
-
 	public static void rename(String oldCollectionName, String newCollectionName) {
-		drop(newCollectionName);
-		collection(oldCollectionName).renameCollection(mongoSession, new MongoNamespace(REGISTRY_DB_NAME, newCollectionName));
+		 // outside of transaction:
+		collection(newCollectionName).drop();
+		collection(oldCollectionName).renameCollection(new MongoNamespace(REGISTRY_DB_NAME, newCollectionName));
 	}
 
 	public static void increateStateCounter() {
