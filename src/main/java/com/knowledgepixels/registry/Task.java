@@ -11,6 +11,7 @@ import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.rename;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.knowledgepixels.registry.RegistryDB.setValue;
+import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
@@ -246,7 +247,7 @@ public enum Task implements Serializable {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				Document trustPath = collection("trust-paths_loading").find(
+				Document trustPath = collection("trust-paths_loading").find(mongoSession,
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
 					).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
 
@@ -468,7 +469,7 @@ public enum Task implements Serializable {
 				double ratio = 0.0;
 				Map<String,Boolean> seenPathElements = new HashMap<>();
 				int pathCount = 0;
-				MongoCursor<Document> trustPaths = collection("trust-paths_loading").find(
+				MongoCursor<Document> trustPaths = collection("trust-paths_loading").find(mongoSession,
 						new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"))
 					).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor();
 				while (trustPaths.hasNext()) {
@@ -522,14 +523,14 @@ public enum Task implements Serializable {
 				int count = 0;
 				int pathCountSum = 0;
 				double totalRatio = 0.0d;
-				MongoCursor<Document> agentAccounts = collection("agent-accounts_loading").find(agentId).cursor();
+				MongoCursor<Document> agentAccounts = collection("agent-accounts_loading").find(mongoSession, agentId).cursor();
 				while (agentAccounts.hasNext()) {
 					Document d = agentAccounts.next();
 					count++;
 					pathCountSum += d.getInteger("path-count");
 					totalRatio += d.getDouble("ratio");
 				}
-				collection("agent-accounts_loading").updateMany(agentId, new Document("$set", new Document("status", "aggregated")));
+				collection("agent-accounts_loading").updateMany(mongoSession, agentId, new Document("$set", new Document("status", "aggregated")));
 				insert("agents_loading",
 						agentId.append("account-count", count)
 							.append("avg-path-count", (double) pathCountSum / count)
@@ -554,11 +555,11 @@ public enum Task implements Serializable {
 				schedule(LOADING_DONE);
 			} else {
 				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
-				if (collection("agent-accounts_loading").countDocuments(pubkeyId) == 1) {
-					collection("agent-accounts_loading").updateMany(pubkeyId, new Document("$set", new Document("status", "approved")));
+				if (collection("agent-accounts_loading").countDocuments(mongoSession, pubkeyId) == 1) {
+					collection("agent-accounts_loading").updateMany(mongoSession, pubkeyId, new Document("$set", new Document("status", "approved")));
 				} else {
 					// TODO At the moment all get marked as 'contested'; implement more nuanced algorithm
-					collection("agent-accounts_loading").updateMany(pubkeyId, new Document("$set", new Document("status", "contested")));
+					collection("agent-accounts_loading").updateMany(mongoSession, pubkeyId, new Document("$set", new Document("status", "contested")));
 				}
 				schedule(ASSIGN_PUBKEYS);
 			}
@@ -651,7 +652,7 @@ public enum Task implements Serializable {
 			schedule(INIT_DB);
 		}
 		while (true) {
-			FindIterable<Document> taskResult = tasks.find().sort(ascending("not-before"));
+			FindIterable<Document> taskResult = tasks.find(mongoSession).sort(ascending("not-before"));
 			Document taskDoc = taskResult.first();
 			long sleepTime = 10;
 			if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
@@ -692,7 +693,7 @@ public enum Task implements Serializable {
 
 	static void runTask(Task task, Document taskDoc) throws Exception {
 		task.run(taskDoc);
-		tasks.deleteOne(eq("_id", taskDoc.get("_id")));
+		tasks.deleteOne(mongoSession, eq("_id", taskDoc.get("_id")));
 	}
 
 
@@ -727,7 +728,7 @@ public enum Task implements Serializable {
 
 	private static void schedule(Document taskDoc) {
 		System.err.println("Scheduling task: " + taskDoc.get("action"));
-		tasks.insertOne(taskDoc);
+		tasks.insertOne(mongoSession, taskDoc);
 	}
 
 }
