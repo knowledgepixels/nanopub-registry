@@ -13,5 +13,7 @@ services:
     image: mongo-express
     environment:
       ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/?directConnection=true&tls=false
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: SET PASSWORD HERE!!!
     ports:
       - 8081:8081
