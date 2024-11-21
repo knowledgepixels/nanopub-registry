@@ -1,18 +1,22 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Indexes.ascending;
 import static com.knowledgepixels.registry.MainPage.df4;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.util.List;
 
+import com.knowledgepixels.registry.jelly.NanopubStream;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.bson.Document;
 
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.bson.conversions.Bson;
 
 public class ListPage extends Page {
 
@@ -31,8 +35,10 @@ public class ListPage extends Page {
 		final String req = getReq().getFullRequest();
 		if ("json".equals(ext)) {
 			format = "application/json";
+		} else if ("jelly".equals(ext)) {
+			format = "application/x-jelly-rdf";
 		} else if (ext == null || "html".equals(ext)) {
-			String suppFormats = "application/json,text/html";
+			String suppFormats = "application/x-jelly-rdf,application/json,text/html";
 			format = Utils.getMimeType(getHttpReq(), suppFormats);
 		} else {
 			getResp().sendError(400, "Invalid request: " + req);
@@ -42,10 +48,24 @@ public class ListPage extends Page {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/[0-9a-f]{64}", "$1");
 			String type = req.replaceFirst("/list/[0-9a-f]{64}/([0-9a-f]{64})", "$1");
 	//		String url = ServerConf.getInfo().getPublicUrl();
+
 			if ("application/json".equals(format)) {
 				// TODO
 				//println(ServerConf.getInfo().asJson());
+			} else if ("application/x-jelly-rdf".equals(format)) {
+				List<Bson> pipeline = List.of(
+						lookup("nanopubs", "np", "_id", "nanopub"),
+						project(new Document("content", "$nanopub.content")),
+						unwind("$content")
+				);
+				var result = collection("list-entries").aggregate(pipeline);
+				NanopubStream npStream = NanopubStream.fromMongoCursor(result.cursor());
+				npStream.writeToByteStream(getResp().getOutputStream());
 			} else {
+				MongoCursor<Document> entries = collection("list-entries").find(
+						new Document("pubkey", pubkey)
+								.append("type", type)
+				).sort(ascending("position")).cursor();
 				printHtmlHeader("List for pubkey " + pubkey.substring(0, 10) + " / type " + type.substring(0, 10)  + " - Nanopub Registry");
 				println("<h1>List</h1>");
 				println("<h3>Pubkey Hash</h3>");
@@ -54,10 +74,6 @@ public class ListPage extends Page {
 				println("<p><code>" + type + "</code></p>");
 				println("<h3>Entries</h3>");
 				println("<ol>");
-				MongoCursor<Document> entries = collection("list-entries").find(
-						new Document("pubkey", pubkey)
-							.append("type", type)
-					).sort(ascending("position")).cursor();
 				while (entries.hasNext()) {
 					Document d = entries.next();
 					println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + d.getString("np") + "</code></a></li>");
