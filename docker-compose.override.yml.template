@@ -17,3 +17,7 @@ services:
       ME_CONFIG_BASICAUTH_PASSWORD: SET PASSWORD HERE!!!
     ports:
       - 8081:8081
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"

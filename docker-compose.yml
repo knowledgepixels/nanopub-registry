@@ -7,6 +7,10 @@ services:
       - 9292:8080
     volumes:
       - ./setting.trig:/data/setting.trig
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
   mongodb:
     image: mongo:7
     restart: unless-stopped
@@ -17,3 +21,7 @@ services:
       /usr/local/bin/docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --noauth'
     volumes:
       - ./data/mongodb:/data/db
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
