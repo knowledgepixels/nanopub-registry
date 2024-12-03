@@ -630,9 +630,9 @@ public enum Task implements Serializable {
 
 	// TODO Move these to setting:
 	private static final int MAX_TRUST_PATH_DEPTH = 10;
-	private static final double MIN_TRUST_PATH_RATIO = 0.000001;
+	private static final double MIN_TRUST_PATH_RATIO = 0.00000001;
 	//private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
-	private static final int GLOBAL_QUOTA = 10000000;
+	private static final int GLOBAL_QUOTA = 100000000;
 	private static final int MIN_USER_QUOTA = 100;
 	private static final int MAX_USER_QUOTA = 10000;
 
