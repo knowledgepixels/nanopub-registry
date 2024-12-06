@@ -5,7 +5,7 @@ import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.knowledgepixels.registry.RegistryDB.has;
-import static com.knowledgepixels.registry.RegistryDB.increateStateCounter;
+import static com.knowledgepixels.registry.RegistryDB.increaseStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.insert;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.rename;
@@ -51,7 +51,7 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 			setStatus("launching");
-			increateStateCounter();
+			increaseStateCounter();
 			if (RegistryDB.isInitialized()) throw new RuntimeException("DB already initialized");
 			setValue("server-info", "setup-id", Math.abs(new Random().nextLong()));
 			schedule(LOAD_CONFIG);
@@ -589,7 +589,7 @@ public enum Task implements Serializable {
 			rename("trust-edges_loading", "trust-edges");
 
 			// TODO Only increase counter when state has actually changed:
-			increateStateCounter();
+			increaseStateCounter();
 			setStatus("ready");
 
 			// Run update after 1h:

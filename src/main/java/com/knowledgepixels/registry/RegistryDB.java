@@ -188,7 +188,7 @@ public class RegistryDB {
 		return mongoDB.listCollectionNames().into(new ArrayList<String>()).contains(collectionName);
 	}
 
-	public static void increateStateCounter() {
+	public static void increaseStateCounter() {
 		MongoCursor<Document> cursor = collection("server-info").find(mongoSession, new Document("_id", "state-counter")).cursor();
 		if (cursor.hasNext()) {
 			long counter = cursor.next().getLong("value");
