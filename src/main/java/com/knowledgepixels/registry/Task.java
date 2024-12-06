@@ -260,6 +260,7 @@ public enum Task implements Serializable {
 					// Only first matching trust path is considered
 
 					Map<String,Document> newPaths = new HashMap<>();
+					Map<String,Integer> pubkeyCounts = new HashMap<>();
 					String currentSetting = getValue("setting", "current").toString();
 
 					MongoCursor<Document> edgeCursor = get("trust-edges_loading",
@@ -271,18 +272,24 @@ public enum Task implements Serializable {
 						Document e = edgeCursor.next();
 
 						String pathId = trustPath.getString("_id") + " " + e.get("to-agent") + ">" + e.get("to-pubkey");
+						String agent = e.getString("to-agent");
+						String pubkey = e.getString("to-pubkey");
 						newPaths.put(pathId,
 								new Document("_id", pathId)
 									.append("sorthash", Utils.getHash(currentSetting + " " + pathId))
-									.append("agent", e.get("to-agent"))
-									.append("pubkey", e.get("to-pubkey"))
+									.append("agent", agent)
+									.append("pubkey", pubkey)
 									.append("depth", depth)
 									.append("type", "extended")
 							);
+						Integer c = pubkeyCounts.get(agent);
+						pubkeyCounts.put(agent, c == null ? 1 : c + 1);
 					}
-					double newRatio = (trustPath.getDouble("ratio") * 0.9) / newPaths.size();
 					for (String pathId : newPaths.keySet()) {
-						insert("trust-paths_loading", newPaths.get(pathId).append("ratio", newRatio));
+						Document pd = newPaths.get(pathId);
+						// first divide by agents; then for each agent, divide by number of pubkeys:
+						double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeyCounts.size() / pubkeyCounts.get(pd.getString("agent"));
+						insert("trust-paths_loading", pd.append("ratio", newRatio));
 					}
 					set("trust-paths_loading", trustPath.append("type", "primary"));
 					set("agent-accounts_loading", d.append("status", "expanded"));
