@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
@@ -260,7 +262,7 @@ public enum Task implements Serializable {
 					// Only first matching trust path is considered
 
 					Map<String,Document> newPaths = new HashMap<>();
-					Map<String,Integer> pubkeyCounts = new HashMap<>();
+					Map<String,Set<String>> pubkeySets = new HashMap<>();
 					String currentSetting = getValue("setting", "current").toString();
 
 					MongoCursor<Document> edgeCursor = get("trust-edges_loading",
@@ -271,9 +273,9 @@ public enum Task implements Serializable {
 					while (edgeCursor.hasNext()) {
 						Document e = edgeCursor.next();
 
-						String pathId = trustPath.getString("_id") + " " + e.get("to-agent") + ">" + e.get("to-pubkey");
 						String agent = e.getString("to-agent");
 						String pubkey = e.getString("to-pubkey");
+						String pathId = trustPath.getString("_id") + " " + agent + ">" + pubkey;
 						newPaths.put(pathId,
 								new Document("_id", pathId)
 									.append("sorthash", Utils.getHash(currentSetting + " " + pathId))
@@ -282,13 +284,13 @@ public enum Task implements Serializable {
 									.append("depth", depth)
 									.append("type", "extended")
 							);
-						Integer c = pubkeyCounts.get(agent);
-						pubkeyCounts.put(agent, c == null ? 1 : c + 1);
+						if (!pubkeySets.containsKey(agent)) pubkeySets.put(agent, new HashSet<>());
+						pubkeySets.get(agent).add(pubkey);
 					}
 					for (String pathId : newPaths.keySet()) {
 						Document pd = newPaths.get(pathId);
 						// first divide by agents; then for each agent, divide by number of pubkeys:
-						double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeyCounts.size() / pubkeyCounts.get(pd.getString("agent"));
+						double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
 						insert("trust-paths_loading", pd.append("ratio", newRatio));
 					}
 					set("trust-paths_loading", trustPath.append("type", "primary"));
