@@ -26,6 +26,7 @@ public class NanopubRetriever {
 		Map<String,String> params = new HashMap<>();
 		params.put("pubkeyhash", pubkey);
 		if (type != null) params.put("type", type);
+		// TODO This query seems to exclude nanopublications without types:
 		ApiResponse resp = ApiCache.retrieveResponse("RAsO4jKUf7combAsoGw5nj1LDbBqmH1bUr_j0AWqO9QMI/get-nanopubs-for-pubkey-and-type", params);
 		for (ApiResponseEntry e : resp.getData()) {
 			processFunction.accept(e);
