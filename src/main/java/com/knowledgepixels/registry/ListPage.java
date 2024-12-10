@@ -44,9 +44,9 @@ public class ListPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
-		if (req.matches("/list/[0-9a-f]{64}/[0-9a-f]{64}")) {
-			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/[0-9a-f]{64}", "$1");
-			String type = req.replaceFirst("/list/[0-9a-f]{64}/([0-9a-f]{64})", "$1");
+		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|@)")) {
+			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|@)", "$1");
+			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|@)", "$2");
 	//		String url = ServerConf.getInfo().getPublicUrl();
 
 			if ("application/json".equals(format)) {
@@ -66,7 +66,8 @@ public class ListPage extends Page {
 						new Document("pubkey", pubkey)
 								.append("type", type)
 				).sort(ascending("position")).cursor();
-				printHtmlHeader("List for pubkey " + pubkey.substring(0, 10) + " / type " + type.substring(0, 10)  + " - Nanopub Registry");
+				
+				printHtmlHeader("List for pubkey " + pubkey.substring(0, 10) + " / type " + Utils.getShortTypeLabel(type)  + " - Nanopub Registry");
 				println("<h1>List</h1>");
 				println("<h3>Pubkey Hash</h3>");
 				println("<p><code>" + pubkey + "</code></p>");

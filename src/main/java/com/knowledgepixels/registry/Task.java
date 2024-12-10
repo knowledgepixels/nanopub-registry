@@ -35,6 +35,7 @@ import org.eclipse.rdf4j.model.Statement;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
+import org.nanopub.NanopubUtils;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
 import org.nanopub.extra.security.KeyDeclaration;
@@ -91,6 +92,7 @@ public enum Task implements Serializable {
 			setValue("setting", "bootstrap-services", bootstrapServices);
 			setStatus("loading");
 			schedule(INIT_COLLECTIONS);
+			schedule(LOAD_FULL.withDelay(60 * 1000));
 		}
 
 	},
@@ -372,34 +374,33 @@ public enum Task implements Serializable {
 				// TODO check intro limit
 				String introType = Utils.INTRO_TYPE.stringValue();
 				String introTypeHash = Utils.getHash(introType);
+				Document introList = new Document()
+						.append("pubkey", pubkeyHash)
+						.append("type", introTypeHash)
+						.append("status", "loading");
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", introTypeHash))) {
 					// TODO Why/when is list already loaded on the first run?
 					// TODO When running updates, we need to check for updates in these lists.
-					Document introList = new Document()
-							.append("pubkey", pubkeyHash)
-							.append("type", introTypeHash)
-							.append("status", "loading");
 					insert("lists", introList);
-					NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, e -> {
-						loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), introType, pubkeyHash);
-					});
-					set("lists", introList.append("status", "loaded"));
 				}
+				NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, e -> {
+					loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), pubkeyHash, introType);
+				});
+				set("lists", introList.append("status", "loaded"));
 
 				// TODO check endorsement limit
 				String endorseType = Utils.APPROVAL_TYPE.stringValue();
 				String endorseTypeHash = Utils.getHash(endorseType);
+				Document endorseList = new Document()
+						.append("pubkey", pubkeyHash)
+						.append("type", endorseTypeHash)
+						.append("status", "loading");
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
-					Document endorseList = new Document()
-							.append("pubkey", pubkeyHash)
-							.append("type", endorseTypeHash)
-							.append("status", "loading");
 					insert("lists", endorseList);
-					set("lists", endorseList.append("status", "loaded"));
 				}
 				NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
 					Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
-					loadNanopub(nanopub, endorseType, pubkeyHash);
+					loadNanopub(nanopub, pubkeyHash, endorseType);
 					String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 					for (Statement st : nanopub.getAssertion()) {
 						if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
@@ -418,6 +419,7 @@ public enum Task implements Serializable {
 						}
 					}
 				});
+				set("lists", endorseList.append("status", "loaded"));
 
 				set("agent-accounts_loading", agentAccount.append("status", "visited"));
 
@@ -563,7 +565,7 @@ public enum Task implements Serializable {
 
 			Document a = getOne("agent-accounts_loading", new Document("status", "aggregated"));
 			if (a == null) {
-				schedule(RELEASE_DATA);
+				schedule(DETERMINE_UPDATES);
 			} else {
 				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
 				if (collection("agent-accounts_loading").countDocuments(mongoSession, pubkeyId) == 1) {
@@ -574,6 +576,29 @@ public enum Task implements Serializable {
 				}
 				schedule(ASSIGN_PUBKEYS);
 			}
+			
+		}
+		
+	},
+
+	DETERMINE_UPDATES {
+
+		// DB read from: agent-accounts
+		// DB write to:  agent-accounts
+
+		public void run(Document taskDoc) {
+
+			// TODO Handle contested accounts properly:
+			for (Document d : collection("agent-accounts_loading").find(new Document("status", "approved"))) {
+				// TODO Consider quota too:
+				Document accountId = new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"));
+				if (collection("agent-accounts") == null || !has("agent-accounts", accountId.append("status", "loaded"))) {
+					set("agent-accounts_loading", d.append("status", "to-load"));
+				} else {
+					set("agent-accounts_loading", d.append("status", "loaded"));
+				}
+			}
+			schedule(RELEASE_DATA);
 			
 		}
 		
@@ -600,6 +625,44 @@ public enum Task implements Serializable {
 		
 	},
 
+	LOAD_FULL {
+
+		public void run(Document taskDoc) {
+			if (collection("agent-accounts") == null) {
+				System.err.println("Agent accounts not yet initialized; checking again in 60 seconds");
+				schedule(LOAD_FULL.withDelay(60 * 1000));
+				return;
+			}
+			Document a = getOne("agent-accounts", new Document("status", "to-load"));
+			if (a == null) {
+				System.err.println("Nothing to load; checking again in 60 seconds");
+				schedule(LOAD_FULL.withDelay(60 * 1000));
+			} else {
+				final String ph = a.getString("pubkey");
+				NanopubRetriever.retrieveNanopubs(null, ph, e -> {
+					Nanopub np = NanopubRetriever.retrieveNanopub(e.get("np"));
+					Set<String> types = new HashSet<>();
+					types.add("@");
+					for (IRI typeIri : NanopubUtils.getTypes(np)) {
+						types.add(typeIri.stringValue());
+					}
+					loadNanopub(np, ph, types.toArray(new String[types.size()]));
+				});
+				Document l = getOne("lists", new Document().append("pubkey", ph).append("type", "@"));
+				if (l != null) set("lists", l.append("status", "loaded"));
+				set("agent-accounts", a.append("status", "loaded"));
+				schedule(LOAD_FULL);
+			}
+		}
+
+		@Override
+		public boolean runAsTransaction() {
+			// TODO Make this a transaction once we connect to other Nanopub Registry instances:
+			return false;
+		}
+
+	},
+
 	UPDATE {
 
 		public void run(Document taskDoc) {
@@ -622,6 +685,9 @@ public enum Task implements Serializable {
 
 	public abstract void run(Document taskDoc) throws Exception;
 
+	public boolean runAsTransaction() {
+		return true;
+	}
 
 	private Document doc() {
 		return withDelay(0l);
@@ -658,20 +724,28 @@ public enum Task implements Serializable {
 			if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
 				Task task = valueOf(taskDoc.getString("action"));
 				System.err.println("Running task: " + task.name());
-				try {
-					RegistryDB.startTransaction();
-					System.err.println("Transaction started");
-					runTask(task, taskDoc);
-					RegistryDB.commitTransaction();
-					System.err.println("Transaction committed");
-				} catch (Exception ex) {
-					System.err.println("Aborting transaction");
-					ex.printStackTrace();
-					RegistryDB.abortTransaction(ex.getMessage());
-					System.err.println("Transaction aborted");
-					sleepTime = 1000;
-				} finally {
-					RegistryDB.cleanTransactionWithRetry();
+				if (task.runAsTransaction()) {
+					try {
+						RegistryDB.startTransaction();
+						System.err.println("Transaction started");
+						runTask(task, taskDoc);
+						RegistryDB.commitTransaction();
+						System.err.println("Transaction committed");
+					} catch (Exception ex) {
+						System.err.println("Aborting transaction");
+						ex.printStackTrace();
+						RegistryDB.abortTransaction(ex.getMessage());
+						System.err.println("Transaction aborted");
+						sleepTime = 1000;
+					} finally {
+						RegistryDB.cleanTransactionWithRetry();
+					}
+				} else {
+					try {
+						runTask(task, taskDoc);
+					} catch (Exception ex) {
+						ex.printStackTrace();
+					}
 				}
 			}
 			try {

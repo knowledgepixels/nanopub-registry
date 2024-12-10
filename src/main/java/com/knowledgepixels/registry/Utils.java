@@ -69,6 +69,11 @@ public class Utils {
 		return value;
 	}
 
+	public static String getShortTypeLabel(String type) {
+		if (type.equals("@")) return "@";
+		return type.substring(0, 10);
+	}
+
 	private static ValueFactory vf = SimpleValueFactory.getInstance();
 	public static final IRI SUPERSEDES = vf.createIRI("http://purl.org/nanopub/x/supersedes");
 	public static final IRI RETRACTS = vf.createIRI("http://purl.org/nanopub/x/retracts");

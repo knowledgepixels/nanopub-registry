@@ -263,16 +263,20 @@ public class RegistryDB {
 	}
 
 	public static void loadNanopub(Nanopub nanopub) {
-		loadNanopub(nanopub, null, null);
+		loadNanopub(nanopub, null);
 	}
 
-	public static void loadNanopub(Nanopub nanopub, String type, String pubkeyHash) {
+	public static void loadNanopub(Nanopub nanopub, String pubkeyHash, String... types) {
 		String pubkey = getPubkey(nanopub);
 		if (pubkey == null) {
 			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
 			return;
 		}
 		String ph = Utils.getHash(pubkey);
+		if (pubkeyHash != null && !pubkeyHash.equals(ph)) {
+			System.err.println("Ignoring nanopub with non-matching pubkey: " + nanopub.getUri());
+			return;
+		}
 		if (!has("pubkeys", ph)) {
 			insert("pubkeys", new Document("_id", ph).append("full-pubkey", pubkey));
 		}
@@ -315,33 +319,41 @@ public class RegistryDB {
 			}
 		}
 
-		if (type != null && ph.equals(pubkeyHash) && hasType(nanopub, type)) {
-			String typeHash = Utils.getHash(type);
-	
-			if (has("list-entries", new Document("pubkey", ph).append("type", typeHash).append("np", ac))) {
-				System.err.println("Already listed: " + nanopub.getUri());
-			} else {
-				
-				Document doc = getMaxValueDocument("list-entries", new Document("pubkey", ph).append("type", typeHash), "position");
-				long position;
-				String checksum;
-				if (doc == null) {
-					position = 0l;
-					checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
-				} else {
-					position = doc.getLong("position") + 1;
-					checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
-				}
-				collection("list-entries").insertOne(mongoSession,
-						new Document("pubkey", ph)
-							.append("type", typeHash)
-							.append("position", position)
-							.append("np", ac)
-							.append("checksum", checksum)
-							.append("invalidated", false)
-					);
-			}
+		if (pubkeyHash != null) {
+			for (String type : types) {
+				if (!hasType(nanopub, type)) continue;
 
+				String typeHash = Utils.getHash(type);
+				if (type.equals("@")) typeHash = "@";
+
+				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
+					insert("lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
+				}
+		
+				if (has("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+					System.err.println("Already listed: " + nanopub.getUri());
+				} else {
+					
+					Document doc = getMaxValueDocument("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
+					long position;
+					String checksum;
+					if (doc == null) {
+						position = 0l;
+						checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
+					} else {
+						position = doc.getLong("position") + 1;
+						checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
+					}
+					collection("list-entries").insertOne(mongoSession,
+							new Document("pubkey", pubkeyHash)
+								.append("type", typeHash)
+								.append("position", position)
+								.append("np", ac)
+								.append("checksum", checksum)
+								.append("invalidated", false)
+						);
+				}
+			}
 		}
 
 		if (has("invalidations", new Document("invalidated-np", ac).append("invalidating-pubkey", ph))) {
@@ -376,10 +388,14 @@ public class RegistryDB {
 	}
 
 	private static boolean hasType(Nanopub nanopub, String type) {
-		for (IRI typeIri : NanopubUtils.getTypes(nanopub)) {
-			if (typeIri.stringValue().equals(type)) return true;
-		}
-		return false;
+		return true;
+		// TODO We need to do a proper check here. Type applies also if the nanopub itself
+		//      doesn't directly have the type but is an invalidation of a nanopub that has it.
+//		if (type.equals("@")) return true;
+//		for (IRI typeIri : NanopubUtils.getTypes(nanopub)) {
+//			if (typeIri.stringValue().equals(type)) return true;
+//		}
+//		return false;
 	}
 
 }
