@@ -26,7 +26,7 @@ public class MainPage extends Page {
 		super(req, httpResp);
 	}
 
-	static final DecimalFormat df4 = new DecimalFormat("0.0000");
+	static final DecimalFormat df8 = new DecimalFormat("0.00000000");
 	static final DecimalFormat df1 = new DecimalFormat("0.0");
 
 	protected void show() throws IOException {
@@ -76,7 +76,12 @@ public class MainPage extends Page {
 				Document d = agents.next();
 				if (d.get("agent").equals("@")) continue;
 				String a = d.getString("agent");
-				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, ratio " + df4.format(d.get("total-ratio")) + ", paths " + df1.format(d.get("avg-path-count")) + "</li>");
+				int accountCount = d.getInteger("account-count");
+				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
+						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
+						"ratio " + df8.format(d.get("total-ratio")) + ", " +
+						"avg. path count " + df1.format(d.get("avg-path-count")) +
+						"</li>");
 			}
 			println("</ul>");
 			println("<p><a href=\"/agent\">&gt; Full list</a></pi>");

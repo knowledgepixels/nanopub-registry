@@ -1,22 +1,24 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.MainPage.df1;
+import static com.knowledgepixels.registry.MainPage.df8;
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.mongodb.client.model.Aggregates.*;
+import static com.mongodb.client.model.Aggregates.lookup;
+import static com.mongodb.client.model.Aggregates.project;
+import static com.mongodb.client.model.Aggregates.unwind;
 import static com.mongodb.client.model.Indexes.ascending;
-import static com.knowledgepixels.registry.MainPage.df4;
 
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.List;
 
-import com.knowledgepixels.registry.jelly.NanopubStream;
-import org.apache.commons.lang.StringEscapeUtils;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 
+import com.knowledgepixels.registry.jelly.NanopubStream;
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.bson.conversions.Bson;
 
 public class ListPage extends Page {
 
@@ -148,7 +150,7 @@ public class ListPage extends Page {
 			while (accountList.hasNext()) {
 				Document d = accountList.next();
 				String pubkey = d.getString("pubkey");
-				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), ratio " + df4.format(d.get("ratio")) + ", path count " + d.get("path-count") + "</li>");
+				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), ratio " + df8.format(d.get("ratio")) + ", path count " + d.get("path-count") + "</li>");
 			}
 			println("</ul>");
 			printHtmlFooter();
@@ -157,13 +159,17 @@ public class ListPage extends Page {
 			println("<h1>List of Agents</h1>");
 			println("<h3>Agents</h3>");
 			println("<ol>");
-			MongoCursor<Document> agentList = collection("agents").find().cursor();
+			MongoCursor<Document> agentList = collection("agents").find().sort(ascending("agent")).cursor();
 			while (agentList.hasNext()) {
 				Document d = agentList.next();
-				String agentId = d.getString("agent");
-				if (!agentId.equals("@")) {
-					println("<li><a href=\"/agent?id=" + URLEncoder.encode(agentId, "UTF-8") + "\"><code>" + StringEscapeUtils.escapeHtml(agentId) + "</code></a></li>");
-				}
+				if (d.get("agent").equals("@")) continue;
+				String a = d.getString("agent");
+				int accountCount = d.getInteger("account-count");
+				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
+						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
+						"ratio " + df8.format(d.get("total-ratio")) + ", " +
+						"avg. path count " + df1.format(d.get("avg-path-count")) +
+						"</li>");
 			}
 			println("</ol>");
 			printHtmlFooter();
