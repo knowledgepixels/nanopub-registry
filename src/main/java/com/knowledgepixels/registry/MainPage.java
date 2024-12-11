@@ -74,7 +74,7 @@ public class MainPage extends Page {
 			MongoCursor<Document> agents = collection("agents").find().sort(descending("total-ratio")).limit(20).cursor();
 			while (agents.hasNext()) {
 				Document d = agents.next();
-				if (d.get("agent").equals("@")) continue;
+				if (d.get("agent").equals("$")) continue;
 				String a = d.getString("agent");
 				int accountCount = d.getInteger("account-count");
 				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +

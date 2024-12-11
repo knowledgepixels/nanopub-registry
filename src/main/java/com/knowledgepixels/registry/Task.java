@@ -106,10 +106,10 @@ public enum Task implements Serializable {
 			RegistryDB.initLoadingCollections();
 
 			insert("trust-paths_loading",
-					new Document("_id", "@")
+					new Document("_id", "$")
 						.append("sorthash", "")
-						.append("agent", "@")
-						.append("pubkey", "@")
+						.append("agent", "$")
+						.append("pubkey", "$")
 						.append("depth", 0)
 						.append("ratio", 1.0d)
 						.append("type", "extended")
@@ -121,8 +121,8 @@ public enum Task implements Serializable {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
 
 				insert("endorsements_loading",
-						new Document("agent", "@")
-							.append("pubkey", "@")
+						new Document("agent", "$")
+							.append("pubkey", "$")
 							.append("endorsed-nanopub", declarationAc)
 							.append("source", getValue("setting", "current"))
 							.append("status", "to-retrieve")
@@ -130,8 +130,8 @@ public enum Task implements Serializable {
 
 			}
 			insert("agent-accounts_loading",
-					new Document("agent", "@")
-						.append("pubkey", "@")
+					new Document("agent", "$")
+						.append("pubkey", "$")
 						.append("status", "visited")
 						.append("depth", 0)
 				);
@@ -642,13 +642,13 @@ public enum Task implements Serializable {
 				NanopubRetriever.retrieveNanopubs(null, ph, e -> {
 					Nanopub np = NanopubRetriever.retrieveNanopub(e.get("np"));
 					Set<String> types = new HashSet<>();
-					types.add("@");
+					types.add("$");
 					for (IRI typeIri : NanopubUtils.getTypes(np)) {
 						types.add(typeIri.stringValue());
 					}
 					loadNanopub(np, ph, types.toArray(new String[types.size()]));
 				});
-				Document l = getOne("lists", new Document().append("pubkey", ph).append("type", "@"));
+				Document l = getOne("lists", new Document().append("pubkey", ph).append("type", "$"));
 				if (l != null) set("lists", l.append("status", "loaded"));
 				set("agent-accounts", a.append("status", "loaded"));
 				schedule(LOAD_FULL);

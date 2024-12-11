@@ -324,7 +324,7 @@ public class RegistryDB {
 				if (!hasType(nanopub, type)) continue;
 
 				String typeHash = Utils.getHash(type);
-				if (type.equals("@")) typeHash = "@";
+				if (type.equals("$")) typeHash = "$";
 
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
 					insert("lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
@@ -391,7 +391,7 @@ public class RegistryDB {
 		return true;
 		// TODO We need to do a proper check here. Type applies also if the nanopub itself
 		//      doesn't directly have the type but is an invalidation of a nanopub that has it.
-//		if (type.equals("@")) return true;
+//		if (type.equals("$")) return true;
 //		for (IRI typeIri : NanopubUtils.getTypes(nanopub)) {
 //			if (typeIri.stringValue().equals(type)) return true;
 //		}

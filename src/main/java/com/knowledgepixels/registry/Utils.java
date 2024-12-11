@@ -70,7 +70,7 @@ public class Utils {
 	}
 
 	public static String getShortTypeLabel(String type) {
-		if (type.equals("@")) return "@";
+		if (type.equals("$")) return "$";
 		return type.substring(0, 10);
 	}
 

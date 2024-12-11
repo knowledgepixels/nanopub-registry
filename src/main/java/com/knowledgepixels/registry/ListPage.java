@@ -123,7 +123,7 @@ public class ListPage extends Page {
 				while (accountList.hasNext()) {
 					Document d = accountList.next();
 					String pubkey = d.getString("pubkey");
-					if (!pubkey.equals(previous) && !pubkey.equals("@")) {
+					if (!pubkey.equals(previous) && !pubkey.equals("$")) {
 						println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + ")</li>");
 					}
 					previous = pubkey;
@@ -162,7 +162,7 @@ public class ListPage extends Page {
 			MongoCursor<Document> agentList = collection("agents").find().sort(ascending("agent")).cursor();
 			while (agentList.hasNext()) {
 				Document d = agentList.next();
-				if (d.get("agent").equals("@")) continue;
+				if (d.get("agent").equals("$")) continue;
 				String a = d.getString("agent");
 				int accountCount = d.getInteger("account-count");
 				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
