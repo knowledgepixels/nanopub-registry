@@ -136,7 +136,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { agent**:SueRich, ... }
       ...
     trust-edges:
-      { from-agent^:@, from-pubkey^:@, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
+      { from-agent^:$, from-pubkey^:$, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
       { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
       { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
       ...
@@ -159,18 +159,18 @@ See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB
 
 Every agent account has at most one primary path (`>`) leading to it:
 
-    @ > A
-    @ > A > X
-    @ > A > Y
-    @ > B
-    @ > B > C
-    @ > B > C > D
+    $ > A
+    $ > A > X
+    $ > A > Y
+    $ > B
+    $ > B > C
+    $ > B > C > D
 
 Extended paths add a single extended edge (`~`) to the end of a primary path that can reach any other account, including those with their own primary paths:
 
-    @ > A ~ B
-    @ > A > X ~ D
-    @ > B > C ~ A
+    $ > A ~ B
+    $ > A > X ~ D
+    $ > B > C ~ A
 
 These extended paths can themselves not be further extended.
 Therefore, each agent account can only append its endorsements to the location in its primary path.

@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.MainPage.df1;
 import static com.knowledgepixels.registry.MainPage.df8;
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.mongodb.client.model.Aggregates.lookup;
 import static com.mongodb.client.model.Aggregates.project;
 import static com.mongodb.client.model.Aggregates.unwind;
@@ -46,9 +47,9 @@ public class ListPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
-		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|@)")) {
-			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|@)", "$1");
-			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|@)", "$2");
+		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
+			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
+			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 	//		String url = ServerConf.getInfo().getPublicUrl();
 
 			if ("application/json".equals(format)) {
@@ -150,7 +151,12 @@ public class ListPage extends Page {
 			while (accountList.hasNext()) {
 				Document d = accountList.next();
 				String pubkey = d.getString("pubkey");
-				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), ratio " + df8.format(d.get("ratio")) + ", path count " + d.get("path-count") + "</li>");
+				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), " +
+						"nanopub count " + getMaxValue("list-entries", new Document("pubkey", pubkey), "position") + ", " +
+						"quota " + d.get("quota") + ", " +
+						"ratio " + df8.format(d.get("ratio")) + ", " +
+						"path count " + d.get("path-count") +
+						"</li>");
 			}
 			println("</ul>");
 			printHtmlFooter();
@@ -165,7 +171,7 @@ public class ListPage extends Page {
 				if (d.get("agent").equals("$")) continue;
 				String a = d.getString("agent");
 				int accountCount = d.getInteger("account-count");
-				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
+				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a> (" + d.get("status") + "), " +
 						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
 						"ratio " + df8.format(d.get("total-ratio")) + ", " +
 						"avg. path count " + df1.format(d.get("avg-path-count")) +
