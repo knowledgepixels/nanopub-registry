@@ -143,9 +143,9 @@ public enum Task implements Serializable {
 		// At the end of this task, the base agent is initialized:
 		// ------------------------------------------------------------
 		//
-		//	      @@@@ ----endorses----> [intro]
+		//	      $$$$ ----endorses----> [intro]
 		//	      base                (to-retrieve)
-		//	      @@@@
+		//	      $$$$
 		//	    (visited)
 		//	    
 		//	      [0] trust path
