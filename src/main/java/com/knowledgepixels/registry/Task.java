@@ -8,10 +8,10 @@ import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.increaseStateCounter;
 import static com.knowledgepixels.registry.RegistryDB.insert;
 import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
+import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.knowledgepixels.registry.RegistryDB.rename;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.knowledgepixels.registry.RegistryDB.setValue;
-import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
@@ -681,6 +681,16 @@ public enum Task implements Serializable {
 			
 		}
 		
+	},
+
+	CHECK_NEW {
+
+		public void run(Document taskDoc) {
+			// TODO Uncomment and connect once properly implemented:
+			//LegacyConnector.checkForNewNanopubs();
+			schedule(CHECK_NEW.withDelay(60 * 1000));
+		}
+
 	};
 
 	public abstract void run(Document taskDoc) throws Exception;
