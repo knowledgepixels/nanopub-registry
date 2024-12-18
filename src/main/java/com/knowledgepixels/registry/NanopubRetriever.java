@@ -22,6 +22,11 @@ public class NanopubRetriever {
 
 	private NanopubRetriever() {}
 
+	// TODO Distinguish and support these cases:
+	//      1. Simple load: load to all core lists if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"
+	//      2. Core load: load to all core lists (initialize if needed), or load to all lists if pubkey is "full-loaded"
+	//      3. Full load: load to all lists (initialize if needed)
+
 	public static void retrieveNanopubs(String type, String pubkey, Consumer<ApiResponseEntry> processFunction) {
 		Map<String,String> params = new HashMap<>();
 		params.put("pubkeyhash", pubkey);
