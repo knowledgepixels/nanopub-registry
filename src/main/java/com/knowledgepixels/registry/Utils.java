@@ -74,6 +74,29 @@ public class Utils {
 		return type.substring(0, 10);
 	}
 
+	public static boolean isUnloadedStatus(String status) {
+		if (status.equals("seen")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("skipped")) return true;
+		return false;
+	}
+
+	public static boolean isCoreLoadedStatus(String status) {
+		if (status.equals("visited")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("expanded")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("processed")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("aggregated")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("approved")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("contested")) return true;
+		if (status.equals("to-load")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("loaded")) return true;
+		return false;
+	}
+
+	public static boolean isFullyLoadedStatus(String status) {
+		if (status.equals("loaded")) return true;
+		return false;
+	}
+
 	private static ValueFactory vf = SimpleValueFactory.getInstance();
 	public static final IRI SUPERSEDES = vf.createIRI("http://purl.org/nanopub/x/supersedes");
 	public static final IRI RETRACTS = vf.createIRI("http://purl.org/nanopub/x/retracts");
