@@ -22,6 +22,11 @@ public class NanopubLoader {
 
 	private NanopubLoader() {}
 
+	public final static String INTRO_TYPE = Utils.INTRO_TYPE.stringValue();
+	public final static String INTRO_TYPE_HASH = Utils.getHash(INTRO_TYPE);
+	public final static String ENDORSE_TYPE = Utils.APPROVAL_TYPE.stringValue();
+	public final static String ENDORSE_TYPE_HASH = Utils.getHash(ENDORSE_TYPE);
+
 	// TODO Distinguish and support these cases:
 	//      1. Simple load: load to all core lists if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"
 	//      2. Core load: load to all core lists (initialize if needed), or load to all lists if pubkey is "full-loaded"

@@ -1,5 +1,9 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.NanopubLoader.ENDORSE_TYPE;
+import static com.knowledgepixels.registry.NanopubLoader.ENDORSE_TYPE_HASH;
+import static com.knowledgepixels.registry.NanopubLoader.INTRO_TYPE;
+import static com.knowledgepixels.registry.NanopubLoader.INTRO_TYPE_HASH;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.get;
 import static com.knowledgepixels.registry.RegistryDB.getOne;
@@ -372,35 +376,31 @@ public enum Task implements Serializable {
 				schedule(LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			} else {
 				// TODO check intro limit
-				String introType = Utils.INTRO_TYPE.stringValue();
-				String introTypeHash = Utils.getHash(introType);
 				Document introList = new Document()
 						.append("pubkey", pubkeyHash)
-						.append("type", introTypeHash)
+						.append("type", INTRO_TYPE_HASH)
 						.append("status", "loading");
-				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", introTypeHash))) {
+				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
 					// TODO Why/when is list already loaded on the first run?
 					// TODO When running updates, we need to check for updates in these lists.
 					insert("lists", introList);
 				}
-				NanopubLoader.retrieveNanopubs(introType, pubkeyHash, e -> {
-					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, introType);
+				NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
+					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, INTRO_TYPE);
 				});
 				set("lists", introList.append("status", "loaded"));
 
 				// TODO check endorsement limit
-				String endorseType = Utils.APPROVAL_TYPE.stringValue();
-				String endorseTypeHash = Utils.getHash(endorseType);
 				Document endorseList = new Document()
 						.append("pubkey", pubkeyHash)
-						.append("type", endorseTypeHash)
+						.append("type", ENDORSE_TYPE_HASH)
 						.append("status", "loading");
-				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
+				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", ENDORSE_TYPE_HASH))) {
 					insert("lists", endorseList);
 				}
-				NanopubLoader.retrieveNanopubs(endorseType, pubkeyHash, e -> {
+				NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
 					Nanopub nanopub = NanopubLoader.retrieveNanopub(e.get("np"));
-					loadNanopub(nanopub, pubkeyHash, endorseType);
+					loadNanopub(nanopub, pubkeyHash, ENDORSE_TYPE);
 					String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 					for (Statement st : nanopub.getAssertion()) {
 						if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
