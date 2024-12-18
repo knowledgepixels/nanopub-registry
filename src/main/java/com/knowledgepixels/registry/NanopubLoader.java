@@ -18,9 +18,9 @@ import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
 
-public class NanopubRetriever {
+public class NanopubLoader {
 
-	private NanopubRetriever() {}
+	private NanopubLoader() {}
 
 	// TODO Distinguish and support these cases:
 	//      1. Simple load: load to all core lists if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"

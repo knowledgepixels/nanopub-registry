@@ -115,7 +115,7 @@ public enum Task implements Serializable {
 						.append("type", "extended")
 				);
 
-			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubRetriever.retrieveNanopub(getSetting().getAgentIntroCollection().stringValue()));
+			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubLoader.retrieveNanopub(getSetting().getAgentIntroCollection().stringValue()));
 			loadNanopub(agentIndex);
 			for (IRI el : agentIndex.getElements()) {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
@@ -383,8 +383,8 @@ public enum Task implements Serializable {
 					// TODO When running updates, we need to check for updates in these lists.
 					insert("lists", introList);
 				}
-				NanopubRetriever.retrieveNanopubs(introType, pubkeyHash, e -> {
-					loadNanopub(NanopubRetriever.retrieveNanopub(e.get("np")), pubkeyHash, introType);
+				NanopubLoader.retrieveNanopubs(introType, pubkeyHash, e -> {
+					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, introType);
 				});
 				set("lists", introList.append("status", "loaded"));
 
@@ -398,8 +398,8 @@ public enum Task implements Serializable {
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", endorseTypeHash))) {
 					insert("lists", endorseList);
 				}
-				NanopubRetriever.retrieveNanopubs(endorseType, pubkeyHash, e -> {
-					Nanopub nanopub = NanopubRetriever.retrieveNanopub(e.get("np"));
+				NanopubLoader.retrieveNanopubs(endorseType, pubkeyHash, e -> {
+					Nanopub nanopub = NanopubLoader.retrieveNanopub(e.get("np"));
 					loadNanopub(nanopub, pubkeyHash, endorseType);
 					String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 					for (Statement st : nanopub.getAssertion()) {
@@ -639,8 +639,8 @@ public enum Task implements Serializable {
 				schedule(LOAD_FULL.withDelay(60 * 1000));
 			} else {
 				final String ph = a.getString("pubkey");
-				NanopubRetriever.retrieveNanopubs(null, ph, e -> {
-					Nanopub np = NanopubRetriever.retrieveNanopub(e.get("np"));
+				NanopubLoader.retrieveNanopubs(null, ph, e -> {
+					Nanopub np = NanopubLoader.retrieveNanopub(e.get("np"));
 					Set<String> types = new HashSet<>();
 					types.add("$");
 					for (IRI typeIri : NanopubUtils.getTypes(np)) {
@@ -782,7 +782,7 @@ public enum Task implements Serializable {
 	}
 
 	private static IntroNanopub getAgentIntro(String nanopubId) {
-		IntroNanopub agentIntro = new IntroNanopub(NanopubRetriever.retrieveNanopub(nanopubId));
+		IntroNanopub agentIntro = new IntroNanopub(NanopubLoader.retrieveNanopub(nanopubId));
 		if (agentIntro.getUser() == null) return null;
 		loadNanopub(agentIntro.getNanopub());
 		return agentIntro;

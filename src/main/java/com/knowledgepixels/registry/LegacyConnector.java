@@ -52,7 +52,7 @@ public class LegacyConnector {
 					String npUri = i.readLine();
 					if (loadedCache.containsKey(npUri)) continue;
 					// TODO: Here we need to make sure to append to existing lists:
-					NanopubRetriever.retrieveNanopub(npUri);
+					NanopubLoader.retrieveNanopub(npUri);
 					loadedCache.put(npUri, true);
 				}
 			};
