@@ -37,7 +37,9 @@ public class NanopubPage extends Page {
 			String ac = req.replaceFirst("/np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
 			Document npDoc = collection("nanopubs").find(new Document("_id", ac)).first();
 			if (npDoc == null) {
-				getResp().sendError(404, "Not found: " + ac);
+				//getResp().sendError(404, "Not found: " + ac);
+				getResp().setStatus(HttpServletResponse.SC_TEMPORARY_REDIRECT);
+				getResp().setHeader("Location", "https://np.knowledgepixels.com/" + ac);
 				return;
 			}
 	//		String url = ServerConf.getInfo().getPublicUrl();
