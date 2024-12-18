@@ -35,6 +35,7 @@ public class LegacyConnector {
 	}
 
 	private static String checkUrl(String url) {
+		System.err.println("Checking legacy URL " + url);
 		HttpGet get = new HttpGet(url);
 		get.setHeader("Accept", "text/plain");
 		HttpResponse resp = null;
@@ -42,17 +43,16 @@ public class LegacyConnector {
 		try {
 			resp = NanopubUtils.getHttpClient().execute(get);
 			for (Header h : resp.getHeaders("Link")) {
-				System.err.println(h.getName() + " " + h.getValue());
 				if (h.getValue().endsWith("; rel=\"prev\"")) {
 					prev = h.getValue().replaceFirst("^.*<(.+)>.*$", "$1");
 				}
 			}
 			try (BufferedReader i = new BufferedReader(new InputStreamReader(resp.getEntity().getContent(), Charsets.UTF_8))) {
-				while (i.ready()) {
-					String npUri = i.readLine();
+				String npUri;
+				while ((npUri = i.readLine()) != null) {
 					if (loadedCache.containsKey(npUri)) continue;
 					// TODO: Here we need to make sure to append to existing lists:
-					NanopubLoader.retrieveNanopub(npUri);
+					NanopubLoader.simpleLoad(npUri);
 					loadedCache.put(npUri, true);
 				}
 			};

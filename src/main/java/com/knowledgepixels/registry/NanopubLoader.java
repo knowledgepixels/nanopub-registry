@@ -1,5 +1,7 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.has;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -31,6 +33,17 @@ public class NanopubLoader {
 	//      1. Simple load: load to all core lists if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"
 	//      2. Core load: load to all core lists (initialize if needed), or load to all lists if pubkey is "full-loaded"
 	//      3. Full load: load to all lists (initialize if needed)
+
+	public static void simpleLoad(String nanopubId) {
+		Nanopub np = retrieveNanopub(nanopubId);
+		String pubkeyHash = Utils.getHash(RegistryDB.getPubkey(np));
+		// TODO Do we need to load anything else here, into the other DB collections?
+		if (has("lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
+			RegistryDB.loadNanopub(np, pubkeyHash, "$");
+		} else if (has("lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
+			RegistryDB.loadNanopub(np, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
+		}
+	}
 
 	public static void retrieveNanopubs(String type, String pubkey, Consumer<ApiResponseEntry> processFunction) {
 		Map<String,String> params = new HashMap<>();

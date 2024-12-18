@@ -369,7 +369,7 @@ public class RegistryDB {
 
 	}
 
-	private static String getPubkey(Nanopub nanopub) {
+	public static String getPubkey(Nanopub nanopub) {
 		NanopubSignatureElement el = null;
 		try {
 			el = SignatureUtils.getSignatureElement(nanopub);

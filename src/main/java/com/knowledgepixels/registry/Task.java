@@ -43,6 +43,8 @@ import org.nanopub.NanopubUtils;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
 import org.nanopub.extra.security.KeyDeclaration;
+import org.nanopub.extra.services.ApiResponse;
+import org.nanopub.extra.services.ApiResponseEntry;
 import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
@@ -373,6 +375,10 @@ public enum Task implements Serializable {
 				schedule(FINISH_ITERATION.with("depth", depth).append("load-count", loadCount));
 			} else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
 				set("agent-accounts_loading", agentAccount.append("status", "skipped"));
+				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
+				if (!has("lists", d)) {
+					insert("lists", d.append("status", "encountered"));
+				}
 				schedule(LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			} else {
 				// TODO check intro limit
@@ -381,8 +387,6 @@ public enum Task implements Serializable {
 						.append("type", INTRO_TYPE_HASH)
 						.append("status", "loading");
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
-					// TODO Why/when is list already loaded on the first run?
-					// TODO When running updates, we need to check for updates in these lists.
 					insert("lists", introList);
 				}
 				NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
@@ -420,6 +424,9 @@ public enum Task implements Serializable {
 					}
 				});
 				set("lists", endorseList.append("status", "loaded"));
+
+				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
+				if (!has("lists", df)) insert("lists", df.append("status", "encountered"));
 
 				set("agent-accounts_loading", agentAccount.append("status", "visited"));
 
@@ -625,18 +632,35 @@ public enum Task implements Serializable {
 		
 	},
 
+	UPDATE {
+
+		public void run(Document taskDoc) {
+
+			String status = getStatus();
+			if (status.equals("ready")) {
+				setStatus("updating");
+				schedule(INIT_COLLECTIONS);
+			} else {
+				System.err.println("Postponing update; currently in status " + status);
+				schedule(UPDATE.withDelay(60 * 60 * 1000));
+			}
+			
+		}
+		
+	},
+
 	LOAD_FULL {
 
 		public void run(Document taskDoc) {
-			if (collection("agent-accounts") == null) {
-				System.err.println("Agent accounts not yet initialized; checking again in 60 seconds");
+			if (getOne("agent-accounts", new Document()) == null) {
+				System.err.println("Agent accounts not yet initialized; checking again later");
 				schedule(LOAD_FULL.withDelay(60 * 1000));
 				return;
 			}
 			Document a = getOne("agent-accounts", new Document("status", "to-load"));
 			if (a == null) {
-				System.err.println("Nothing to load; checking again in 60 seconds");
-				schedule(LOAD_FULL.withDelay(60 * 1000));
+				System.err.println("Nothing to load; scheduling optional loading checks");
+				schedule(CHECK_MORE_PUBKEYS.withDelay(1000));
 			} else {
 				final String ph = a.getString("pubkey");
 				NanopubLoader.retrieveNanopubs(null, ph, e -> {
@@ -651,7 +675,8 @@ public enum Task implements Serializable {
 				Document l = getOne("lists", new Document().append("pubkey", ph).append("type", "$"));
 				if (l != null) set("lists", l.append("status", "loaded"));
 				set("agent-accounts", a.append("status", "loaded"));
-				schedule(LOAD_FULL);
+
+				schedule(LOAD_FULL.withDelay(1000));
 			}
 		}
 
@@ -663,22 +688,73 @@ public enum Task implements Serializable {
 
 	},
 
-	UPDATE {
+	CHECK_MORE_PUBKEYS {
 
 		public void run(Document taskDoc) {
-
-			String status = getStatus();
-			if (status.equals("ready")) {
-				setStatus("updating");
-				schedule(INIT_COLLECTIONS);
-			} else if (status.equals("updating")) {
-				// TODO This shouldn't be happening...
-				System.err.println("Ignoring update task: already updating");
-			} else {
-				System.err.println("Postponing update; currently in status " + status);
-				schedule(UPDATE.withDelay(60 * 60 * 1000));
+			ApiResponse resp = ApiCache.retrieveResponse("RAWpFps2f4rvpLhFQ-_KiAyphGuXO6YGJLqiW3QBxQQhM/get-all-pubkeys", null);
+			for (ApiResponseEntry e : resp.getData()) {
+				String pubkeyHash = e.get("pubkeyhash");
+				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
+				if (!has("lists", d)) {
+					insert("lists", d.append("status", "encountered"));
+				}
 			}
-			
+
+			schedule(RUN_OPTIONAL_LOAD.withDelay(1000));
+		}
+		
+	},
+
+	RUN_OPTIONAL_LOAD {
+
+		public void run(Document taskDoc) {
+			Document di = getOne("lists", new Document("type", INTRO_TYPE_HASH).append("status", "encountered"));
+			if (di != null) {
+				final String pubkeyHash = di.getString("pubkey");
+				System.err.println("Optional core loading: " + pubkeyHash);
+
+				NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
+					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, INTRO_TYPE);
+				});
+				set("lists", di.append("status", "loaded"));
+
+				NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
+					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, ENDORSE_TYPE);
+				});
+				Document de = new Document("pubkey", pubkeyHash).append("type", ENDORSE_TYPE_HASH);
+				if (has("lists", de)) {
+					set("lists", de.append("status", "loaded"));
+				} else {
+					insert("lists", de.append("status", "loaded"));
+				}
+
+				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
+				if (!has("lists", df)) insert("lists", df.append("status", "encountered"));
+
+				schedule(CHECK_NEW.withDelay(1000));
+				return;
+			}
+
+			Document df = getOne("lists", new Document("type", "$").append("status", "encountered"));
+			if (df != null) {
+				final String pubkeyHash = df.getString("pubkey");
+				System.err.println("Optional full loading: " + pubkeyHash);
+
+				NanopubLoader.retrieveNanopubs(null, pubkeyHash, e -> {
+					Nanopub np = NanopubLoader.retrieveNanopub(e.get("np"));
+					Set<String> types = new HashSet<>();
+					types.add("$");
+					for (IRI typeIri : NanopubUtils.getTypes(np)) {
+						types.add(typeIri.stringValue());
+					}
+					loadNanopub(np, pubkeyHash, types.toArray(new String[types.size()]));
+				});
+
+				set("lists", df.append("status", "loaded"));
+
+				schedule(CHECK_NEW.withDelay(1000));
+				return;
+			}
 		}
 		
 	},
@@ -686,9 +762,11 @@ public enum Task implements Serializable {
 	CHECK_NEW {
 
 		public void run(Document taskDoc) {
-			// TODO Uncomment and connect once properly implemented:
-			//LegacyConnector.checkForNewNanopubs();
-			schedule(CHECK_NEW.withDelay(60 * 1000));
+			// TODO Replace this legacy connection with checks at other Nanopub Registries:
+			LegacyConnector.checkForNewNanopubs();
+			// TODO Somehow throttle the loading of such potentially non-approved nanopubs
+
+			schedule(LOAD_FULL.withDelay(1000));
 		}
 
 	};

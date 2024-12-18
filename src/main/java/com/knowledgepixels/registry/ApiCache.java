@@ -32,7 +32,9 @@ public class ApiCache {
 
 	private static void updateResponse(String queryName, Map<String,String> params) {
 		Map<String,String> nanopubParams = new HashMap<>();
-		for (String k : params.keySet()) nanopubParams.put(k, params.get(k));
+		if (params != null) {
+			for (String k : params.keySet()) nanopubParams.put(k, params.get(k));
+		}
 		ApiResponse response = get(queryName, nanopubParams);
 		String cacheId = getCacheId(queryName, params);
 		cachedResponses.put(cacheId, response);
@@ -54,6 +56,7 @@ public class ApiCache {
 	}
 
 	private static String paramsToString(Map<String,String> params) {
+		if (params == null) return "";
 		List<String> keys = new ArrayList<>(params.keySet());
 		Collections.sort(keys);
 		String s = "";
