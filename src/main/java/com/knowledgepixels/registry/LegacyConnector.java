@@ -2,6 +2,8 @@ package com.knowledgepixels.registry;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 import org.apache.http.Header;
@@ -20,6 +22,9 @@ public class LegacyConnector {
 
 	private static final String[] serverUrls = { "https://np.knowledgepixels.com/", "https://server.np.trustyuri.net/", "http://server.np.dumontierlab.com/" };
 	private static final Random random = new Random();
+
+	// Just to make sure we don't need 1000+ DB requests each time we check for updates:
+	private static Map<String,Boolean> loadedCache = new HashMap<>();
 
 	public static void checkForNewNanopubs() {
 		String baseUrl = serverUrls[random.nextInt(serverUrls.length)];
@@ -44,8 +49,11 @@ public class LegacyConnector {
 			}
 			try (BufferedReader i = new BufferedReader(new InputStreamReader(resp.getEntity().getContent(), Charsets.UTF_8))) {
 				while (i.ready()) {
+					String npUri = i.readLine();
+					if (loadedCache.containsKey(npUri)) continue;
 					// TODO: Here we need to make sure to append to existing lists:
-					NanopubRetriever.retrieveNanopub(i.readLine());
+					NanopubRetriever.retrieveNanopub(npUri);
+					loadedCache.put(npUri, true);
 				}
 			};
 		} catch (Exception ex) {
