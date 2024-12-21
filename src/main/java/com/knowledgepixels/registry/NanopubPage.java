@@ -4,10 +4,12 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
 
 import java.io.IOException;
 
+import eu.ostrzyciel.jelly.core.IoUtils$;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.bson.Document;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.bson.types.Binary;
 
 public class NanopubPage extends Page {
 
@@ -26,8 +28,10 @@ public class NanopubPage extends Page {
 		final String req = getReq().getFullRequest();
 		if ("trig".equals(ext)) {
 			format = "application/trig";
+		} else if ("jelly".equals(ext)) {
+			format = "application/x-jelly-rdf";
 		} else if (ext == null || "html".equals(ext)) {
-			String suppFormats = "application/trig,text/html";
+			String suppFormats = "application/x-jelly-rdf,application/trig,text/html";
 			format = Utils.getMimeType(getHttpReq(), suppFormats);
 		} else {
 			getResp().sendError(400, "Invalid request: " + req);
@@ -45,6 +49,13 @@ public class NanopubPage extends Page {
 	//		String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/trig".equals(format)) {
 				println(npDoc.getString("content"));
+			} else if ("application/x-jelly-rdf".equals(format)) {
+				// To return this correctly, we would need to prepend the delimiter byte before the Jelly frame
+				// (the DB stores is non-delimited and the HTTP response must be delimited).
+				IoUtils$.MODULE$.writeFrameAsDelimited(
+					((Binary) npDoc.get("jelly")).getData(),
+					getResp().getOutputStream()
+				);
 			} else {
 				printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
 				println("<h1>Nanopublication</h1>");
