@@ -6,12 +6,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import com.knowledgepixels.registry.jelly.JellyUtils;
 import org.bson.Document;
+import org.bson.types.Binary;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
-import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
-import org.nanopub.NanopubImpl;
 import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.services.ApiResponse;
 import org.nanopub.extra.services.ApiResponseEntry;
@@ -71,7 +71,8 @@ public class NanopubLoader {
 		MongoCursor<Document> cursor = RegistryDB.get("nanopubs", new Document("_id", ac));
 		if (!cursor.hasNext()) return null;
 		try {
-			return new NanopubImpl(cursor.next().getString("content"), RDFFormat.TRIG);
+			// Parse from Jelly, not TriG (it's faster)
+			return JellyUtils.readFromDB(((Binary) cursor.next().get("jelly")).getData());
 		} catch (RDF4JException | MalformedNanopubException ex) {
 			ex.printStackTrace();
 			return null;

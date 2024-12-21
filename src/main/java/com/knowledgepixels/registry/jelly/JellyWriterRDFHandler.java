@@ -15,11 +15,11 @@ import java.util.Vector;
 /**
  * RDF4J Rio RDFHandler that converts nanopubs into Jelly RdfStreamFrames.
  */
-public class JellyNanopubRDFHandler extends AbstractRDFHandler {
+public class JellyWriterRDFHandler extends AbstractRDFHandler {
     private final Rdf4jProtoEncoder encoder;
     private final Vector<RdfStreamRow> rowBuffer = new Vector<>();
 
-    JellyNanopubRDFHandler(RdfStreamOptions options) {
+    JellyWriterRDFHandler(RdfStreamOptions options) {
         // Enabling namespace declarations -- so we are using Jelly 1.1.0 here.
         this.encoder = Rdf4jConverterFactory$.MODULE$.encoder(options, true);
     }
