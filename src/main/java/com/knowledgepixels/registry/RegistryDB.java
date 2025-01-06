@@ -8,8 +8,10 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 
+import com.knowledgepixels.registry.jelly.JellyUtils;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.bson.types.Binary;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.Nanopub;
@@ -288,8 +290,11 @@ public class RegistryDB {
 			Long counter = (Long) getMaxValue("nanopubs", "counter");
 			if (counter == null) counter = 0l;
 			String nanopubString;
+			byte[] jellyContent;
 			try {
 				nanopubString = NanopubUtils.writeToString(nanopub, RDFFormat.TRIG);
+				// Save the same thing in the Jelly format for faster loading
+				jellyContent = JellyUtils.writeNanopubForDB(nanopub);
 			} catch (IOException ex) {
 				throw new RuntimeException(ex);
 			}
@@ -299,6 +304,7 @@ public class RegistryDB {
 						.append("counter", counter + 1)
 						.append("pubkey", ph)
 						.append("content", nanopubString)
+						.append("jelly", new Binary(jellyContent))
 				);
 
 			for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {

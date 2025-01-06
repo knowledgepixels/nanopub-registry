@@ -56,10 +56,11 @@ public class ListPage extends Page {
 				// TODO
 				//println(ServerConf.getInfo().asJson());
 			} else if ("application/x-jelly-rdf".equals(format)) {
+				// Return all nanopubs in the list as a single Jelly stream
 				List<Bson> pipeline = List.of(
 						lookup("nanopubs", "np", "_id", "nanopub"),
-						project(new Document("content", "$nanopub.content")),
-						unwind("$content")
+						project(new Document("jelly", "$nanopub.jelly")),
+						unwind("$jelly")
 				);
 				var result = collection("list-entries").aggregate(pipeline);
 				NanopubStream npStream = NanopubStream.fromMongoCursor(result.cursor());
