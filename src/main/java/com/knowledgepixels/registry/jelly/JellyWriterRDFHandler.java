@@ -8,30 +8,31 @@ import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamOptions;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamRow;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.rio.helpers.AbstractRDFHandler;
-import scala.jdk.CollectionConverters;
-
-import java.util.Vector;
+import scala.Some$;
+import scala.collection.mutable.ListBuffer;
 
 /**
  * RDF4J Rio RDFHandler that converts nanopubs into Jelly RdfStreamFrames.
  */
 public class JellyWriterRDFHandler extends AbstractRDFHandler {
     private final Rdf4jProtoEncoder encoder;
-    private final Vector<RdfStreamRow> rowBuffer = new Vector<>();
+    private final ListBuffer<RdfStreamRow> rowBuffer = new ListBuffer<>();
 
     JellyWriterRDFHandler(RdfStreamOptions options) {
         // Enabling namespace declarations -- so we are using Jelly 1.1.0 here.
-        this.encoder = Rdf4jConverterFactory$.MODULE$.encoder(options, true);
+        this.encoder = Rdf4jConverterFactory$.MODULE$.encoder(
+            options, true, Some$.MODULE$.apply(rowBuffer)
+        );
     }
 
     @Override
     public void handleStatement(Statement st) {
-        encoder.addQuadStatement(st).foreach(rowBuffer::add);;
+        encoder.addQuadStatement(st);
     }
 
     @Override
     public void handleNamespace(String prefix, String uri) {
-        encoder.declareNamespace(prefix, uri).foreach(rowBuffer::add);;
+        encoder.declareNamespace(prefix, uri);
     }
 
     /**
@@ -40,7 +41,7 @@ public class JellyWriterRDFHandler extends AbstractRDFHandler {
      * @return RdfStreamFrame
      */
     public RdfStreamFrame getFrame() {
-        var rows = CollectionConverters.CollectionHasAsScala(rowBuffer).asScala().toSeq();
+        var rows = rowBuffer.toList();
         rowBuffer.clear();
         return RdfStreamFrame$.MODULE$.apply(rows);
     }
