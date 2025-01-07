@@ -376,14 +376,14 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/eu/ostrzyciel/jelly/jelly-rdf4j_3/2.3.0/jelly-rdf4j_3-2.3.0.jar" sourcepath="M2_REPO/eu/ostrzyciel/jelly/jelly-rdf4j_3/2.3.0/jelly-rdf4j_3-2.3.0-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/eu/ostrzyciel/jelly/jelly-rdf4j_3/2.5.0/jelly-rdf4j_3-2.5.0.jar" sourcepath="M2_REPO/eu/ostrzyciel/jelly/jelly-rdf4j_3/2.5.0/jelly-rdf4j_3-2.5.0-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/eu/ostrzyciel/jelly/jelly-rdf4j_3/2.3.0/jelly-rdf4j_3-2.3.0-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/eu/ostrzyciel/jelly/jelly-rdf4j_3/2.5.0/jelly-rdf4j_3-2.5.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/eu/ostrzyciel/jelly/jelly-core_3/2.3.0/jelly-core_3-2.3.0.jar" sourcepath="M2_REPO/eu/ostrzyciel/jelly/jelly-core_3/2.3.0/jelly-core_3-2.3.0-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/eu/ostrzyciel/jelly/jelly-core_3/2.5.0/jelly-core_3-2.5.0.jar" sourcepath="M2_REPO/eu/ostrzyciel/jelly/jelly-core_3/2.5.0/jelly-core_3-2.5.0-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/eu/ostrzyciel/jelly/jelly-core_3/2.3.0/jelly-core_3-2.3.0-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/eu/ostrzyciel/jelly/jelly-core_3/2.5.0/jelly-core_3-2.5.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/org/scala-lang/scala3-library_3/3.3.4/scala3-library_3-3.3.4.jar" sourcepath="M2_REPO/org/scala-lang/scala3-library_3/3.3.4/scala3-library_3-3.3.4-sources.jar">
@@ -411,9 +411,9 @@
       <attribute value="jar:file:/home/tk/.m2/repository/org/scala-lang/modules/scala-collection-compat_3/2.12.0/scala-collection-compat_3-2.12.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/com/google/protobuf/protobuf-java/4.28.3/protobuf-java-4.28.3.jar" sourcepath="M2_REPO/com/google/protobuf/protobuf-java/4.28.3/protobuf-java-4.28.3-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/com/google/protobuf/protobuf-java/4.29.2/protobuf-java-4.29.2.jar" sourcepath="M2_REPO/com/google/protobuf/protobuf-java/4.29.2/protobuf-java-4.29.2-sources.jar">
     <attributes>
-      <attribute value="jar:file:/home/tk/.m2/repository/com/google/protobuf/protobuf-java/4.28.3/protobuf-java-4.28.3-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/home/tk/.m2/repository/com/google/protobuf/protobuf-java/4.29.2/protobuf-java-4.29.2-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
 </classpath>

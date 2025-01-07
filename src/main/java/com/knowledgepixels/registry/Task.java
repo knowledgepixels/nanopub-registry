@@ -751,10 +751,9 @@ public enum Task implements Serializable {
 				});
 
 				set("lists", df.append("status", "loaded"));
-
-				schedule(CHECK_NEW.withDelay(1000));
-				return;
 			}
+
+			schedule(CHECK_NEW.withDelay(1000));
 		}
 		
 	},
