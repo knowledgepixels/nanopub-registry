@@ -7,6 +7,7 @@ import eu.ostrzyciel.jelly.core.ProtoDecoder;
 import eu.ostrzyciel.jelly.core.proto.v1.*;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
@@ -17,7 +18,9 @@ import scala.Some;
 import scala.jdk.CollectionConverters;
 import scala.runtime.BoxedUnit;
 
+import java.io.InputStream;
 import java.util.Vector;
+import java.util.stream.Stream;
 
 /**
  * Utility functions for working with Jelly RDF data.
@@ -71,22 +74,68 @@ public class JellyUtils {
      * @throws MalformedNanopubException if this is not a valid Nanopub
      */
     public static Nanopub readFromDB(byte[] jellyBytes) throws MalformedNanopubException {
-        Vector<Statement> statements = new Vector<>();
-        Vector<Pair<String, String>> namespaces = new Vector<>();
-        ProtoDecoder<Statement> decoder = Rdf4jConverterFactory$.MODULE$.quadsDecoder(
-            defaultSupportedOptions,
-            ((prefix, node) -> {
-                namespaces.add(Pair.of(prefix, node.stringValue()));
-                return BoxedUnit.UNIT;
-            })
-        );
         RdfStreamFrame frame = RdfStreamFrame$.MODULE$.parseFrom(jellyBytes);
+        return readFromFrame(frame);
+    }
+
+    /**
+     * Read one Nanopub from an input byte stream in the Jelly format. This can be used on HTTP responses.
+     * <p>
+     * This is only needed because nanopub-java does not support parsing binary data as input.
+     * TODO: fix this in nanopub-java?
+     * @param is Jelly RDF data (delimited, one frame (!!!))
+     * @return Nanopub
+     * @throws MalformedNanopubException if this is not a valid Nanopub
+     */
+    public static Nanopub readFromInputStream(InputStream is) throws MalformedNanopubException {
+        RdfStreamFrame frame = RdfStreamFrame$.MODULE$.parseDelimitedFrom(is).get();
+        return readFromFrame(frame);
+    }
+
+    static Nanopub readFromFrame(RdfStreamFrame frame) throws MalformedNanopubException {
+        final Vector<Statement> statements = new Vector<>();
+        final Vector<Pair<String, String>> namespaces = new Vector<>();
+        final ProtoDecoder<Statement> decoder = getDecoder(namespaces);
+
+        parseStatements(frame, decoder, statements);
+        return new NanopubImpl(statements, namespaces);
+    }
+
+    static Stream<MaybeNanopub> readFromFrameStream(Stream<RdfStreamFrame> frameStream) {
+        final Vector<Statement> statements = new Vector<>();
+        final Vector<Pair<String, String>> namespaces = new Vector<>();
+        final ProtoDecoder<Statement> decoder = getDecoder(namespaces);
+
+        return frameStream.map(frame -> {
+            try {
+                statements.clear();
+                namespaces.clear();
+                parseStatements(frame, decoder, statements);
+                return new MaybeNanopub(new NanopubImpl(statements, namespaces));
+            } catch (MalformedNanopubException e) {
+                return new MaybeNanopub(e);
+            }
+        });
+    }
+
+    private static ProtoDecoder<Statement> getDecoder(Vector<Pair<String, String>> namespaces) {
+        return Rdf4jConverterFactory$.MODULE$.quadsDecoder(
+                defaultSupportedOptions,
+                ((String prefix, Value node) -> {
+                    namespaces.add(Pair.of(prefix, node.stringValue()));
+                    return BoxedUnit.UNIT;
+                })
+        );
+    }
+
+    private static void parseStatements(
+            RdfStreamFrame frame, ProtoDecoder<Statement> decoder, Vector<Statement> statements
+    ) {
         CollectionConverters.SeqHasAsJava(frame.rows()).asJava().forEach(row -> {
             Option<Statement> maybeSt = decoder.ingestRow(row);
             if (maybeSt.isDefined()) {
                 statements.add(maybeSt.get());
             }
         });
-        return new NanopubImpl(statements, namespaces);
     }
 }

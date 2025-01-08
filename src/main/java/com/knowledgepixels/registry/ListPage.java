@@ -4,9 +4,7 @@ import static com.knowledgepixels.registry.MainPage.df1;
 import static com.knowledgepixels.registry.MainPage.df8;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
-import static com.mongodb.client.model.Aggregates.lookup;
-import static com.mongodb.client.model.Aggregates.project;
-import static com.mongodb.client.model.Aggregates.unwind;
+import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Indexes.ascending;
 
 import java.io.IOException;
@@ -58,6 +56,8 @@ public class ListPage extends Page {
 			} else if ("application/x-jelly-rdf".equals(format)) {
 				// Return all nanopubs in the list as a single Jelly stream
 				List<Bson> pipeline = List.of(
+						match(new Document("pubkey", pubkey).append("type", type)),
+						sort(ascending("position")), // TODO: is this needed?
 						lookup("nanopubs", "np", "_id", "nanopub"),
 						project(new Document("jelly", "$nanopub.jelly")),
 						unwind("$jelly")
