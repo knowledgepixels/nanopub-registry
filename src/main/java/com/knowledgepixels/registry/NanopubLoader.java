@@ -36,7 +36,12 @@ public class NanopubLoader {
 
 	public static void simpleLoad(String nanopubId) {
 		Nanopub np = retrieveNanopub(nanopubId);
-		String pubkeyHash = Utils.getHash(RegistryDB.getPubkey(np));
+		String pubkey = RegistryDB.getPubkey(np);
+		if (pubkey == null) {
+			System.err.println("Ignore (not signed): " + nanopubId);
+			return;
+		}
+		String pubkeyHash = Utils.getHash(pubkey);
 		// TODO Do we need to load anything else here, into the other DB collections?
 		if (has("lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
 			RegistryDB.loadNanopub(np, pubkeyHash, "$");

@@ -58,6 +58,7 @@ public class LegacyConnector {
 			};
 		} catch (Exception ex) {
 			if (resp != null) EntityUtils.consumeQuietly(resp.getEntity());
+			ex.printStackTrace();
 			System.err.println("Request to " + url + " was not successful: " + ex.getMessage());
 		}
 		return prev;
