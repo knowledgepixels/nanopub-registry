@@ -87,7 +87,7 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else if (req.matches("list/[0-9a-f]{64}")) {
-			String pubkey = getReq().getFullRequest().replaceFirst("list/([0-9a-f]{64})", "$1");
+			String pubkey = req.replaceFirst("list/([0-9a-f]{64})", "$1");
 //			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
 				// TODO
