@@ -72,6 +72,38 @@ Quotas:
 See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 
 
+## Updating from peers
+
+To update nanopublications from peer Nanopub Registries, the steps below are followed. A Nanopub Registry prepares itself for these updates like this:
+
+- Keep a list of peer services, together with info from the last time they were visited, most importantly `setup-id`, `state-counter`, and `state`.
+- (`state-counter` is roughly the total number of nanopublication load events that have ever occurred on this instance, including those for pubkeys that have been unloaded since; but this still needs some proper write-up/specification)
+- This list of peer services includes the services listed in the settings as well as services approved by approved agents (to be specified how this works exactly).
+- Keep info also about the specific pubkey/type lists that were visited at these peer services, most importantly the position up to which we had checked and loaded all nanopublications
+
+Both kinds of updates, pubkey-specific and full, follow these initial steps:
+
+1. Retrieve the basic info of the chosen peer service, i.e. `setup-id`, `state-counter`, and `state`.
+2. If we have info about this peer service from an earlier request, but the `setup-id` is different, this means that the service has been reset in the meantime and our previous info about it is no longer valid. So, we delete the old info and treat it as an unknown service.
+3. If `setup-id` and `state-counter` both haven't changed since our last request, then there is nothing new on this peer service, and we can move on with checking the next instance.
+4. If `state` is `loading` (or other non-ready state; to be specified), we ignore this instance for now and move on with checking the next instance.
+
+Steps for updating for a particular pubkey and (optionally) types:
+
+1. If `state-counter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), we can choose to follow the steps of a full update (below) instead of these.
+2. Retrieve info about the specific pubkey/type list (type = `$` stands for "all types"), most importantly the maximum position (= size of list) and the overall checksum
+3. If our list has the same checksum (and therefore same size), these is nothing new and we can move on with checking the next instance or list.
+4. We calculate the maximum number of unknown nanopublications in the peer list, taking into account the info we have from any previous request (e.g. if the peer list has size 13, and we had checked the nanopublications up to position 5 the last time, then the maximum number of unknown nanopublications is 8)
+5. If the maximum number of unknown nanopublications is small enough (given by a threshold value still to be determined, e.g. 100 or 1000), we request all nanopublications after the last common position one by one, and add unknown ones to our list too.
+6. If the maximum number of unknown nanopublications larger, then we try to find a position up to which both lists have identical nanopublications by checking whether checksums we have in our list occur in the peer list too (this can be done with individual requests or bulk ones of e.g. 100 checksums; to be defined)
+7. If we find a match, we update our position up to which we know that all nanopublications are loaded to the found position. If the maximum number of unknown nanopublications is now small enough, we load the nanopublications one by one as for Step 5.
+8. If we don't find a matching checksum or the maximum number of unknown nanopublications is still too large, we check a defined number of positions at the peer list, but then stop and leave this for later. The idea is that we are hoping that we have better luck at other peers loading the missing nanopublications (because they might have ordered them in a way that is more similar to our lists, thereby increasing the chances of identical checksums).
+
+General update:
+
+- (similar as above but on the list of all nanopubs; to be written up)
+
+
 ## Data Structure
 
 Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)
@@ -166,7 +198,7 @@ Every agent account has at most one primary path (`>`) leading to it:
     $ > B > C
     $ > B > C > D
 
-Extended paths add a single extended edge (`~`) to the end of a primary path that can reach any other account, including those with their own primary paths:
+Extended paths add a single extended edge (`~`) to the end of a primary path that can reach any other account, including those with their own primary paths, as long as they are not already part of the given path (so no single path can visit the same account more than once.
 
     $ > A ~ B
     $ > A > X ~ D
