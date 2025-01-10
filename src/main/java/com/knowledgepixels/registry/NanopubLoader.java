@@ -2,23 +2,29 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.has;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import com.knowledgepixels.registry.jelly.JellyUtils;
+import org.apache.http.client.methods.HttpGet;
 import org.bson.Document;
 import org.bson.types.Binary;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubUtils;
 import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.services.ApiResponse;
 import org.nanopub.extra.services.ApiResponseEntry;
 
+import com.knowledgepixels.registry.jelly.JellyUtils;
 import com.mongodb.client.MongoCursor;
 
+import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame;
 import net.trustyuri.TrustyUriUtils;
+import scala.collection.immutable.Stream;
 
 public class NanopubLoader {
 
@@ -50,9 +56,9 @@ public class NanopubLoader {
 		}
 	}
 
-	public static void retrieveNanopubs(String type, String pubkey, Consumer<ApiResponseEntry> processFunction) {
+	public static void retrieveNanopubs(String type, String pubkeyHash, Consumer<ApiResponseEntry> processFunction) {
 		Map<String,String> params = new HashMap<>();
-		params.put("pubkeyhash", pubkey);
+		params.put("pubkeyhash", pubkeyHash);
 		ApiResponse resp;
 		if (type != null) {
 			params.put("type", type);
@@ -62,6 +68,18 @@ public class NanopubLoader {
 		}
 		for (ApiResponseEntry e : resp.getData()) {
 			processFunction.accept(e);
+		}
+	}
+
+	public static void retrieveNanopubsFromPeers(String typeHash, String pubkeyHash, Consumer<Nanopub> processFunction) {
+		// TODO Just for testing; this code is currently not used
+		String requestUrl = "https://registry.petapico.org/list/" + pubkeyHash + "/" + typeHash + ".jelly";
+		try {
+			InputStream is = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl)).getEntity().getContent();
+			Stream<RdfStreamFrame> stream = RdfStreamFrame.streamFromDelimitedInput(is);
+			// Now how can I iterate over that stream?
+		} catch (UnsupportedOperationException | IOException ex) {
+			ex.printStackTrace();
 		}
 	}
 
