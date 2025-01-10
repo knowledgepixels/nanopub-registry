@@ -596,7 +596,7 @@ public enum Task implements Serializable {
 					);
 				schedule(AGGREGATE_AGENTS);
 			}
-			
+
 		}
 		
 	},
