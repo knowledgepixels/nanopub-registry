@@ -99,7 +99,7 @@ Steps for updating for a particular pubkey and (optionally) types:
 7. If we find a match, we update our position up to which we know that all nanopublications are loaded to the found position. If the maximum number of unknown nanopublications is now small enough, we load the nanopublications one by one as for Step 5.
 8. If we don't find a matching checksum or the maximum number of unknown nanopublications is still too large, we check a defined number of positions at the peer list, but then stop and leave this for later. The idea is that we are hoping that we have better luck at other peers loading the missing nanopublications (because they might have ordered them in a way that is more similar to our lists, thereby increasing the chances of identical checksums).
 
-General update:
+Full update:
 
 - (similar as above but on the list of all nanopubs; to be written up)
 
