@@ -33,7 +33,7 @@ public class ListPage extends Page {
 	protected void show() throws IOException {
 		String format;
 		String ext = getReq().getExtension();
-		final String req = getReq().getFullRequest();
+		final String req = getReq().getRequestString();
 		if ("json".equals(ext)) {
 			format = "application/json";
 		} else if ("jelly".equals(ext)) {
@@ -45,9 +45,9 @@ public class ListPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
-		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
-			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
-			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
+		if (req.matches("list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
+			String pubkey = req.replaceFirst("list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
+			String type = req.replaceFirst("list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 	//		String url = ServerConf.getInfo().getPublicUrl();
 
 			if ("application/json".equals(format)) {
@@ -86,8 +86,8 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.matches("/list/[0-9a-f]{64}")) {
-			String pubkey = getReq().getFullRequest().replaceFirst("/list/([0-9a-f]{64})", "$1");
+		} else if (req.matches("list/[0-9a-f]{64}")) {
+			String pubkey = getReq().getFullRequest().replaceFirst("list/([0-9a-f]{64})", "$1");
 //			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
 				// TODO
@@ -110,7 +110,7 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("/list")) {
+		} else if (req.equals("list")) {
 //			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
 				// TODO
@@ -133,7 +133,7 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("/agent") && getReq().getHttpRequest().getParameter("id") != null) {
+		} else if (req.equals("agent") && getReq().getHttpRequest().getParameter("id") != null) {
 			String agentId = getReq().getHttpRequest().getParameter("id");
 			Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
 			printHtmlHeader("Agent " + agentId + " - Nanopub Registry");
@@ -161,7 +161,7 @@ public class ListPage extends Page {
 			}
 			println("</ul>");
 			printHtmlFooter();
-		} else if (req.equals("/agent")) {
+		} else if (req.equals("agent")) {
 			printHtmlHeader("List of agents - Nanopub Registry");
 			println("<h1>List of Agents</h1>");
 			println("<h3>Agents</h3>");
