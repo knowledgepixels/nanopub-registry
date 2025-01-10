@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.apache.http.client.methods.HttpGet;
 import org.bson.Document;
@@ -20,11 +21,11 @@ import org.nanopub.extra.services.ApiResponse;
 import org.nanopub.extra.services.ApiResponseEntry;
 
 import com.knowledgepixels.registry.jelly.JellyUtils;
+import com.knowledgepixels.registry.jelly.MaybeNanopub;
+import com.knowledgepixels.registry.jelly.NanopubStream;
 import com.mongodb.client.MongoCursor;
 
-import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame;
 import net.trustyuri.TrustyUriUtils;
-import scala.collection.immutable.Stream;
 
 public class NanopubLoader {
 
@@ -71,16 +72,17 @@ public class NanopubLoader {
 		}
 	}
 
-	public static void retrieveNanopubsFromPeers(String typeHash, String pubkeyHash, Consumer<Nanopub> processFunction) {
+	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
 		// TODO Just for testing; this code is currently not used
 		String requestUrl = "https://registry.petapico.org/list/" + pubkeyHash + "/" + typeHash + ".jelly";
+		System.err.println("URL: " + requestUrl);
 		try {
 			InputStream is = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl)).getEntity().getContent();
-			Stream<RdfStreamFrame> stream = RdfStreamFrame.streamFromDelimitedInput(is);
-			// Now how can I iterate over that stream?
+			return NanopubStream.fromByteStream(is).getAsNanopubs();
 		} catch (UnsupportedOperationException | IOException ex) {
 			ex.printStackTrace();
 		}
+		return null;
 	}
 
 	public static Nanopub retrieveNanopub(String nanopubId) {

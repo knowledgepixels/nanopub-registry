@@ -389,9 +389,19 @@ public enum Task implements Serializable {
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
 					insert("lists", introList);
 				}
-				NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
-					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, INTRO_TYPE);
-				});
+
+				if (PEER_LOADING_TESTING_MODE) {
+					NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash).forEach(m -> {
+						if (m.isSuccess()) {
+							loadNanopub(m.getNanopub(), pubkeyHash, INTRO_TYPE);
+						}
+					});
+				} else {
+					NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
+						loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, INTRO_TYPE);
+					});
+				}
+
 				set("lists", introList.append("status", "loaded"));
 
 				// TODO check endorsement limit
@@ -402,27 +412,55 @@ public enum Task implements Serializable {
 				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", ENDORSE_TYPE_HASH))) {
 					insert("lists", endorseList);
 				}
-				NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
-					Nanopub nanopub = NanopubLoader.retrieveNanopub(e.get("np"));
-					loadNanopub(nanopub, pubkeyHash, ENDORSE_TYPE);
-					String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-					for (Statement st : nanopub.getAssertion()) {
-						if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
-						if (!(st.getObject() instanceof IRI)) continue;
-						if (!agentId.equals(st.getSubject().stringValue())) continue;
-						String objStr = st.getObject().stringValue();
-						if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-						String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
-						Document endorsement = new Document("agent", agentId)
-								.append("pubkey", pubkeyHash)
-								.append("endorsed-nanopub", endorsedNpId)
-								.append("source", sourceNpId)
-								.append("status", "to-retrieve");
-						if (!has("endorsements_loading", endorsement)) {
-							insert("endorsements_loading", endorsement);
+
+				if (PEER_LOADING_TESTING_MODE) {
+					NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash).forEach(m -> {
+						if (m.isSuccess()) {
+							Nanopub nanopub = m.getNanopub();
+							loadNanopub(nanopub, pubkeyHash, ENDORSE_TYPE);
+							String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+							for (Statement st : nanopub.getAssertion()) {
+								if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
+								if (!(st.getObject() instanceof IRI)) continue;
+								if (!agentId.equals(st.getSubject().stringValue())) continue;
+								String objStr = st.getObject().stringValue();
+								if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
+								String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+								Document endorsement = new Document("agent", agentId)
+										.append("pubkey", pubkeyHash)
+										.append("endorsed-nanopub", endorsedNpId)
+										.append("source", sourceNpId)
+										.append("status", "to-retrieve");
+								if (!has("endorsements_loading", endorsement)) {
+									insert("endorsements_loading", endorsement);
+								}
+							}
 						}
-					}
-				});
+					});
+				} else {
+					NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
+						Nanopub nanopub = NanopubLoader.retrieveNanopub(e.get("np"));
+						loadNanopub(nanopub, pubkeyHash, ENDORSE_TYPE);
+						String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+						for (Statement st : nanopub.getAssertion()) {
+							if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
+							if (!(st.getObject() instanceof IRI)) continue;
+							if (!agentId.equals(st.getSubject().stringValue())) continue;
+							String objStr = st.getObject().stringValue();
+							if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
+							String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+							Document endorsement = new Document("agent", agentId)
+									.append("pubkey", pubkeyHash)
+									.append("endorsed-nanopub", endorsedNpId)
+									.append("source", sourceNpId)
+									.append("status", "to-retrieve");
+							if (!has("endorsements_loading", endorsement)) {
+								insert("endorsements_loading", endorsement);
+							}
+						}
+					});
+				}
+
 				set("lists", endorseList.append("status", "loaded"));
 
 				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
@@ -663,20 +701,37 @@ public enum Task implements Serializable {
 				schedule(CHECK_MORE_PUBKEYS.withDelay(1000));
 			} else {
 				final String ph = a.getString("pubkey");
-				NanopubLoader.retrieveNanopubs(null, ph, e -> {
-					Nanopub np = NanopubLoader.retrieveNanopub(e.get("np"));
-					Set<String> types = new HashSet<>();
-					types.add("$");
-					for (IRI typeIri : NanopubUtils.getTypes(np)) {
-						types.add(typeIri.stringValue());
+				if (!ph.equals("$")) {
+					if (PEER_LOADING_TESTING_MODE) {
+						NanopubLoader.retrieveNanopubsFromPeers("$", ph).forEach(m -> {
+							if (m.isSuccess()) {
+								Nanopub np = m.getNanopub();
+								Set<String> types = new HashSet<>();
+								types.add("$");
+								for (IRI typeIri : NanopubUtils.getTypes(np)) {
+									types.add(typeIri.stringValue());
+								}
+								loadNanopub(np, ph, types.toArray(new String[types.size()]));
+							}
+						});
+					} else {
+						NanopubLoader.retrieveNanopubs(null, ph, e -> {
+							Nanopub np = NanopubLoader.retrieveNanopub(e.get("np"));
+							Set<String> types = new HashSet<>();
+							types.add("$");
+							for (IRI typeIri : NanopubUtils.getTypes(np)) {
+								types.add(typeIri.stringValue());
+							}
+							loadNanopub(np, ph, types.toArray(new String[types.size()]));
+						});
 					}
-					loadNanopub(np, ph, types.toArray(new String[types.size()]));
-				});
+				}
+
 				Document l = getOne("lists", new Document().append("pubkey", ph).append("type", "$"));
 				if (l != null) set("lists", l.append("status", "loaded"));
 				set("agent-accounts", a.append("status", "loaded"));
 
-				schedule(LOAD_FULL.withDelay(1000));
+				schedule(LOAD_FULL.withDelay(100));
 			}
 		}
 
@@ -769,6 +824,8 @@ public enum Task implements Serializable {
 		}
 
 	};
+
+	private static final boolean PEER_LOADING_TESTING_MODE = false;
 
 	public abstract void run(Document taskDoc) throws Exception;
 
