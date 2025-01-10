@@ -92,7 +92,7 @@ Steps for updating for a particular pubkey and (optionally) types:
 
 1. If `state-counter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), we can choose to follow the steps of a full update (below) instead of these.
 2. Retrieve info about the specific pubkey/type list (type = `$` stands for "all types"), most importantly the maximum position (= size of list) and the overall checksum
-3. If our list has the same checksum (and therefore same size), these is nothing new and we can move on with checking the next instance or list.
+3. If our list has the same checksum (and therefore same size), there is nothing new and we can move on with checking the next instance or list.
 4. We calculate the maximum number of unknown nanopublications in the peer list, taking into account the info we have from any previous request (e.g. if the peer list has size 13, and we had checked the nanopublications up to position 5 the last time, then the maximum number of unknown nanopublications is 8)
 5. If the maximum number of unknown nanopublications is small enough (given by a threshold value still to be determined, e.g. 100 or 1000), we request all nanopublications after the last position one by one, and add unknown ones to our list too.
 6. If the maximum number of unknown nanopublications larger, then we try to find a position up to which both lists have identical nanopublications by checking whether checksums we have in our list occur in the peer list too (this can be done with individual requests or bulk ones of e.g. 100 checksums; to be defined)
