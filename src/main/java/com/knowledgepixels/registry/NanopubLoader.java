@@ -73,9 +73,8 @@ public class NanopubLoader {
 	}
 
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
-		// TODO Just for testing; this code is currently not used
+		// TODO Only used for testing so far
 		String requestUrl = "https://registry.petapico.org/list/" + pubkeyHash + "/" + typeHash + ".jelly";
-		System.err.println("URL: " + requestUrl);
 		try {
 			InputStream is = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl)).getEntity().getContent();
 			return NanopubStream.fromByteStream(is).getAsNanopubs();

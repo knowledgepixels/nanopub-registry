@@ -698,7 +698,7 @@ public enum Task implements Serializable {
 			Document a = getOne("agent-accounts", new Document("status", "to-load"));
 			if (a == null) {
 				System.err.println("Nothing to load; scheduling optional loading checks");
-				schedule(CHECK_MORE_PUBKEYS.withDelay(1000));
+				schedule(CHECK_MORE_PUBKEYS.withDelay(100));
 			} else {
 				final String ph = a.getString("pubkey");
 				if (!ph.equals("$")) {
@@ -755,7 +755,7 @@ public enum Task implements Serializable {
 				}
 			}
 
-			schedule(RUN_OPTIONAL_LOAD.withDelay(1000));
+			schedule(RUN_OPTIONAL_LOAD.withDelay(100));
 		}
 		
 	},
@@ -768,14 +768,31 @@ public enum Task implements Serializable {
 				final String pubkeyHash = di.getString("pubkey");
 				System.err.println("Optional core loading: " + pubkeyHash);
 
-				NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
-					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, INTRO_TYPE);
-				});
+				if (PEER_LOADING_TESTING_MODE) {
+					NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash).forEach(m -> {
+						if (m.isSuccess()) {
+							loadNanopub(m.getNanopub(), pubkeyHash, INTRO_TYPE);
+						}
+					});
+				} else {
+					NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
+						loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, INTRO_TYPE);
+					});
+				}
 				set("lists", di.append("status", "loaded"));
 
-				NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
-					loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, ENDORSE_TYPE);
-				});
+				if (PEER_LOADING_TESTING_MODE) {
+					NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash).forEach(m -> {
+						if (m.isSuccess()) {
+							loadNanopub(m.getNanopub(), pubkeyHash, ENDORSE_TYPE);
+						}
+					});
+				} else {
+					NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
+						loadNanopub(NanopubLoader.retrieveNanopub(e.get("np")), pubkeyHash, ENDORSE_TYPE);
+					});
+				}
+
 				Document de = new Document("pubkey", pubkeyHash).append("type", ENDORSE_TYPE_HASH);
 				if (has("lists", de)) {
 					set("lists", de.append("status", "loaded"));
@@ -786,7 +803,7 @@ public enum Task implements Serializable {
 				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
 				if (!has("lists", df)) insert("lists", df.append("status", "encountered"));
 
-				schedule(CHECK_NEW.withDelay(1000));
+				schedule(CHECK_NEW.withDelay(100));
 				return;
 			}
 
@@ -795,20 +812,34 @@ public enum Task implements Serializable {
 				final String pubkeyHash = df.getString("pubkey");
 				System.err.println("Optional full loading: " + pubkeyHash);
 
-				NanopubLoader.retrieveNanopubs(null, pubkeyHash, e -> {
-					Nanopub np = NanopubLoader.retrieveNanopub(e.get("np"));
-					Set<String> types = new HashSet<>();
-					types.add("$");
-					for (IRI typeIri : NanopubUtils.getTypes(np)) {
-						types.add(typeIri.stringValue());
-					}
-					loadNanopub(np, pubkeyHash, types.toArray(new String[types.size()]));
-				});
+				if (PEER_LOADING_TESTING_MODE) {
+					NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash).forEach(m -> {
+						if (m.isSuccess()) {
+							Nanopub np = m.getNanopub();
+							Set<String> types = new HashSet<>();
+							types.add("$");
+							for (IRI typeIri : NanopubUtils.getTypes(np)) {
+								types.add(typeIri.stringValue());
+							}
+							loadNanopub(np, pubkeyHash, types.toArray(new String[types.size()]));
+						}
+					});
+				} else {
+					NanopubLoader.retrieveNanopubs(null, pubkeyHash, e -> {
+						Nanopub np = NanopubLoader.retrieveNanopub(e.get("np"));
+						Set<String> types = new HashSet<>();
+						types.add("$");
+						for (IRI typeIri : NanopubUtils.getTypes(np)) {
+							types.add(typeIri.stringValue());
+						}
+						loadNanopub(np, pubkeyHash, types.toArray(new String[types.size()]));
+					});
+				}
 
 				set("lists", df.append("status", "loaded"));
 			}
 
-			schedule(CHECK_NEW.withDelay(1000));
+			schedule(CHECK_NEW.withDelay(100));
 		}
 		
 	},
@@ -820,7 +851,7 @@ public enum Task implements Serializable {
 			LegacyConnector.checkForNewNanopubs();
 			// TODO Somehow throttle the loading of such potentially non-approved nanopubs
 
-			schedule(LOAD_FULL.withDelay(1000));
+			schedule(LOAD_FULL.withDelay(100));
 		}
 
 	};
