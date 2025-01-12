@@ -88,7 +88,7 @@ For a registry to update its nanopublications, it iterates over the list of peer
 3. If `setup-id` and `state-counter` both haven't changed since our last request, then there is nothing new on this peer service, and we can abort this process and move to the next peer service.
 4. If `state` is `loading` (or other non-ready state; to be specified), we ignore this instance for now and abort this process and move to the next peer service.
 5. If `state-counter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), request these nanopublications and load them to the respective lists. Then we abort this process and move to the next peer service.
-6. If `state-counter` has increased more, we iterate over all our pubkeys to ask the peer service about them.
+6. If `state-counter` has increased by more, we iterate over all our pubkeys to ask the peer service about them.
 7. Retrieve info about the specific pubkey list (with type = `$` standing for "all types"; more specific algorithms to be determined for the cases where services store only certain types), most importantly the maximum position (= size of list) and the overall checksum
 8. If our list has the same checksum (and therefore same size), there is nothing new and we can move on with checking the next pubkey.
 9. We calculate the maximum number of unknown nanopublications in the peer list, taking into account the info we have from any previous request (e.g. if the peer list has size 13, and we had checked the nanopublications up to position 5 the last time, then the maximum number of unknown nanopublications is 8)
