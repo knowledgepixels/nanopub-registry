@@ -2,6 +2,7 @@ package com.knowledgepixels.registry.jelly;
 
 import eu.ostrzyciel.jelly.convert.rdf4j.Rdf4jConverterFactory$;
 import eu.ostrzyciel.jelly.convert.rdf4j.Rdf4jProtoEncoder;
+import eu.ostrzyciel.jelly.core.ProtoEncoder;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame$;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamOptions;
@@ -20,9 +21,9 @@ public class JellyWriterRDFHandler extends AbstractRDFHandler {
 
     JellyWriterRDFHandler(RdfStreamOptions options) {
         // Enabling namespace declarations -- so we are using Jelly 1.1.0 here.
-        this.encoder = Rdf4jConverterFactory$.MODULE$.encoder(
+        this.encoder = Rdf4jConverterFactory$.MODULE$.encoder(ProtoEncoder.Params.apply(
             options, true, Some$.MODULE$.apply(rowBuffer)
-        );
+        ));
     }
 
     @Override
