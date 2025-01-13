@@ -56,7 +56,7 @@ public class Utils {
 			IRI p = st.getPredicate();
 			if ((p.equals(RETRACTS) || p.equals(INVALIDATES)) || (p.equals(SUPERSEDES) && s.equals(np.getUri()))) {
 				if (TrustyUriUtils.isPotentialTrustyUri(st.getObject().stringValue())) {
-					l.add(np.getUri());
+					l.add((IRI) st.getObject());
 				}
 			}
 		}
