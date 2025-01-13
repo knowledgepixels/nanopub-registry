@@ -43,8 +43,7 @@ public class MainPage extends Page {
 		}
 //		String url = ServerConf.getInfo().getPublicUrl();
 		if ("application/json".equals(format)) {
-			// TODO
-			//println(ServerConf.getInfo().asJson());
+			println(RegistryInfo.getLocal().asJson());
 		} else {
 			printHtmlHeader("Nanopub Registry - alpha");
 			println("<h1>Nanopub Registry - alpha</h1>");
@@ -52,7 +51,6 @@ public class MainPage extends Page {
 			println("<ul>");
 			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
 			println("<li><em>status:</em> " + getValue("server-info", "status") + "</li>");
-			println("<li><em>status details:</em> " + getValue("server-info", "status-details") + "</li>");
 			println("<li><em>state-counter:</em> " + getValue("server-info", "state-counter") + "</li>");
 			println("<li><em>coverage-types:</em> " + getValue("server-info", "coverage-types") + "</li>");
 			println("<li><em>coverage-agents:</em> " + getValue("server-info", "coverage-agents") + "</li>");
