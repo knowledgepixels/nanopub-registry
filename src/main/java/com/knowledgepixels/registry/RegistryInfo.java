@@ -14,12 +14,20 @@ public class RegistryInfo implements Serializable {
 	private Long setupId;
 	private Long stateCounter;
 	private String status;
+	private String coverageTypes;
+	private String coverateAgents;
+	private String currentSetting;
+	private String originalSetting;
 
 	public static RegistryInfo getLocal() {
 		RegistryInfo ri = new RegistryInfo();
 		ri.setupId = (Long) getValue("server-info", "setup-id");
 		ri.stateCounter = (Long) getValue("server-info", "state-counter");
 		ri.status = (String) getValue("server-info", "status");
+		ri.coverageTypes = (String) getValue("server-info", "coverage-types");
+		ri.coverateAgents = (String) getValue("server-info", "coverage-agents");
+		ri.currentSetting = (String) getValue("setting", "current");
+		ri.originalSetting = (String) getValue("setting", "original");
 		return ri;
 	}
 
