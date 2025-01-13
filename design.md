@@ -76,17 +76,17 @@ See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 
 To update nanopublications from peer Nanopub Registries, the steps below are followed. A Nanopub Registry prepares itself for these updates like this:
 
-- Keep a list of peer services, together with info from the last time they were visited, most importantly `setup-id`, `state-counter`, and `state`.
+- Keep a list of peer services, together with info from the last time they were visited, most importantly `setup-id`, `state-counter`, and `status`.
 - (`state-counter` is roughly the total number of nanopublication load events that have ever occurred on this instance, including those for pubkeys that have been unloaded since; but this still needs some proper write-up/specification)
 - This list of peer services includes the services listed in the settings as well as services approved by approved agents (to be specified how this works exactly).
 - Keep info also about the specific pubkey/type lists that were visited at these peer services, most importantly the position up to which we had checked and loaded all nanopublications
 
 For a registry to update its nanopublications, it iterates over the list of peer services and performs these steps on each of them:
 
-1. Retrieve the basic info of the chosen peer service, i.e. `setup-id`, `state-counter`, and `state`.
+1. Retrieve the basic info of the chosen peer service, i.e. `setup-id`, `state-counter`, and `status`.
 2. If we have info about this peer service from an earlier request, but the `setup-id` is different, this means that the service has been reset in the meantime and our previous info about it is no longer valid. So, we delete the old info and treat it as an unknown service.
 3. If `setup-id` and `state-counter` both haven't changed since our last request, then there is nothing new on this peer service, and we can abort this process and move to the next peer service.
-4. If `state` is `loading` (or other non-ready state; to be specified), we ignore this instance for now and abort this process and move to the next peer service.
+4. If `status` is `loading` (or other non-ready status; to be specified), we ignore this instance for now and abort this process and move to the next peer service.
 5. If `state-counter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), request these nanopublications and load them to the respective lists. Then we abort this process and move to the next peer service.
 6. If `state-counter` has increased by more, we iterate over all our pubkeys to ask the peer service about them.
 7. Retrieve info about the specific pubkey list (with type = `$` standing for "all types"; more specific algorithms to be determined for the cases where services store only certain types), most importantly the maximum position (= size of list) and the overall checksum
