@@ -138,8 +138,6 @@ public class RegistryDB {
 		boolean successful = false;
 		while (!successful) {
 			try {
-				setValue("server-info", "status", "error");
-				setValue("server-info", "status-details", message);
 				cleanTransaction();
 				successful = true;
 			} catch (Exception ex) {
