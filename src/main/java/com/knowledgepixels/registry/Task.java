@@ -199,8 +199,8 @@ public enum Task implements Serializable {
 								.append("to-agent", agentId)
 								.append("to-pubkey", pubkeyHash)
 								.append("source", d.getString("source"));
-						if (!has("trust-edges_loading", trustEdge)) {
-							insert("trust-edges_loading", trustEdge.append("invalidated", false));
+						if (!has("trust-edges", trustEdge)) {
+							insert("trust-edges", trustEdge.append("invalidated", false));
 						}
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
@@ -273,7 +273,7 @@ public enum Task implements Serializable {
 					Map<String,Set<String>> pubkeySets = new HashMap<>();
 					String currentSetting = getValue("setting", "current").toString();
 
-					MongoCursor<Document> edgeCursor = get("trust-edges_loading",
+					MongoCursor<Document> edgeCursor = get("trust-edges",
 							new Document("from-agent", agentId)
 								.append("from-pubkey", pubkeyHash)
 								.append("invalidated", false)
@@ -658,7 +658,6 @@ public enum Task implements Serializable {
 			rename("trust-paths_loading", "trust-paths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
-			rename("trust-edges_loading", "trust-edges");
 
 			// TODO Only increase counter when state has actually changed:
 			increaseStateCounter();
@@ -955,7 +954,6 @@ public enum Task implements Serializable {
 
 	private static void setStatus(String status) {
 		setValue("server-info", "status", status);
-		setValue("server-info", "status-details", "");
 	}
 
 	private static String getStatus() {

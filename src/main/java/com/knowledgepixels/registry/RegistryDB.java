@@ -83,6 +83,14 @@ public class RegistryDB {
 		collection("invalidations").createIndex(mongoSession, ascending("invalidating-pubkey"));
 		collection("invalidations").createIndex(mongoSession, ascending("invalidated-np"));
 		collection("invalidations").createIndex(mongoSession, ascending("invalidating-pubkey", "invalidated-np"));
+
+		collection("trust-edges").createIndex(mongoSession, ascending("from-agent"));
+		collection("trust-edges").createIndex(mongoSession, ascending("from-pubkey"));
+		collection("trust-edges").createIndex(mongoSession, ascending("to-agent"));
+		collection("trust-edges").createIndex(mongoSession, ascending("to-pubkey"));
+		collection("trust-edges").createIndex(mongoSession, ascending("source"));
+		collection("trust-edges").createIndex(mongoSession, ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
+		collection("trust-edges").createIndex(mongoSession, ascending("invalidated"));
 	}
 
 	public static void initLoadingCollections() {
@@ -108,17 +116,6 @@ public class RegistryDB {
 		collection("trust-paths_loading").createIndex(mongoSession, ascending("agent", "pubkey", "depth", "sorthash"), unique);
 		collection("trust-paths_loading").createIndex(mongoSession, ascending("depth"));
 		collection("trust-paths_loading").createIndex(mongoSession, descending("ratio"));
-
-		// TODO This was supposed to be a collection that doesn't need regeneration at each update,
-		//      but it is currently necessary. Updating on an existing 'trust-edges' collection leads
-		//      to not all agents being loaded/approved.
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("from-agent"));
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("from-pubkey"));
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("to-agent"));
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("to-pubkey"));
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("source"));
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
-		collection("trust-edges_loading").createIndex(mongoSession, ascending("invalidated"));
 	}
 
 	public static boolean isInitialized() {
@@ -312,11 +309,12 @@ public class RegistryDB {
 							.append("invalidating-pubkey", ph)
 							.append("invalidated-np", invalidatedAc)
 					);
+				// TODO Add this nanopub also to all lists of invalidated nanopubs
 				collection("list-entries").updateMany(mongoSession,
 						new Document("np", invalidatedAc).append("pubkey", ph),
 						new Document("$set", new Document("invalidated", true))
 					);
-				collection("trust-edges_loading").updateMany(mongoSession,
+				collection("trust-edges").updateMany(mongoSession,
 						new Document("source", invalidatedAc),
 						new Document("$set", new Document("invalidated", true))
 					);
@@ -361,11 +359,12 @@ public class RegistryDB {
 		}
 
 		if (has("invalidations", new Document("invalidated-np", ac).append("invalidating-pubkey", ph))) {
+			// TODO Add the invalidating nanopubs also to the lists of this nanopub
 			collection("list-entries").updateMany(mongoSession,
 					new Document("np", ac).append("pubkey", ph),
 					new Document("$set", new Document("invalidated", true))
 				);
-			collection("trust-edges_loading").updateMany(mongoSession,
+			collection("trust-edges").updateMany(mongoSession,
 					new Document("source", ac),
 					new Document("$set", new Document("invalidated", true))
 				);
