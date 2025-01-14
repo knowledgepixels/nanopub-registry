@@ -1,6 +1,9 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 
 import java.io.Serializable;
 
@@ -18,6 +21,10 @@ public class RegistryInfo implements Serializable {
 	private String coverateAgents;
 	private String currentSetting;
 	private String originalSetting;
+	private Long agentCount;
+	private Long accountCount;
+	private Long nanopubCount;
+	private Long nanopubCounter;
 
 	private static Gson gson = new Gson();
 
@@ -30,6 +37,10 @@ public class RegistryInfo implements Serializable {
 		ri.coverateAgents = (String) getValue("server-info", "coverage-agents");
 		ri.currentSetting = (String) getValue("setting", "current");
 		ri.originalSetting = (String) getValue("setting", "original");
+		ri.agentCount = collection("agents").countDocuments(mongoSession);
+		ri.accountCount = collection("accounts").countDocuments(mongoSession);
+		ri.nanopubCount = collection("nanopubs").countDocuments(mongoSession);
+		ri.nanopubCounter = (Long) getMaxValue("nanopubs", "counter");
 		return ri;
 	}
 

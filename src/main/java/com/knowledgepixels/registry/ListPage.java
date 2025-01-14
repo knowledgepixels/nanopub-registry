@@ -182,6 +182,18 @@ public class ListPage extends Page {
 			}
 			println("</ol>");
 			printHtmlFooter();
+		} else if (req.equals("nanopubs")) {
+			printHtmlHeader("Latest nanopubs - Nanopub Registry");
+			println("<h1>List of Nanopubs</h1>");
+			println("<h3>Latest Nanopubs (max. 1000)</h3>");
+			println("<ol>");
+			MongoCursor<Document> nanopubs = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
+			while (nanopubs.hasNext()) {
+				Document d = nanopubs.next();
+				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id") + "</code></a></li>");
+			}
+			println("</ol>");
+			printHtmlFooter();
 		} else {
 			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
 			return;

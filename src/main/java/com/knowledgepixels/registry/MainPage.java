@@ -49,7 +49,7 @@ public class MainPage extends Page {
 		} else {
 			printHtmlHeader("Nanopub Registry - alpha");
 			println("<h1>Nanopub Registry - alpha</h1>");
-			println("<h3>Server Info</h3>");
+			println("<h3>Server</h3>");
 			println("<ul>");
 			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
 			println("<li><em>status:</em> " + getValue("server-info", "status") + "</li>");
@@ -64,6 +64,7 @@ public class MainPage extends Page {
 			String cSetting = getValue("setting", "current").toString();
 			println("<li><em>current:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting + "</code></a></li>");
 			println("</ul>");
+
 			println("<h3>Agents</h3>");
 			println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
 			println("<ul>");
@@ -81,6 +82,7 @@ public class MainPage extends Page {
 			}
 			println("</ul>");
 			println("<p><a href=\"/agents\">&gt; Full list</a></pi>");
+
 			println("<h3>Accounts</h3>");
 			println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");
 			println("<ul>");
@@ -96,8 +98,17 @@ public class MainPage extends Page {
 			}
 			println("</ul>");
 			println("<p><a href=\"/list\">&gt; Full list</a></pi>");
-			println("<h3>Nanopubs:</h3>");
+
+			println("<h3>Nanopubs</h3>");
 			println("<p>Count: " + getMaxValue("nanopubs", "counter") + "</p>");
+			println("<ul>");
+			MongoCursor<Document> nanopubs = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(10).cursor();
+			while (nanopubs.hasNext()) {
+				Document d = nanopubs.next();
+				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id") + "</code></a></li>");
+			}
+			println("</ul>");
+			println("<p><a href=\"/nanopubs\">&gt; Latest 1000</a></pi>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {
