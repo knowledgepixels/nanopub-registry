@@ -4,6 +4,7 @@ import static com.knowledgepixels.registry.MainPage.df1;
 import static com.knowledgepixels.registry.MainPage.df8;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
+import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Indexes.ascending;
 import static com.mongodb.client.model.Indexes.descending;
@@ -63,11 +64,11 @@ public class ListPage extends Page {
 						project(new Document("jelly", "$nanopub.jelly")),
 						unwind("$jelly")
 				);
-				var result = collection("list-entries").aggregate(pipeline);
+				var result = collection("list-entries").aggregate(mongoSession, pipeline);
 				NanopubStream npStream = NanopubStream.fromMongoCursor(result.cursor());
 				npStream.writeToByteStream(getResp().getOutputStream());
 			} else {
-				MongoCursor<Document> entries = collection("list-entries").find(
+				MongoCursor<Document> entries = collection("list-entries").find(mongoSession,
 						new Document("pubkey", pubkey)
 								.append("type", type)
 				).sort(ascending("position")).cursor();
@@ -100,7 +101,7 @@ public class ListPage extends Page {
 				println("<p><code>" + pubkey + "</code></p>");
 				println("<h3>Entry Lists</h3>");
 				println("<ol>");
-				MongoCursor<Document> entryLists = collection("lists").find(
+				MongoCursor<Document> entryLists = collection("lists").find(mongoSession,
 						new Document("pubkey", pubkey)
 					).cursor();
 				while (entryLists.hasNext()) {
@@ -121,7 +122,7 @@ public class ListPage extends Page {
 				println("<h1>List of Accounts</h1>");
 				println("<h3>Accounts</h3>");
 				println("<ol>");
-				MongoCursor<Document> accountList = collection("agent-accounts").find().sort(ascending("pubkey")).cursor();
+				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).cursor();
 				String previous = null;
 				while (accountList.hasNext()) {
 					Document d = accountList.next();
@@ -149,7 +150,7 @@ public class ListPage extends Page {
 			println("</ul>");
 			println("<h3>Accounts</h3>");
 			println("<ul>");
-			MongoCursor<Document> accountList = collection("agent-accounts").find(new Document("agent", agentId)).cursor();
+			MongoCursor<Document> accountList = collection("accounts").find(mongoSession, new Document("agent", agentId)).cursor();
 			while (accountList.hasNext()) {
 				Document d = accountList.next();
 				String pubkey = d.getString("pubkey");
@@ -167,7 +168,7 @@ public class ListPage extends Page {
 			println("<h1>List of Agents</h1>");
 			println("<h3>Agents</h3>");
 			println("<ol>");
-			MongoCursor<Document> agentList = collection("agents").find().sort(descending("total-ratio")).cursor();
+			MongoCursor<Document> agentList = collection("agents").find(mongoSession).sort(descending("total-ratio")).cursor();
 			while (agentList.hasNext()) {
 				Document d = agentList.next();
 				if (d.get("agent").equals("$")) continue;

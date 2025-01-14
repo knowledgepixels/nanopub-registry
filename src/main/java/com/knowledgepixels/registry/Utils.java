@@ -69,25 +69,31 @@ public class Utils {
 		return value;
 	}
 
+	public static String getTypeHash(Object type) {
+		String typeHash = Utils.getHash(type.toString());
+		if (type.toString().equals("$")) typeHash = "$";
+		return typeHash;
+	}
+
 	public static String getShortTypeLabel(String type) {
 		if (type.equals("$")) return "$";
 		return type.substring(0, 10);
 	}
 
 	public static boolean isUnloadedStatus(String status) {
-		if (status.equals("seen")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("seen")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("skipped")) return true;
 		return false;
 	}
 
 	public static boolean isCoreLoadedStatus(String status) {
-		if (status.equals("visited")) return true;  // only exists in "agent-accounts_loading"?
-		if (status.equals("expanded")) return true;  // only exists in "agent-accounts_loading"?
-		if (status.equals("processed")) return true;  // only exists in "agent-accounts_loading"?
-		if (status.equals("aggregated")) return true;  // only exists in "agent-accounts_loading"?
-		if (status.equals("approved")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("visited")) return true;  // only exists in "accounts_loading"?
+		if (status.equals("expanded")) return true;  // only exists in "accounts_loading"?
+		if (status.equals("processed")) return true;  // only exists in "accounts_loading"?
+		if (status.equals("aggregated")) return true;  // only exists in "accounts_loading"?
+		if (status.equals("approved")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("contested")) return true;
-		if (status.equals("to-load")) return true;  // only exists in "agent-accounts_loading"?
+		if (status.equals("to-load")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("loaded")) return true;
 		return false;
 	}

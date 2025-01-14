@@ -153,7 +153,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       status: completed
       link-threshold: 0.000001
       bootstrap-services: [..., ...]
-    agent-accounts:
+    accounts:
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
@@ -183,7 +183,7 @@ See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB
 
 ## Trust Paths
 
-Every agent account has at most one primary path (`>`) leading to it:
+Every account has at most one primary path (`>`) leading to it:
 
     $ > A
     $ > A > X
@@ -199,4 +199,4 @@ Extended paths add a single extended edge (`~`) to the end of a primary path tha
     $ > B > C ~ A
 
 These extended paths can themselves not be further extended.
-Therefore, each agent account can only append its endorsements to the location in its primary path.
+Therefore, each account can only append its endorsements to the location in its primary path.

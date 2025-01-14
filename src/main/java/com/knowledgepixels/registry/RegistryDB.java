@@ -108,13 +108,13 @@ public class RegistryDB {
 		collection("agents_loading").createIndex(mongoSession, descending("avg-path-count"));
 		collection("agents_loading").createIndex(mongoSession, descending("total-ratio"));
 
-		collection("agent-accounts_loading").createIndex(mongoSession, ascending("agent"));
-		collection("agent-accounts_loading").createIndex(mongoSession, ascending("pubkey"));
-		collection("agent-accounts_loading").createIndex(mongoSession, ascending("agent", "pubkey"), unique);
-		collection("agent-accounts_loading").createIndex(mongoSession, ascending("type"));
-		collection("agent-accounts_loading").createIndex(mongoSession, ascending("status"));
-		collection("agent-accounts_loading").createIndex(mongoSession, descending("ratio"));
-		collection("agent-accounts_loading").createIndex(mongoSession, descending("path-count"));
+		collection("accounts_loading").createIndex(mongoSession, ascending("agent"));
+		collection("accounts_loading").createIndex(mongoSession, ascending("pubkey"));
+		collection("accounts_loading").createIndex(mongoSession, ascending("agent", "pubkey"), unique);
+		collection("accounts_loading").createIndex(mongoSession, ascending("type"));
+		collection("accounts_loading").createIndex(mongoSession, ascending("status"));
+		collection("accounts_loading").createIndex(mongoSession, descending("ratio"));
+		collection("accounts_loading").createIndex(mongoSession, descending("path-count"));
 
 		collection("trust-paths_loading").createIndex(mongoSession, ascending("agent", "pubkey", "depth", "sorthash"), unique);
 		collection("trust-paths_loading").createIndex(mongoSession, ascending("depth"));
@@ -336,11 +336,7 @@ public class RegistryDB {
 		if (pubkeyHash != null) {
 			for (String type : types) {
 				if (!hasType(nanopub, type)) continue;
-
-				String typeHash = Utils.getHash(type);
-				if (type.equals("$")) typeHash = "$";
-
-				addToList(nanopub, pubkeyHash, typeHash);
+				addToList(nanopub, pubkeyHash, Utils.getTypeHash(type));
 			}
 		}
 
@@ -355,7 +351,7 @@ public class RegistryDB {
 				try {
 					Nanopub inp = new NanopubImpl(collection("nanopubs").find(mongoSession, new Document("_id", iac)).first().getString("content"), RDFFormat.TRIG);
 					for (IRI type : NanopubUtils.getTypes(inp)) {
-						addToList(inp, ph, type.stringValue());
+						addToList(inp, ph, Utils.getTypeHash(type));
 					}
 				} catch (RDF4JException | MalformedNanopubException ex) {
 					ex.printStackTrace();

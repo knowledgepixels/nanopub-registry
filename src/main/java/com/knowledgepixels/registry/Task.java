@@ -106,7 +106,7 @@ public enum Task implements Serializable {
 	INIT_COLLECTIONS {
 
 		// DB read from:
-		// DB write to:  trust-paths, endorsements, agent-accounts
+		// DB write to:  trust-paths, endorsements, accounts
 
 		public void run(Document taskDoc) throws Exception {
 			RegistryDB.initLoadingCollections();
@@ -135,7 +135,7 @@ public enum Task implements Serializable {
 					);
 
 			}
-			insert("agent-accounts_loading",
+			insert("accounts_loading",
 					new Document("agent", "$")
 						.append("pubkey", "$")
 						.append("status", "visited")
@@ -164,7 +164,7 @@ public enum Task implements Serializable {
 
 	LOAD_DECLARATIONS {
 
-		// In general, we have at this point agent accounts with
+		// In general, we have at this point accounts with
 		// endorsement links to unvisited agent introductions:
 		// ------------------------------------------------------------
 		//
@@ -177,8 +177,8 @@ public enum Task implements Serializable {
 		//
 		// ------------------------------------------------------------
 
-		// DB read from: endorsements, trust-edges, agent-accounts
-		// DB write to:  endorsements, trust-edges, agent-accounts
+		// DB read from: endorsements, trust-edges, accounts
+		// DB write to:  endorsements, trust-edges, accounts
 
 		public void run(Document taskDoc) {
 
@@ -205,8 +205,8 @@ public enum Task implements Serializable {
 						}
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
-						if (!has("agent-accounts_loading", agent)) {
-							insert("agent-accounts_loading", agent.append("status", "seen").append("depth", depth));
+						if (!has("accounts_loading", agent)) {
+							insert("accounts_loading", agent.append("status", "seen").append("depth", depth));
 						}
 					}
 
@@ -243,14 +243,14 @@ public enum Task implements Serializable {
 
 	EXPAND_TRUST_PATHS {
 
-		// DB read from: agent-accounts, trust-paths, trust-edges
-		// DB write to:  agent-accounts, trust-paths
+		// DB read from: accounts, trust-paths, trust-edges
+		// DB write to:  accounts, trust-paths
 
 		public void run(Document taskDoc) {
 
 			int depth = taskDoc.getInteger("depth");
 
-			Document d = getOne("agent-accounts_loading",
+			Document d = getOne("accounts_loading",
 					new Document("status", "visited")
 						.append("depth", depth - 1)
 				);
@@ -266,7 +266,7 @@ public enum Task implements Serializable {
 
 				if (trustPath == null) {
 					// Check it again in next iteration:
-					set("agent-accounts_loading", d.append("depth", depth));
+					set("accounts_loading", d.append("depth", depth));
 				} else {
 					// Only first matching trust path is considered
 
@@ -303,7 +303,7 @@ public enum Task implements Serializable {
 						insert("trust-paths_loading", pd.append("ratio", newRatio));
 					}
 					set("trust-paths_loading", trustPath.append("type", "primary"));
-					set("agent-accounts_loading", d.append("status", "expanded"));
+					set("accounts_loading", d.append("status", "expanded"));
 				}
 				schedule(EXPAND_TRUST_PATHS.with("depth", depth));
 	
@@ -316,7 +316,7 @@ public enum Task implements Serializable {
 		}
 
 		// At the end of this step, trust paths are updated to include
-		// the new agent accounts:
+		// the new accounts:
 		// ------------------------------------------------------------
 		//
 		//         o      ----endorses----> [intro]
@@ -347,15 +347,15 @@ public enum Task implements Serializable {
 		//
 		// ------------------------------------------------------------
 
-		// DB read from: agent-accounts, trust-paths, endorsements, lists
-		// DB write to:  agent-accounts, endorsements, lists
+		// DB read from: accounts, trust-paths, endorsements, lists
+		// DB write to:  accounts, endorsements, lists
 
 		public void run(Document taskDoc) {
 
 			int depth = taskDoc.getInteger("depth");
 			int loadCount = taskDoc.getInteger("load-count");
 
-			Document agentAccount = getOne("agent-accounts_loading", new Document("depth", depth).append("status", "seen"));
+			Document agentAccount = getOne("accounts_loading", new Document("depth", depth).append("status", "seen"));
 			Document trustPath = null;
 			final String agentId;
 			final String pubkeyHash;
@@ -375,7 +375,7 @@ public enum Task implements Serializable {
 			if (trustPath == null) {
 				schedule(FINISH_ITERATION.with("depth", depth).append("load-count", loadCount));
 			} else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
-				set("agent-accounts_loading", agentAccount.append("status", "skipped"));
+				set("accounts_loading", agentAccount.append("status", "skipped"));
 				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
 				if (!has("lists", d)) {
 					insert("lists", d.append("status", "encountered"));
@@ -467,7 +467,7 @@ public enum Task implements Serializable {
 				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
 				if (!has("lists", df)) insert("lists", df.append("status", "encountered"));
 
-				set("agent-accounts_loading", agentAccount.append("status", "visited"));
+				set("accounts_loading", agentAccount.append("status", "visited"));
 
 				schedule(LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			}
@@ -515,12 +515,12 @@ public enum Task implements Serializable {
 
 	CALCULATE_TRUST_SCORES {
 
-		// DB read from: agent-accounts, trust-paths
-		// DB write to:  agent-accounts
+		// DB read from: accounts, trust-paths
+		// DB write to:  accounts
 
 		public void run(Document taskDoc) {
 
-			Document d = getOne("agent-accounts_loading", new Document("status", "expanded"));
+			Document d = getOne("accounts_loading", new Document("status", "expanded"));
 
 			if (d == null) {
 				schedule(AGGREGATE_AGENTS);
@@ -554,7 +554,7 @@ public enum Task implements Serializable {
 				} else if (rawQuota > MAX_USER_QUOTA) {
 					quota = MAX_USER_QUOTA;
 				}
-				set("agent-accounts_loading",
+				set("accounts_loading",
 						d.append("status", "processed")
 							.append("ratio", ratio)
 							.append("path-count", pathCount)
@@ -569,12 +569,12 @@ public enum Task implements Serializable {
 
 	AGGREGATE_AGENTS {
 
-		// DB read from: agent-accounts, agents
-		// DB write to:  agent-accounts, agents
+		// DB read from: accounts, agents
+		// DB write to:  accounts, agents
 
 		public void run(Document taskDoc) {
 
-			Document a = getOne("agent-accounts_loading", new Document("status", "processed"));
+			Document a = getOne("accounts_loading", new Document("status", "processed"));
 			if (a == null) {
 				schedule(ASSIGN_PUBKEYS);
 			} else {
@@ -582,14 +582,14 @@ public enum Task implements Serializable {
 				int count = 0;
 				int pathCountSum = 0;
 				double totalRatio = 0.0d;
-				MongoCursor<Document> agentAccounts = collection("agent-accounts_loading").find(mongoSession, agentId).cursor();
+				MongoCursor<Document> agentAccounts = collection("accounts_loading").find(mongoSession, agentId).cursor();
 				while (agentAccounts.hasNext()) {
 					Document d = agentAccounts.next();
 					count++;
 					pathCountSum += d.getInteger("path-count");
 					totalRatio += d.getDouble("ratio");
 				}
-				collection("agent-accounts_loading").updateMany(mongoSession, agentId, new Document("$set", new Document("status", "aggregated")));
+				collection("accounts_loading").updateMany(mongoSession, agentId, new Document("$set", new Document("status", "aggregated")));
 				insert("agents_loading",
 						agentId.append("account-count", count)
 							.append("avg-path-count", (double) pathCountSum / count)
@@ -604,21 +604,21 @@ public enum Task implements Serializable {
 
 	ASSIGN_PUBKEYS {
 
-		// DB read from: agent-accounts
-		// DB write to:  agent-accounts
+		// DB read from: accounts
+		// DB write to:  accounts
 
 		public void run(Document taskDoc) {
 
-			Document a = getOne("agent-accounts_loading", new Document("status", "aggregated"));
+			Document a = getOne("accounts_loading", new Document("status", "aggregated"));
 			if (a == null) {
 				schedule(DETERMINE_UPDATES);
 			} else {
 				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
-				if (collection("agent-accounts_loading").countDocuments(mongoSession, pubkeyId) == 1) {
-					collection("agent-accounts_loading").updateMany(mongoSession, pubkeyId, new Document("$set", new Document("status", "approved")));
+				if (collection("accounts_loading").countDocuments(mongoSession, pubkeyId) == 1) {
+					collection("accounts_loading").updateMany(mongoSession, pubkeyId, new Document("$set", new Document("status", "approved")));
 				} else {
 					// TODO At the moment all get marked as 'contested'; implement more nuanced algorithm
-					collection("agent-accounts_loading").updateMany(mongoSession, pubkeyId, new Document("$set", new Document("status", "contested")));
+					collection("accounts_loading").updateMany(mongoSession, pubkeyId, new Document("$set", new Document("status", "contested")));
 				}
 				schedule(ASSIGN_PUBKEYS);
 			}
@@ -629,19 +629,19 @@ public enum Task implements Serializable {
 
 	DETERMINE_UPDATES {
 
-		// DB read from: agent-accounts
-		// DB write to:  agent-accounts
+		// DB read from: accounts
+		// DB write to:  accounts
 
 		public void run(Document taskDoc) {
 
 			// TODO Handle contested accounts properly:
-			for (Document d : collection("agent-accounts_loading").find(new Document("status", "approved"))) {
+			for (Document d : collection("accounts_loading").find(new Document("status", "approved"))) {
 				// TODO Consider quota too:
 				Document accountId = new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"));
-				if (collection("agent-accounts") == null || !has("agent-accounts", accountId.append("status", "loaded"))) {
-					set("agent-accounts_loading", d.append("status", "to-load"));
+				if (collection("accounts") == null || !has("accounts", accountId.append("status", "loaded"))) {
+					set("accounts_loading", d.append("status", "to-load"));
 				} else {
-					set("agent-accounts_loading", d.append("status", "loaded"));
+					set("accounts_loading", d.append("status", "loaded"));
 				}
 			}
 			schedule(RELEASE_DATA);
@@ -655,7 +655,7 @@ public enum Task implements Serializable {
 		public void run(Document taskDoc) {
 
 			// Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
-			rename("agent-accounts_loading", "agent-accounts");
+			rename("accounts_loading", "accounts");
 			rename("trust-paths_loading", "trust-paths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
@@ -690,12 +690,12 @@ public enum Task implements Serializable {
 	LOAD_FULL {
 
 		public void run(Document taskDoc) {
-			if (getOne("agent-accounts", new Document()) == null) {
-				System.err.println("Agent accounts not yet initialized; checking again later");
+			if (getOne("accounts", new Document()) == null) {
+				System.err.println("Accounts not yet initialized; checking again later");
 				schedule(LOAD_FULL.withDelay(60 * 1000));
 				return;
 			}
-			Document a = getOne("agent-accounts", new Document("status", "to-load"));
+			Document a = getOne("accounts", new Document("status", "to-load"));
 			if (a == null) {
 				System.err.println("Nothing to load; scheduling optional loading checks");
 				schedule(CHECK_MORE_PUBKEYS.withDelay(100));
@@ -729,7 +729,7 @@ public enum Task implements Serializable {
 
 				Document l = getOne("lists", new Document().append("pubkey", ph).append("type", "$"));
 				if (l != null) set("lists", l.append("status", "loaded"));
-				set("agent-accounts", a.append("status", "loaded"));
+				set("accounts", a.append("status", "loaded"));
 
 				schedule(LOAD_FULL.withDelay(100));
 			}
