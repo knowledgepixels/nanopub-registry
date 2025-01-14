@@ -19,6 +19,8 @@ public class RegistryInfo implements Serializable {
 	private String currentSetting;
 	private String originalSetting;
 
+	private static Gson gson = new Gson();
+
 	public static RegistryInfo getLocal() {
 		RegistryInfo ri = new RegistryInfo();
 		ri.setupId = (Long) getValue("server-info", "setup-id");
@@ -32,7 +34,7 @@ public class RegistryInfo implements Serializable {
 	}
 
 	public String asJson() {
-		return new Gson().toJson(this);
+		return gson.toJson(this);
 	}
 
 }
