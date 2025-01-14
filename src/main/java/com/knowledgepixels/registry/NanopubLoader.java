@@ -63,7 +63,7 @@ public class NanopubLoader {
 		ApiResponse resp;
 		if (type != null) {
 			params.put("type", type);
-			resp = ApiCache.retrieveResponse("RAsO4jKUf7combAsoGw5nj1LDbBqmH1bUr_j0AWqO9QMI/get-nanopubs-for-pubkey-and-type", params);
+			resp = ApiCache.retrieveResponse("RAcX8PxM-XGE_T5EvGdSv0ByA6hFLGL8faeqS3sBWNeIY/get-nanopubs-for-pubkey-and-type", params);
 		} else {
 			resp = ApiCache.retrieveResponse("RAdxUS1loH_wZRz_K4dGiRY63weCJRQijMK55LOO12yZQ/get-nanopubs-for-pubkey", params);
 		}
