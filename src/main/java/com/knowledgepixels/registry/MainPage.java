@@ -47,13 +47,15 @@ public class MainPage extends Page {
 		if ("application/json".equals(format)) {
 			println(RegistryInfo.getLocal().asJson());
 		} else {
+			String status = getValue("server-info", "status").toString();
 			printHtmlHeader("Nanopub Registry - alpha");
 			println("<h1>Nanopub Registry - alpha</h1>");
 			println("<h3>Server</h3>");
 			println("<ul>");
 			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
-			println("<li><em>status:</em> " + getValue("server-info", "status") + "</li>");
-			println("<li><em>state-counter:</em> " + getValue("server-info", "state-counter") + "</li>");
+			println("<li><em>status:</em> " + status + "</li>");
+			println("<li><em>trust-state-counter:</em> " + getValue("server-info", "trust-state-counter") + "</li>");
+			println("<li><em>nanopub-counter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("<li><em>coverage-types:</em> " + getValue("server-info", "coverage-types") + "</li>");
 			println("<li><em>coverage-agents:</em> " + getValue("server-info", "coverage-agents") + "</li>");
 			println("</ul>");
@@ -66,38 +68,46 @@ public class MainPage extends Page {
 			println("</ul>");
 
 			println("<h3>Agents</h3>");
-			println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
-			println("<ul>");
-			MongoCursor<Document> agents = collection("agents").find(mongoSession).sort(descending("total-ratio")).limit(10).cursor();
-			while (agents.hasNext()) {
-				Document d = agents.next();
-				if (d.get("agent").equals("$")) continue;
-				String a = d.getString("agent");
-				int accountCount = d.getInteger("account-count");
-				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
-						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
-						"ratio " + df8.format(d.get("total-ratio")) + ", " +
-						"avg. path count " + df1.format(d.get("avg-path-count")) +
-						"</li>");
+			if (status.equals("loading")) {
+				println("<p><em>(loading...)</em></p>");
+			} else {
+				println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
+				println("<ul>");
+				MongoCursor<Document> agents = collection("agents").find(mongoSession).sort(descending("total-ratio")).limit(10).cursor();
+				while (agents.hasNext()) {
+					Document d = agents.next();
+					if (d.get("agent").equals("$")) continue;
+					String a = d.getString("agent");
+					int accountCount = d.getInteger("account-count");
+					println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
+							accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
+							"ratio " + df8.format(d.get("total-ratio")) + ", " +
+							"avg. path count " + df1.format(d.get("avg-path-count")) +
+							"</li>");
+				}
+				println("</ul>");
+				println("<p><a href=\"/agents\">&gt; Full list</a></pi>");
 			}
-			println("</ul>");
-			println("<p><a href=\"/agents\">&gt; Full list</a></pi>");
 
 			println("<h3>Accounts</h3>");
-			println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");
-			println("<ul>");
-			MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).limit(10).cursor();
-			String previous = null;
-			while (accountList.hasNext()) {
-				Document d = accountList.next();
-				String pubkey = d.getString("pubkey");
-				if (!pubkey.equals(previous) && !pubkey.equals("$")) {
-					println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + ")</li>");
+			if (status.equals("loading")) {
+				println("<p><em>(loading...)</em></p>");
+			} else {
+				println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");
+				println("<ul>");
+				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).limit(10).cursor();
+				String previous = null;
+				while (accountList.hasNext()) {
+					Document d = accountList.next();
+					String pubkey = d.getString("pubkey");
+					if (!pubkey.equals(previous) && !pubkey.equals("$")) {
+						println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + ")</li>");
+					}
+					previous = pubkey;
 				}
-				previous = pubkey;
+				println("</ul>");
+				println("<p><a href=\"/list\">&gt; Full list</a></pi>");
 			}
-			println("</ul>");
-			println("<p><a href=\"/list\">&gt; Full list</a></pi>");
 
 			println("<h3>Nanopubs</h3>");
 			println("<p>Count: " + getMaxValue("nanopubs", "counter") + "</p>");

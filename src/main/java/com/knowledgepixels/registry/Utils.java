@@ -44,8 +44,8 @@ public class Utils {
 		}
 	}
 
-	public static String getHash(String pubkey) {
-		return Hashing.sha256().hashString(pubkey, Charsets.UTF_8).toString();
+	public static String getHash(String s) {
+		return Hashing.sha256().hashString(s, Charsets.UTF_8).toString();
 	}
 
 	public static Set<IRI> getInvalidatedNanopubIds(Nanopub np) {

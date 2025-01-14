@@ -189,12 +189,12 @@ public class RegistryDB {
 	}
 
 	public static void increaseStateCounter() {
-		MongoCursor<Document> cursor = collection("server-info").find(mongoSession, new Document("_id", "state-counter")).cursor();
+		MongoCursor<Document> cursor = collection("server-info").find(mongoSession, new Document("_id", "trust-state-counter")).cursor();
 		if (cursor.hasNext()) {
 			long counter = cursor.next().getLong("value");
-			collection("server-info").updateOne(mongoSession, new Document("_id", "state-counter"), new Document("$set", new Document("value", counter + 1)));
+			collection("server-info").updateOne(mongoSession, new Document("_id", "trust-state-counter"), new Document("$set", new Document("value", counter + 1)));
 		} else {
-			collection("server-info").insertOne(mongoSession, new Document("_id", "state-counter").append("value", 0l));
+			collection("server-info").insertOne(mongoSession, new Document("_id", "trust-state-counter").append("value", 0l));
 		}
 	}
 
@@ -428,6 +428,17 @@ public class RegistryDB {
 //			if (typeIri.stringValue().equals(type)) return true;
 //		}
 //		return false;
+	}
+
+	public static String calculateTrustStateHash() {
+		MongoCursor<Document> tp = collection("trust-paths_loading").find(mongoSession).sort(ascending("_id")).cursor();
+		// TODO Improve this so we don't create the full string just for calculating its hash:
+		String s = "";
+		while (tp.hasNext()) {
+			Document d = tp.next();
+			s += " | " + d.getString("_id") + " (" + d.getString("type") + ")";
+		}
+		return Utils.getHash(s);
 	}
 
 }

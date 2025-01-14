@@ -6,6 +6,8 @@ import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.gson.Gson;
 
@@ -15,7 +17,7 @@ public class RegistryInfo implements Serializable {
 	private static final long serialVersionUID = 1L;
 
 	private Long setupId;
-	private Long stateCounter;
+	private Long trustStateCounter;
 	private String status;
 	private String coverageTypes;
 	private String coverateAgents;
@@ -31,7 +33,8 @@ public class RegistryInfo implements Serializable {
 	public static RegistryInfo getLocal() {
 		RegistryInfo ri = new RegistryInfo();
 		ri.setupId = (Long) getValue("server-info", "setup-id");
-		ri.stateCounter = (Long) getValue("server-info", "state-counter");
+		ri.trustStateCounter = (Long) getValue("server-info", "trust-state-counter");
+		ri.nanopubCounter = (Long) getMaxValue("nanopubs", "counter");
 		ri.status = (String) getValue("server-info", "status");
 		ri.coverageTypes = (String) getValue("server-info", "coverage-types");
 		ri.coverateAgents = (String) getValue("server-info", "coverage-agents");
@@ -40,7 +43,6 @@ public class RegistryInfo implements Serializable {
 		ri.agentCount = collection("agents").countDocuments(mongoSession);
 		ri.accountCount = collection("accounts").countDocuments(mongoSession);
 		ri.nanopubCount = collection("nanopubs").countDocuments(mongoSession);
-		ri.nanopubCounter = (Long) getMaxValue("nanopubs", "counter");
 		return ri;
 	}
 

@@ -654,14 +654,19 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 
+			String newTrustStateHash = RegistryDB.calculateTrustStateHash();
+			String previousTrustStateHash = (String) getValue("server-info", "trust-state-hash");
+
 			// Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
 			rename("accounts_loading", "accounts");
 			rename("trust-paths_loading", "trust-paths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
 
-			// TODO Only increase counter when state has actually changed:
-			increaseStateCounter();
+			if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
+				increaseStateCounter();
+				setValue("server-info", "trust-state-hash", newTrustStateHash);
+			}
 			setStatus("ready");
 
 			// Run update after 1h:
