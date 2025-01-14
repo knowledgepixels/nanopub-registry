@@ -8,18 +8,21 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 
-import com.knowledgepixels.registry.jelly.JellyUtils;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
+import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.rio.RDFFormat;
+import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
 
+import com.knowledgepixels.registry.jelly.JellyUtils;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.ClientSession;
@@ -304,12 +307,21 @@ public class RegistryDB {
 
 			for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
 				String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+
+				// Add this nanopub also to all lists of invalidated nanopubs:
 				collection("invalidations").insertOne(mongoSession,
 						new Document("invalidating-np", ac)
 							.append("invalidating-pubkey", ph)
 							.append("invalidated-np", invalidatedAc)
 					);
-				// TODO Add this nanopub also to all lists of invalidated nanopubs
+				MongoCursor<Document> invalidatedEntries = collection("list-entries").find(mongoSession,
+						new Document("np", invalidatedAc).append("pubkey", ph)
+					).cursor();
+				while (invalidatedEntries.hasNext()) {
+					Document invalidatedEntry = invalidatedEntries.next();
+					addToList(nanopub, ph, invalidatedEntry.getString("type"));
+				}
+
 				collection("list-entries").updateMany(mongoSession,
 						new Document("np", invalidatedAc).append("pubkey", ph),
 						new Document("$set", new Document("invalidated", true))
@@ -328,38 +340,28 @@ public class RegistryDB {
 				String typeHash = Utils.getHash(type);
 				if (type.equals("$")) typeHash = "$";
 
-				if (!has("lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
-					insert("lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
-				}
-		
-				if (has("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
-					System.err.println("Already listed: " + nanopub.getUri());
-				} else {
-					
-					Document doc = getMaxValueDocument("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
-					long position;
-					String checksum;
-					if (doc == null) {
-						position = 0l;
-						checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
-					} else {
-						position = doc.getLong("position") + 1;
-						checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
-					}
-					collection("list-entries").insertOne(mongoSession,
-							new Document("pubkey", pubkeyHash)
-								.append("type", typeHash)
-								.append("position", position)
-								.append("np", ac)
-								.append("checksum", checksum)
-								.append("invalidated", false)
-						);
-				}
+				addToList(nanopub, pubkeyHash, typeHash);
 			}
 		}
 
 		if (has("invalidations", new Document("invalidated-np", ac).append("invalidating-pubkey", ph))) {
-			// TODO Add the invalidating nanopubs also to the lists of this nanopub
+
+			// Add the invalidating nanopubs also to the lists of this nanopub:
+			MongoCursor<Document> invalidations = collection("invalidations").find(mongoSession,
+					new Document("invalidated-np", ac).append("invalidating-pubkey", ph)
+				).cursor();
+			while (invalidations.hasNext()) {
+				String iac = invalidations.next().getString("invalidating-np");
+				try {
+					Nanopub inp = new NanopubImpl(collection("nanopubs").find(mongoSession, new Document("_id", iac)).first().getString("content"), RDFFormat.TRIG);
+					for (IRI type : NanopubUtils.getTypes(inp)) {
+						addToList(inp, ph, type.stringValue());
+					}
+				} catch (RDF4JException | MalformedNanopubException ex) {
+					ex.printStackTrace();
+				}
+			}
+
 			collection("list-entries").updateMany(mongoSession,
 					new Document("np", ac).append("pubkey", ph),
 					new Document("$set", new Document("invalidated", true))
@@ -370,6 +372,37 @@ public class RegistryDB {
 				);
 		}
 
+	}
+
+	private static void addToList(Nanopub nanopub, String pubkeyHash, String typeHash) {
+		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+		if (!has("lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
+			insert("lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
+		}
+
+		if (has("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+			System.err.println("Already listed: " + nanopub.getUri());
+		} else {
+			
+			Document doc = getMaxValueDocument("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
+			long position;
+			String checksum;
+			if (doc == null) {
+				position = 0l;
+				checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
+			} else {
+				position = doc.getLong("position") + 1;
+				checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
+			}
+			collection("list-entries").insertOne(mongoSession,
+					new Document("pubkey", pubkeyHash)
+						.append("type", typeHash)
+						.append("position", position)
+						.append("np", ac)
+						.append("checksum", checksum)
+						.append("invalidated", false)
+				);
+		}
 	}
 
 	public static String getPubkey(Nanopub nanopub) {
