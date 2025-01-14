@@ -31,7 +31,7 @@ public class RegistryServlet extends HttpServlet {
 				MainPage.show(r, resp);
 			} else if (r.getFullRequest().matches("/list(/.*)?")) {
 				ListPage.show(r, resp);
-			} else if (r.getFullRequest().matches("/agent(/.*)?")) {
+			} else if (r.getFullRequest().matches("/agents?")) {
 				ListPage.show(r, resp);
 			} else if (r.getFullRequest().matches("/np(/.*)?")) {
 				NanopubPage.show(r, resp);

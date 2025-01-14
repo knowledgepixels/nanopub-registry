@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.mongodb.client.model.Indexes.ascending;
 import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
@@ -64,12 +65,23 @@ public class MainPage extends Page {
 			println("</ul>");
 			println("<h3>Agent accounts</h3>");
 			println("<p>Count: " + collection("agent-accounts").countDocuments() + "</p>");
+			println("<ul>");
+			MongoCursor<Document> accountList = collection("agent-accounts").find().sort(ascending("pubkey")).limit(10).cursor();
+			String previous = null;
+			while (accountList.hasNext()) {
+				Document d = accountList.next();
+				String pubkey = d.getString("pubkey");
+				if (!pubkey.equals(previous) && !pubkey.equals("$")) {
+					println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + ")</li>");
+				}
+				previous = pubkey;
+			}
+			println("</ul>");
 			println("<p><a href=\"/list\">&gt; Full list</a></pi>");
 			println("<h3>Agents</h3>");
 			println("<p>Count: " + collection("agents").countDocuments() + "</p>");
-			println("<p>Top agents:</p>");
 			println("<ul>");
-			MongoCursor<Document> agents = collection("agents").find().sort(descending("total-ratio")).limit(20).cursor();
+			MongoCursor<Document> agents = collection("agents").find().sort(descending("total-ratio")).limit(10).cursor();
 			while (agents.hasNext()) {
 				Document d = agents.next();
 				if (d.get("agent").equals("$")) continue;
@@ -82,7 +94,7 @@ public class MainPage extends Page {
 						"</li>");
 			}
 			println("</ul>");
-			println("<p><a href=\"/agent\">&gt; Full list</a></pi>");
+			println("<p><a href=\"/agents\">&gt; Full list</a></pi>");
 			println("<h3>Nanopubs:</h3>");
 			println("<p>Count: " + getMaxValue("nanopubs", "counter") + "</p>");
 			printHtmlFooter();

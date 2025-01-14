@@ -6,6 +6,7 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Indexes.ascending;
+import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -161,12 +162,12 @@ public class ListPage extends Page {
 			}
 			println("</ul>");
 			printHtmlFooter();
-		} else if (req.equals("agent")) {
+		} else if (req.equals("agents")) {
 			printHtmlHeader("List of agents - Nanopub Registry");
 			println("<h1>List of Agents</h1>");
 			println("<h3>Agents</h3>");
 			println("<ol>");
-			MongoCursor<Document> agentList = collection("agents").find().sort(ascending("agent")).cursor();
+			MongoCursor<Document> agentList = collection("agents").find().sort(descending("total-ratio")).cursor();
 			while (agentList.hasNext()) {
 				Document d = agentList.next();
 				if (d.get("agent").equals("$")) continue;
