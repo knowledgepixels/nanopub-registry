@@ -193,14 +193,15 @@ public enum Task implements Serializable {
 
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
-
+						String sourceAc = d.getString("source");
 						Document trustEdge = new Document("from-agent", d.getString("agent"))
 								.append("from-pubkey", d.getString("pubkey"))
 								.append("to-agent", agentId)
 								.append("to-pubkey", pubkeyHash)
-								.append("source", d.getString("source"));
+								.append("source", sourceAc);
 						if (!has("trust-edges", trustEdge)) {
-							insert("trust-edges", trustEdge.append("invalidated", false));
+							boolean invalidated = has("invalidations", new Document("invalidated-np", sourceAc).append("invalidating-pubkey", pubkeyHash));
+							insert("trust-edges", trustEdge.append("invalidated", invalidated));
 						}
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
