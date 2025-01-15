@@ -39,7 +39,7 @@ public class RegistryDB {
 
 	private RegistryDB() {}
 
-	private static final String REGISTRY_DB_NAME = Utils.getEnv("NANOPUB_REGISTRY_DB_NAME", "nanopub-registry");
+	private static final String REGISTRY_DB_NAME = Utils.getEnv("NANOPUB_REGISTRY_DB_NAME", "nanopubRegistry");
 	private static final String REGISTRY_DB_HOST = Utils.getEnv("NANOPUB_REGISTRY_DB_HOST", "mongodb");
 
 	private static MongoClient mongoClient;
@@ -69,44 +69,44 @@ public class RegistryDB {
 
 		collection("tasks").createIndex(mongoSession, Indexes.descending("not-before"));
 
-		collection("nanopubs").createIndex(mongoSession, ascending("full-id"), unique);
+		collection("nanopubs").createIndex(mongoSession, ascending("fullId"), unique);
 		collection("nanopubs").createIndex(mongoSession, descending("counter"), unique);
 		collection("nanopubs").createIndex(mongoSession, ascending("pubkey"));
 
 		collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
 		collection("lists").createIndex(mongoSession, ascending("status"));
 
-		collection("list-entries").createIndex(mongoSession, ascending("np"));
-		collection("list-entries").createIndex(mongoSession, ascending("pubkey", "type", "np"), unique);
-		collection("list-entries").createIndex(mongoSession, compoundIndex(ascending("pubkey"), ascending("type"), descending("position")), unique);
-		collection("list-entries").createIndex(mongoSession, ascending("pubkey", "type", "checksum"), unique);
-		collection("list-entries").createIndex(mongoSession, ascending("invalidated"));
+		collection("listEntries").createIndex(mongoSession, ascending("np"));
+		collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "np"), unique);
+		collection("listEntries").createIndex(mongoSession, compoundIndex(ascending("pubkey"), ascending("type"), descending("position")), unique);
+		collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "checksum"), unique);
+		collection("listEntries").createIndex(mongoSession, ascending("invalidated"));
 
-		collection("invalidations").createIndex(mongoSession, ascending("invalidating-np"));
-		collection("invalidations").createIndex(mongoSession, ascending("invalidating-pubkey"));
-		collection("invalidations").createIndex(mongoSession, ascending("invalidated-np"));
-		collection("invalidations").createIndex(mongoSession, ascending("invalidating-pubkey", "invalidated-np"));
+		collection("invalidations").createIndex(mongoSession, ascending("invalidatingNp"));
+		collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey"));
+		collection("invalidations").createIndex(mongoSession, ascending("invalidatedNp"));
+		collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey", "invalidatedNp"));
 
-		collection("trust-edges").createIndex(mongoSession, ascending("from-agent"));
-		collection("trust-edges").createIndex(mongoSession, ascending("from-pubkey"));
-		collection("trust-edges").createIndex(mongoSession, ascending("to-agent"));
-		collection("trust-edges").createIndex(mongoSession, ascending("to-pubkey"));
-		collection("trust-edges").createIndex(mongoSession, ascending("source"));
-		collection("trust-edges").createIndex(mongoSession, ascending("from-agent", "from-pubkey", "to-agent", "to-pubkey", "source"), unique);
-		collection("trust-edges").createIndex(mongoSession, ascending("invalidated"));
+		collection("trustEdges").createIndex(mongoSession, ascending("fromAgent"));
+		collection("trustEdges").createIndex(mongoSession, ascending("fromPubkey"));
+		collection("trustEdges").createIndex(mongoSession, ascending("toAgent"));
+		collection("trustEdges").createIndex(mongoSession, ascending("toPubkey"));
+		collection("trustEdges").createIndex(mongoSession, ascending("source"));
+		collection("trustEdges").createIndex(mongoSession, ascending("fromAgent", "fromPubkey", "toAgent", "toPubkey", "source"), unique);
+		collection("trustEdges").createIndex(mongoSession, ascending("invalidated"));
 	}
 
 	public static void initLoadingCollections() {
 		collection("endorsements_loading").createIndex(mongoSession, ascending("agent"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("pubkey"));
-		collection("endorsements_loading").createIndex(mongoSession, ascending("endorsed-nanopub"));
+		collection("endorsements_loading").createIndex(mongoSession, ascending("endorsedNanopub"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("source"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("status"));
 
 		collection("agents_loading").createIndex(mongoSession, ascending("agent"), unique);
-		collection("agents_loading").createIndex(mongoSession, descending("account-count"));
-		collection("agents_loading").createIndex(mongoSession, descending("avg-path-count"));
-		collection("agents_loading").createIndex(mongoSession, descending("total-ratio"));
+		collection("agents_loading").createIndex(mongoSession, descending("accountCount"));
+		collection("agents_loading").createIndex(mongoSession, descending("avgPathCount"));
+		collection("agents_loading").createIndex(mongoSession, descending("totalRatio"));
 
 		collection("accounts_loading").createIndex(mongoSession, ascending("agent"));
 		collection("accounts_loading").createIndex(mongoSession, ascending("pubkey"));
@@ -116,13 +116,13 @@ public class RegistryDB {
 		collection("accounts_loading").createIndex(mongoSession, descending("ratio"));
 		collection("accounts_loading").createIndex(mongoSession, descending("path-count"));
 
-		collection("trust-paths_loading").createIndex(mongoSession, ascending("agent", "pubkey", "depth", "sorthash"), unique);
-		collection("trust-paths_loading").createIndex(mongoSession, ascending("depth"));
-		collection("trust-paths_loading").createIndex(mongoSession, descending("ratio"));
+		collection("trustPaths_loading").createIndex(mongoSession, ascending("agent", "pubkey", "depth", "sorthash"), unique);
+		collection("trustPaths_loading").createIndex(mongoSession, ascending("depth"));
+		collection("trustPaths_loading").createIndex(mongoSession, descending("ratio"));
 	}
 
 	public static boolean isInitialized() {
-		return getValue("server-info", "setup-id") != null;
+		return getValue("serverInfo", "setupId") != null;
 	}
 
 	public synchronized static void startTransaction() {
@@ -189,12 +189,12 @@ public class RegistryDB {
 	}
 
 	public static void increaseStateCounter() {
-		MongoCursor<Document> cursor = collection("server-info").find(mongoSession, new Document("_id", "trust-state-counter")).cursor();
+		MongoCursor<Document> cursor = collection("serverInfo").find(mongoSession, new Document("_id", "trustStateCounter")).cursor();
 		if (cursor.hasNext()) {
 			long counter = cursor.next().getLong("value");
-			collection("server-info").updateOne(mongoSession, new Document("_id", "trust-state-counter"), new Document("$set", new Document("value", counter + 1)));
+			collection("serverInfo").updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
 		} else {
-			collection("server-info").insertOne(mongoSession, new Document("_id", "trust-state-counter").append("value", 0l));
+			collection("serverInfo").insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0l));
 		}
 	}
 
@@ -298,7 +298,7 @@ public class RegistryDB {
 			}
 			collection("nanopubs").insertOne(mongoSession,
 					new Document("_id", ac)
-						.append("full-id", nanopub.getUri().stringValue())
+						.append("fullId", nanopub.getUri().stringValue())
 						.append("counter", counter + 1)
 						.append("pubkey", ph)
 						.append("content", nanopubString)
@@ -310,11 +310,11 @@ public class RegistryDB {
 
 				// Add this nanopub also to all lists of invalidated nanopubs:
 				collection("invalidations").insertOne(mongoSession,
-						new Document("invalidating-np", ac)
-							.append("invalidating-pubkey", ph)
-							.append("invalidated-np", invalidatedAc)
+						new Document("invalidatingNp", ac)
+							.append("invalidatingPubkey", ph)
+							.append("invalidatedNp", invalidatedAc)
 					);
-				MongoCursor<Document> invalidatedEntries = collection("list-entries").find(mongoSession,
+				MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession,
 						new Document("np", invalidatedAc).append("pubkey", ph)
 					).cursor();
 				while (invalidatedEntries.hasNext()) {
@@ -322,11 +322,11 @@ public class RegistryDB {
 					addToList(nanopub, ph, invalidatedEntry.getString("type"));
 				}
 
-				collection("list-entries").updateMany(mongoSession,
+				collection("listEntries").updateMany(mongoSession,
 						new Document("np", invalidatedAc).append("pubkey", ph),
 						new Document("$set", new Document("invalidated", true))
 					);
-				collection("trust-edges").updateMany(mongoSession,
+				collection("trustEdges").updateMany(mongoSession,
 						new Document("source", invalidatedAc),
 						new Document("$set", new Document("invalidated", true))
 					);
@@ -340,14 +340,14 @@ public class RegistryDB {
 			}
 		}
 
-		if (has("invalidations", new Document("invalidated-np", ac).append("invalidating-pubkey", ph))) {
+		if (has("invalidations", new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))) {
 
 			// Add the invalidating nanopubs also to the lists of this nanopub:
 			MongoCursor<Document> invalidations = collection("invalidations").find(mongoSession,
-					new Document("invalidated-np", ac).append("invalidating-pubkey", ph)
+					new Document("invalidatedNp", ac).append("invalidatingPubkey", ph)
 				).cursor();
 			while (invalidations.hasNext()) {
-				String iac = invalidations.next().getString("invalidating-np");
+				String iac = invalidations.next().getString("invalidatingNp");
 				try {
 					Nanopub inp = new NanopubImpl(collection("nanopubs").find(mongoSession, new Document("_id", iac)).first().getString("content"), RDFFormat.TRIG);
 					for (IRI type : NanopubUtils.getTypes(inp)) {
@@ -358,11 +358,11 @@ public class RegistryDB {
 				}
 			}
 
-			collection("list-entries").updateMany(mongoSession,
+			collection("listEntries").updateMany(mongoSession,
 					new Document("np", ac).append("pubkey", ph),
 					new Document("$set", new Document("invalidated", true))
 				);
-			collection("trust-edges").updateMany(mongoSession,
+			collection("trustEdges").updateMany(mongoSession,
 					new Document("source", ac),
 					new Document("$set", new Document("invalidated", true))
 				);
@@ -376,11 +376,11 @@ public class RegistryDB {
 			insert("lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
 		}
 
-		if (has("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+		if (has("listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
 			System.err.println("Already listed: " + nanopub.getUri());
 		} else {
 			
-			Document doc = getMaxValueDocument("list-entries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
+			Document doc = getMaxValueDocument("listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
 			long position;
 			String checksum;
 			if (doc == null) {
@@ -390,7 +390,7 @@ public class RegistryDB {
 				position = doc.getLong("position") + 1;
 				checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
 			}
-			collection("list-entries").insertOne(mongoSession,
+			collection("listEntries").insertOne(mongoSession,
 					new Document("pubkey", pubkeyHash)
 						.append("type", typeHash)
 						.append("position", position)
@@ -431,7 +431,7 @@ public class RegistryDB {
 	}
 
 	public static String calculateTrustStateHash() {
-		MongoCursor<Document> tp = collection("trust-paths_loading").find(mongoSession).sort(ascending("_id")).cursor();
+		MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor();
 		// TODO Improve this so we don't create the full string just for calculating its hash:
 		String s = "";
 		while (tp.hasNext()) {

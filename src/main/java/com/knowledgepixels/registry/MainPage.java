@@ -47,17 +47,17 @@ public class MainPage extends Page {
 		if ("application/json".equals(format)) {
 			println(RegistryInfo.getLocal().asJson());
 		} else {
-			String status = getValue("server-info", "status").toString();
+			String status = getValue("serverInfo", "status").toString();
 			printHtmlHeader("Nanopub Registry - alpha");
 			println("<h1>Nanopub Registry - alpha</h1>");
 			println("<h3>Server</h3>");
 			println("<ul>");
-			println("<li><em>setup-id:</em> " + getValue("server-info", "setup-id") + "</li>");
+			println("<li><em>setupId:</em> " + getValue("serverInfo", "setupId") + "</li>");
 			println("<li><em>status:</em> " + status + "</li>");
-			println("<li><em>trust-state-counter:</em> " + getValue("server-info", "trust-state-counter") + "</li>");
-			println("<li><em>nanopub-counter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
-			println("<li><em>coverage-types:</em> " + getValue("server-info", "coverage-types") + "</li>");
-			println("<li><em>coverage-agents:</em> " + getValue("server-info", "coverage-agents") + "</li>");
+			println("<li><em>trustStateCounter:</em> " + getValue("serverInfo", "trustStateCounter") + "</li>");
+			println("<li><em>loadCounter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
+			println("<li><em>coverageTypes:</em> " + getValue("serverInfo", "coverageTypes") + "</li>");
+			println("<li><em>coverageAgents:</em> " + getValue("serverInfo", "coverageAgents") + "</li>");
 			println("</ul>");
 			println("<h3>Setting</h3>");
 			println("<ul>");
@@ -73,16 +73,16 @@ public class MainPage extends Page {
 			} else {
 				println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
 				println("<ul>");
-				MongoCursor<Document> agents = collection("agents").find(mongoSession).sort(descending("total-ratio")).limit(10).cursor();
+				MongoCursor<Document> agents = collection("agents").find(mongoSession).sort(descending("totalRatio")).limit(10).cursor();
 				while (agents.hasNext()) {
 					Document d = agents.next();
 					if (d.get("agent").equals("$")) continue;
 					String a = d.getString("agent");
-					int accountCount = d.getInteger("account-count");
+					int accountCount = d.getInteger("accountCount");
 					println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a>, " +
 							accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
-							"ratio " + df8.format(d.get("total-ratio")) + ", " +
-							"avg. path count " + df1.format(d.get("avg-path-count")) +
+							"ratio " + df8.format(d.get("totalRatio")) + ", " +
+							"avg. path count " + df1.format(d.get("avgPathCount")) +
 							"</li>");
 				}
 				println("</ul>");

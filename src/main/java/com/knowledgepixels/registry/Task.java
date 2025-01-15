@@ -62,7 +62,7 @@ public enum Task implements Serializable {
 			setStatus("launching");
 			increaseStateCounter();
 			if (RegistryDB.isInitialized()) throw new RuntimeException("DB already initialized");
-			setValue("server-info", "setup-id", Math.abs(new Random().nextLong()));
+			setValue("serverInfo", "setupId", Math.abs(new Random().nextLong()));
 			schedule(LOAD_CONFIG);
 		}
 
@@ -72,10 +72,10 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
-				setValue("server-info", "coverage-types", System.getenv("REGISTRY_COVERAGE_TYPES"));
+				setValue("serverInfo", "coverageTypes", System.getenv("REGISTRY_COVERAGE_TYPES"));
 			}
 			if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
-				setValue("server-info", "coverage-agents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
+				setValue("serverInfo", "coverageAgents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
 			setStatus("initializing");
 			schedule(LOAD_SETTING);
@@ -111,7 +111,7 @@ public enum Task implements Serializable {
 		public void run(Document taskDoc) throws Exception {
 			RegistryDB.initLoadingCollections();
 
-			insert("trust-paths_loading",
+			insert("trustPaths_loading",
 					new Document("_id", "$")
 						.append("sorthash", "")
 						.append("agent", "$")
@@ -129,7 +129,7 @@ public enum Task implements Serializable {
 				insert("endorsements_loading",
 						new Document("agent", "$")
 							.append("pubkey", "$")
-							.append("endorsed-nanopub", declarationAc)
+							.append("endorsedNanopub", declarationAc)
 							.append("source", getValue("setting", "current"))
 							.append("status", "to-retrieve")
 					);
@@ -187,21 +187,21 @@ public enum Task implements Serializable {
 			if (has("endorsements_loading", new Document("status", "to-retrieve"))) {
 				Document d = getOne("endorsements_loading", new Document("status", "to-retrieve"));
 
-				IntroNanopub agentIntro = getAgentIntro(d.getString("endorsed-nanopub"));
+				IntroNanopub agentIntro = getAgentIntro(d.getString("endorsedNanopub"));
 				if (agentIntro != null) {
 					String agentId = agentIntro.getUser().stringValue();
 
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
 						String pubkeyHash = Utils.getHash(kd.getPublicKeyString());
 						String sourceAc = d.getString("source");
-						Document trustEdge = new Document("from-agent", d.getString("agent"))
-								.append("from-pubkey", d.getString("pubkey"))
-								.append("to-agent", agentId)
-								.append("to-pubkey", pubkeyHash)
+						Document trustEdge = new Document("fromAgent", d.getString("agent"))
+								.append("fromPubkey", d.getString("pubkey"))
+								.append("toAgent", agentId)
+								.append("toPubkey", pubkeyHash)
 								.append("source", sourceAc);
-						if (!has("trust-edges", trustEdge)) {
-							boolean invalidated = has("invalidations", new Document("invalidated-np", sourceAc).append("invalidating-pubkey", pubkeyHash));
-							insert("trust-edges", trustEdge.append("invalidated", invalidated));
+						if (!has("trustEdges", trustEdge)) {
+							boolean invalidated = has("invalidations", new Document("invalidatedNp", sourceAc).append("invalidatingPubkey", pubkeyHash));
+							insert("trustEdges", trustEdge.append("invalidated", invalidated));
 						}
 
 						Document agent = new Document("agent", agentId).append("pubkey", pubkeyHash);
@@ -260,7 +260,7 @@ public enum Task implements Serializable {
 				String agentId = d.getString("agent");
 				String pubkeyHash = d.getString("pubkey");
 
-				Document trustPath = collection("trust-paths_loading").find(mongoSession,
+				Document trustPath = collection("trustPaths_loading").find(mongoSession,
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
 					).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
 
@@ -274,16 +274,16 @@ public enum Task implements Serializable {
 					Map<String,Set<String>> pubkeySets = new HashMap<>();
 					String currentSetting = getValue("setting", "current").toString();
 
-					MongoCursor<Document> edgeCursor = get("trust-edges",
-							new Document("from-agent", agentId)
-								.append("from-pubkey", pubkeyHash)
+					MongoCursor<Document> edgeCursor = get("trustEdges",
+							new Document("fromAgent", agentId)
+								.append("fromPubkey", pubkeyHash)
 								.append("invalidated", false)
 						);
 					while (edgeCursor.hasNext()) {
 						Document e = edgeCursor.next();
 
-						String agent = e.getString("to-agent");
-						String pubkey = e.getString("to-pubkey");
+						String agent = e.getString("toAgent");
+						String pubkey = e.getString("toPubkey");
 						String pathId = trustPath.getString("_id") + " " + agent + ">" + pubkey;
 						newPaths.put(pathId,
 								new Document("_id", pathId)
@@ -300,9 +300,9 @@ public enum Task implements Serializable {
 						Document pd = newPaths.get(pathId);
 						// first divide by agents; then for each agent, divide by number of pubkeys:
 						double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
-						insert("trust-paths_loading", pd.append("ratio", newRatio));
+						insert("trustPaths_loading", pd.append("ratio", newRatio));
 					}
-					set("trust-paths_loading", trustPath.append("type", "primary"));
+					set("trustPaths_loading", trustPath.append("type", "primary"));
 					set("accounts_loading", d.append("status", "expanded"));
 				}
 				schedule(EXPAND_TRUST_PATHS.with("depth", depth));
@@ -362,7 +362,7 @@ public enum Task implements Serializable {
 			if (agentAccount != null) {
 				agentId = agentAccount.getString("agent");
 				pubkeyHash = agentAccount.getString("pubkey");
-				trustPath = getOne("trust-paths_loading",
+				trustPath = getOne("trustPaths_loading",
 						new Document("depth", depth)
 							.append("agent", agentId)
 							.append("pubkey", pubkeyHash)
@@ -429,7 +429,7 @@ public enum Task implements Serializable {
 								String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
 								Document endorsement = new Document("agent", agentId)
 										.append("pubkey", pubkeyHash)
-										.append("endorsed-nanopub", endorsedNpId)
+										.append("endorsedNanopub", endorsedNpId)
 										.append("source", sourceNpId)
 										.append("status", "to-retrieve");
 								if (!has("endorsements_loading", endorsement)) {
@@ -452,7 +452,7 @@ public enum Task implements Serializable {
 							String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
 							Document endorsement = new Document("agent", agentId)
 									.append("pubkey", pubkeyHash)
-									.append("endorsed-nanopub", endorsedNpId)
+									.append("endorsedNanopub", endorsedNpId)
 									.append("source", sourceNpId)
 									.append("status", "to-retrieve");
 							if (!has("endorsements_loading", endorsement)) {
@@ -528,7 +528,7 @@ public enum Task implements Serializable {
 				double ratio = 0.0;
 				Map<String,Boolean> seenPathElements = new HashMap<>();
 				int pathCount = 0;
-				MongoCursor<Document> trustPaths = collection("trust-paths_loading").find(mongoSession,
+				MongoCursor<Document> trustPaths = collection("trustPaths_loading").find(mongoSession,
 						new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"))
 					).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor();
 				while (trustPaths.hasNext()) {
@@ -591,9 +591,9 @@ public enum Task implements Serializable {
 				}
 				collection("accounts_loading").updateMany(mongoSession, agentId, new Document("$set", new Document("status", "aggregated")));
 				insert("agents_loading",
-						agentId.append("account-count", count)
-							.append("avg-path-count", (double) pathCountSum / count)
-							.append("total-ratio", totalRatio)
+						agentId.append("accountCount", count)
+							.append("avgPathCount", (double) pathCountSum / count)
+							.append("totalRatio", totalRatio)
 					);
 				schedule(AGGREGATE_AGENTS);
 			}
@@ -655,17 +655,17 @@ public enum Task implements Serializable {
 		public void run(Document taskDoc) {
 
 			String newTrustStateHash = RegistryDB.calculateTrustStateHash();
-			String previousTrustStateHash = (String) getValue("server-info", "trust-state-hash");
+			String previousTrustStateHash = (String) getValue("serverInfo", "trustStateHash");
 
 			// Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
 			rename("accounts_loading", "accounts");
-			rename("trust-paths_loading", "trust-paths");
+			rename("trustPaths_loading", "trustPaths");
 			rename("agents_loading", "agents");
 			rename("endorsements_loading", "endorsements");
 
 			if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
 				increaseStateCounter();
-				setValue("server-info", "trust-state-hash", newTrustStateHash);
+				setValue("serverInfo", "trustStateHash", newTrustStateHash);
 			}
 			setStatus("ready");
 
@@ -959,11 +959,11 @@ public enum Task implements Serializable {
 	}
 
 	private static void setStatus(String status) {
-		setValue("server-info", "status", status);
+		setValue("serverInfo", "status", status);
 	}
 
 	private static String getStatus() {
-		return getValue("server-info", "status").toString();
+		return getValue("serverInfo", "status").toString();
 	}
 
 	private static void schedule(Task task) {

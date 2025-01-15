@@ -60,7 +60,7 @@ public class NanopubPage extends Page {
 				printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
 				println("<h1>Nanopublication</h1>");
 				println("<h3>ID</h3>");
-				String fullId = npDoc.getString("full-id");
+				String fullId = npDoc.getString("fullId");
 				println("<p><a href=\"" + fullId + "\"><code>" + fullId + "</code></a></p>");
 				println("<h3>Content</h3>");
 				println("<pre>");

@@ -144,9 +144,9 @@ public class ListPage extends Page {
 			println("<p><a href=\"" + agentId + "\"><code>" + agentId + "</code></a></p>");
 			println("<h3>Properties</h3>");
 			println("<ul>");
-			println("<li>Account count: " + agentDoc.get("account-count") + "</li>");
-			println("<li>Average path count: " + agentDoc.get("avg-path-count") + "</li>");
-			println("<li>Total ratio: " + agentDoc.get("total-ratio") + "</li>");
+			println("<li>Account count: " + agentDoc.get("accountCount") + "</li>");
+			println("<li>Average path count: " + agentDoc.get("avgPathCount") + "</li>");
+			println("<li>Total ratio: " + agentDoc.get("totalRatio") + "</li>");
 			println("</ul>");
 			println("<h3>Accounts</h3>");
 			println("<ul>");
@@ -168,16 +168,16 @@ public class ListPage extends Page {
 			println("<h1>List of Agents</h1>");
 			println("<h3>Agents</h3>");
 			println("<ol>");
-			MongoCursor<Document> agentList = collection("agents").find(mongoSession).sort(descending("total-ratio")).cursor();
+			MongoCursor<Document> agentList = collection("agents").find(mongoSession).sort(descending("totalRatio")).cursor();
 			while (agentList.hasNext()) {
 				Document d = agentList.next();
 				if (d.get("agent").equals("$")) continue;
 				String a = d.getString("agent");
-				int accountCount = d.getInteger("account-count");
+				int accountCount = d.getInteger("accountCount");
 				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a> (" + d.get("status") + "), " +
 						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
-						"ratio " + df8.format(d.get("total-ratio")) + ", " +
-						"avg. path count " + df1.format(d.get("avg-path-count")) +
+						"ratio " + df8.format(d.get("totalRatio")) + ", " +
+						"avg. path count " + df1.format(d.get("avgPathCount")) +
 						"</li>");
 			}
 			println("</ol>");
