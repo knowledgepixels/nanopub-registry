@@ -81,7 +81,7 @@ public class Utils {
 	}
 
 	public static String getAgentLabel(String agentId) {
-		agentId = agentId.replaceFirst("https?://", "");
+		agentId = agentId.replaceFirst("^https://orcid\\.org/", "orcid:");
 		if (agentId.length() > 55) return agentId.substring(0, 50) + "...";
 		return agentId;
 	}
