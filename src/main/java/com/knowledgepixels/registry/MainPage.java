@@ -62,9 +62,9 @@ public class MainPage extends Page {
 			println("<h3>Setting</h3>");
 			println("<ul>");
 			String oSetting = getValue("setting", "original").toString();
-			println("<li><em>original:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting + "</code></a></li>");
+			println("<li><em>original:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");
 			String cSetting = getValue("setting", "current").toString();
-			println("<li><em>current:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting + "</code></a></li>");
+			println("<li><em>current:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
 			println("</ul>");
 
 			println("<h3>Agents</h3>");
