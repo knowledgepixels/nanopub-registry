@@ -877,7 +877,7 @@ public enum Task implements Serializable {
 	};
 
 	private static final boolean PEER_LOADING_TESTING_MODE = false;
-	private static final boolean PERFORM_FULL_LOAD = false;
+	private static final boolean PERFORM_FULL_LOAD = true;
 
 	public abstract void run(Document taskDoc) throws Exception;
 
