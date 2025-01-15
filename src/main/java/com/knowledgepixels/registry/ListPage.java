@@ -3,9 +3,12 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.MainPage.df1;
 import static com.knowledgepixels.registry.MainPage.df8;
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.mongoSession;
-import static com.mongodb.client.model.Aggregates.*;
+import static com.mongodb.client.model.Aggregates.lookup;
+import static com.mongodb.client.model.Aggregates.match;
+import static com.mongodb.client.model.Aggregates.project;
+import static com.mongodb.client.model.Aggregates.sort;
+import static com.mongodb.client.model.Aggregates.unwind;
 import static com.mongodb.client.model.Indexes.ascending;
 import static com.mongodb.client.model.Indexes.descending;
 
@@ -64,11 +67,11 @@ public class ListPage extends Page {
 						project(new Document("jelly", "$nanopub.jelly")),
 						unwind("$jelly")
 				);
-				var result = collection("list-entries").aggregate(mongoSession, pipeline);
+				var result = collection("listEntries").aggregate(mongoSession, pipeline);
 				NanopubStream npStream = NanopubStream.fromMongoCursor(result.cursor());
 				npStream.writeToByteStream(getResp().getOutputStream());
 			} else {
-				MongoCursor<Document> entries = collection("list-entries").find(mongoSession,
+				MongoCursor<Document> entries = collection("listEntries").find(mongoSession,
 						new Document("pubkey", pubkey)
 								.append("type", type)
 				).sort(ascending("position")).cursor();
@@ -157,8 +160,10 @@ public class ListPage extends Page {
 			while (accountList.hasNext()) {
 				Document d = accountList.next();
 				String pubkey = d.getString("pubkey");
+//				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
+//				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
+//				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
 				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), " +
-						"nanopub count " + getMaxValue("listEntries", new Document("pubkey", pubkey), "position") + ", " +
 						"quota " + d.get("quota") + ", " +
 						"ratio " + df8.format(d.get("ratio")) + ", " +
 						"path count " + d.get("pathCount") +
