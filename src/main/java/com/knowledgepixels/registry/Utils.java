@@ -80,6 +80,12 @@ public class Utils {
 		return type.substring(0, 10);
 	}
 
+	public static String getAgentLabel(String agentId) {
+		agentId = agentId.replaceFirst("https?://", "");
+		if (agentId.length() > 55) return agentId.substring(0, 50) + "...";
+		return agentId;
+	}
+
 	public static boolean isUnloadedStatus(String status) {
 		if (status.equals("seen")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("skipped")) return true;
