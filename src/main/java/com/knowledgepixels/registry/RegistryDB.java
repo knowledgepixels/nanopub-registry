@@ -114,7 +114,7 @@ public class RegistryDB {
 		collection("accounts_loading").createIndex(mongoSession, ascending("type"));
 		collection("accounts_loading").createIndex(mongoSession, ascending("status"));
 		collection("accounts_loading").createIndex(mongoSession, descending("ratio"));
-		collection("accounts_loading").createIndex(mongoSession, descending("path-count"));
+		collection("accounts_loading").createIndex(mongoSession, descending("pathCount"));
 
 		collection("trustPaths_loading").createIndex(mongoSession, ascending("agent", "pubkey", "depth", "sorthash"), unique);
 		collection("trustPaths_loading").createIndex(mongoSession, ascending("depth"));
@@ -436,7 +436,7 @@ public class RegistryDB {
 		String s = "";
 		while (tp.hasNext()) {
 			Document d = tp.next();
-			s += " | " + d.getString("_id") + " (" + d.getString("type") + ")";
+			s += d.getString("_id") + " (" + d.getString("type") + ")\n";
 		}
 		return Utils.getHash(s);
 	}

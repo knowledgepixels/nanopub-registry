@@ -98,7 +98,9 @@ public enum Task implements Serializable {
 			setValue("setting", "bootstrap-services", bootstrapServices);
 			setStatus("loading");
 			schedule(INIT_COLLECTIONS);
-			schedule(LOAD_FULL.withDelay(60 * 1000));
+			if (PERFORM_FULL_LOAD) {
+				schedule(LOAD_FULL.withDelay(60 * 1000));
+			}
 		}
 
 	},
@@ -430,10 +432,9 @@ public enum Task implements Serializable {
 								Document endorsement = new Document("agent", agentId)
 										.append("pubkey", pubkeyHash)
 										.append("endorsedNanopub", endorsedNpId)
-										.append("source", sourceNpId)
-										.append("status", "to-retrieve");
+										.append("source", sourceNpId);
 								if (!has("endorsements_loading", endorsement)) {
-									insert("endorsements_loading", endorsement);
+									insert("endorsements_loading", endorsement.append("status", "to-retrieve"));
 								}
 							}
 						}
@@ -453,10 +454,9 @@ public enum Task implements Serializable {
 							Document endorsement = new Document("agent", agentId)
 									.append("pubkey", pubkeyHash)
 									.append("endorsedNanopub", endorsedNpId)
-									.append("source", sourceNpId)
-									.append("status", "to-retrieve");
+									.append("source", sourceNpId);
 							if (!has("endorsements_loading", endorsement)) {
-								insert("endorsements_loading", endorsement);
+								insert("endorsements_loading", endorsement.append("status", "to-retrieve"));
 							}
 						}
 					});
@@ -557,7 +557,7 @@ public enum Task implements Serializable {
 				set("accounts_loading",
 						d.append("status", "processed")
 							.append("ratio", ratio)
-							.append("path-count", pathCount)
+							.append("pathCount", pathCount)
 							.append("quota", quota)
 					);
 				schedule(CALCULATE_TRUST_SCORES);
@@ -586,7 +586,7 @@ public enum Task implements Serializable {
 				while (agentAccounts.hasNext()) {
 					Document d = agentAccounts.next();
 					count++;
-					pathCountSum += d.getInteger("path-count");
+					pathCountSum += d.getInteger("pathCount");
 					totalRatio += d.getDouble("ratio");
 				}
 				collection("accounts_loading").updateMany(mongoSession, agentId, new Document("$set", new Document("status", "aggregated")));
@@ -644,8 +644,21 @@ public enum Task implements Serializable {
 					set("accounts_loading", d.append("status", "loaded"));
 				}
 			}
-			schedule(RELEASE_DATA);
+			schedule(FINALIZE_TRUST_STATE);
 			
+		}
+		
+	},
+
+	FINALIZE_TRUST_STATE {
+
+		// We do this is a separate task/transaction, because if we do it at the beginning of RELEASE_DATA, that task hangs and cannot
+		// properly re-run (as some renaming outside of transactions will have taken place).
+		public void run(Document taskDoc) {
+			String newTrustStateHash = RegistryDB.calculateTrustStateHash();
+			String previousTrustStateHash = (String) getValue("serverInfo", "trustStateHash");
+
+			schedule(RELEASE_DATA.with("newTrustStateHash", newTrustStateHash).append("previousTrustStateHash", previousTrustStateHash));
 		}
 		
 	},
@@ -654,8 +667,8 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 
-			String newTrustStateHash = RegistryDB.calculateTrustStateHash();
-			String previousTrustStateHash = (String) getValue("serverInfo", "trustStateHash");
+			String newTrustStateHash = taskDoc.getString("newTrustStateHash");
+			String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");
 
 			// Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
 			rename("accounts_loading", "accounts");
@@ -695,6 +708,8 @@ public enum Task implements Serializable {
 	LOAD_FULL {
 
 		public void run(Document taskDoc) {
+			if (!PERFORM_FULL_LOAD) return;
+
 			if (getOne("accounts", new Document()) == null) {
 				System.err.println("Accounts not yet initialized; checking again later");
 				schedule(LOAD_FULL.withDelay(60 * 1000));
@@ -862,6 +877,7 @@ public enum Task implements Serializable {
 	};
 
 	private static final boolean PEER_LOADING_TESTING_MODE = false;
+	private static final boolean PERFORM_FULL_LOAD = false;
 
 	public abstract void run(Document taskDoc) throws Exception;
 

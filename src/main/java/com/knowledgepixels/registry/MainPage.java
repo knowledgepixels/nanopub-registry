@@ -86,7 +86,7 @@ public class MainPage extends Page {
 							"</li>");
 				}
 				println("</ul>");
-				println("<p><a href=\"/agents\">&gt; Full list</a></pi>");
+				println("<p><a href=\"/agents\">&gt; All</a></pi>");
 			}
 
 			println("<h3>Accounts</h3>");
@@ -95,18 +95,21 @@ public class MainPage extends Page {
 			} else {
 				println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");
 				println("<ul>");
-				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).limit(10).cursor();
-				String previous = null;
+				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).limit(11).cursor();
 				while (accountList.hasNext()) {
 					Document d = accountList.next();
 					String pubkey = d.getString("pubkey");
-					if (!pubkey.equals(previous) && !pubkey.equals("$")) {
-						println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey.substring(0, 10) + "</code></a> (" + d.get("status") + ")</li>");
+					if (!pubkey.equals("$")) {
+						println("<li>");
+						println("<a href=\"/list/" + pubkey + "\"><code>" + pubkey.substring(0, 10) + "</code></a>");
+						String a = d.getString("agent");
+						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+						println(" (" + d.get("status") + ") ");
+						println("</li>");
 					}
-					previous = pubkey;
 				}
 				println("</ul>");
-				println("<p><a href=\"/list\">&gt; Full list</a></pi>");
+				println("<p><a href=\"/list\">&gt; All</a></pi>");
 			}
 
 			println("<h3>Nanopubs</h3>");
@@ -118,7 +121,7 @@ public class MainPage extends Page {
 				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id").substring(0, 10) + "</code></a></li>");
 			}
 			println("</ul>");
-			println("<p><a href=\"/nanopubs\">&gt; Latest 1000</a></pi>");
+			println("<p><a href=\"/nanopubs\">&gt; Latest</a></pi>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {

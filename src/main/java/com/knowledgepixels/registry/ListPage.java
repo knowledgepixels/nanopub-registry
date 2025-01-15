@@ -123,14 +123,17 @@ public class ListPage extends Page {
 				println("<h3>Accounts</h3>");
 				println("<ol>");
 				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).cursor();
-				String previous = null;
 				while (accountList.hasNext()) {
 					Document d = accountList.next();
 					String pubkey = d.getString("pubkey");
-					if (!pubkey.equals(previous) && !pubkey.equals("$")) {
-						println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + ")</li>");
+					if (!pubkey.equals("$")) {
+						println("<li>");
+						println("<a href=\"/list/" + pubkey + "\"><code>" + pubkey.substring(0, 10) + "</code></a>");
+						String a = d.getString("agent");
+						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+						println(" (" + d.get("status") + ") ");
+						println("</li>");
 					}
-					previous = pubkey;
 				}
 				println("</ol>");
 				printHtmlFooter();
@@ -155,10 +158,10 @@ public class ListPage extends Page {
 				Document d = accountList.next();
 				String pubkey = d.getString("pubkey");
 				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), " +
-						"nanopub count " + getMaxValue("list-entries", new Document("pubkey", pubkey), "position") + ", " +
+						"nanopub count " + getMaxValue("listEntries", new Document("pubkey", pubkey), "position") + ", " +
 						"quota " + d.get("quota") + ", " +
 						"ratio " + df8.format(d.get("ratio")) + ", " +
-						"path count " + d.get("path-count") +
+						"path count " + d.get("pathCount") +
 						"</li>");
 			}
 			println("</ul>");
@@ -174,7 +177,7 @@ public class ListPage extends Page {
 				if (d.get("agent").equals("$")) continue;
 				String a = d.getString("agent");
 				int accountCount = d.getInteger("accountCount");
-				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + a + "</a> (" + d.get("status") + "), " +
+				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " +
 						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
 						"ratio " + df8.format(d.get("totalRatio")) + ", " +
 						"avg. path count " + df1.format(d.get("avgPathCount")) +
@@ -190,7 +193,7 @@ public class ListPage extends Page {
 			MongoCursor<Document> nanopubs = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
 			while (nanopubs.hasNext()) {
 				Document d = nanopubs.next();
-				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id") + "</code></a></li>");
+				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id").substring(0, 10) + "</code></a></li>");
 			}
 			println("</ol>");
 			printHtmlFooter();
