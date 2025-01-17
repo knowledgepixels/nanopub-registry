@@ -11,10 +11,10 @@ import static com.mongodb.client.model.Aggregates.sort;
 import static com.mongodb.client.model.Aggregates.unwind;
 import static com.mongodb.client.model.Indexes.ascending;
 import static com.mongodb.client.model.Indexes.descending;
+import static com.mongodb.client.model.Projections.exclude;
 
 import java.io.IOException;
 import java.net.URLEncoder;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.bson.Document;
@@ -181,32 +181,42 @@ public class ListPage extends Page {
 			println("</ul>");
 			printHtmlFooter();
 		} else if (req.equals("/agents")) {
-			printHtmlHeader("List of agents - Nanopub Registry");
-			println("<h1>List of Agents</h1>");
-			println("<h3>Agents</h3>");
-			println("<ol>");
-			MongoCursor<Document> agentList = collection("agents").find(mongoSession).sort(descending("totalRatio")).cursor();
-			while (agentList.hasNext()) {
-				Document d = agentList.next();
-				if (d.get("agent").equals("$")) continue;
-				String a = d.getString("agent");
-				int accountCount = d.getInteger("accountCount");
-				println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " +
-						accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
-						"ratio " + df8.format(d.get("totalRatio")) + ", " +
-						"avg. path count " + df1.format(d.get("avgPathCount")) +
-						"</li>");
-			}
-			println("</ol>");
-			printHtmlFooter();
-		} else if (req.equals("/latestNanopubs")) {
-			List<String> latestNanopubIds = new ArrayList<String>();
-			MongoCursor<Document> nanopubCursor = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
-			while (nanopubCursor.hasNext()) {
-				latestNanopubIds.add(0, nanopubCursor.next().getString("_id"));
-			}
+			MongoCursor<Document> c = collection("agents").find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
 			if ("application/json".equals(format)) {
-				print(gson.toJson(latestNanopubIds));
+				println("[");
+				while (c.hasNext()) {
+					print(c.next().toJson());
+					println(c.hasNext() ? "," : "");
+				}
+				println("]");
+			} else {
+				printHtmlHeader("List of agents - Nanopub Registry");
+				println("<h1>List of Agents</h1>");
+				println("<h3>Agents</h3>");
+				println("<ol>");
+				while (c.hasNext()) {
+					Document d = c.next();
+					if (d.get("agent").equals("$")) continue;
+					String a = d.getString("agent");
+					int accountCount = d.getInteger("accountCount");
+					println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " +
+							accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
+							"ratio " + df8.format(d.get("totalRatio")) + ", " +
+							"avg. path count " + df1.format(d.get("avgPathCount")) +
+							"</li>");
+				}
+				println("</ol>");
+				printHtmlFooter();
+			}
+		} else if (req.equals("/latestNanopubs")) {
+			MongoCursor<Document> c = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
+			if ("application/json".equals(format)) {
+				println("[");
+				while (c.hasNext()) {
+					print(gson.toJson(c.next().getString("_id")));
+					println(c.hasNext() ? "," : "");
+				}
+				println("]");
 			} else {
 				printHtmlHeader("Latest nanopubs - Nanopub Registry");
 				println("<h1>List of Nanopubs</h1>");
@@ -217,8 +227,9 @@ public class ListPage extends Page {
 				println("</p>");
 				println("<h3>Latest Nanopubs (max. 1000)</h3>");
 				println("<ol>");
-				for (String id : latestNanopubIds) {
-					println("<li><a href=\"/np/" + id + "\"><code>" + id.substring(0, 10) + "</code></a></li>");
+				while (c.hasNext()) {
+					String npId = c.next().getString("_id");
+					println("<li><a href=\"/np/" + npId + "\"><code>" + npId.substring(0, 10) + "</code></a></li>");
 				}
 				println("</ol>");
 				printHtmlFooter();
