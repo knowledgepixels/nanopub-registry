@@ -86,10 +86,24 @@ public class NanopubLoader {
 
 	public static Nanopub retrieveNanopub(String nanopubId) {
 		Nanopub np = retrieveLocalNanopub(nanopubId);
-		if (np == null) {
+		int tryCount = 0;
+		while (np == null) {
+			if (tryCount > 10) {
+				throw new RuntimeException("Could not load nanopub: " + nanopubId);
+			} else if (tryCount > 0) {
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException ex) {
+					ex.printStackTrace();
+				}
+			}
 			System.err.println("Loading " + nanopubId);
 			np = GetNanopub.get(nanopubId);
-			RegistryDB.loadNanopub(np);
+			if (np != null) {
+				RegistryDB.loadNanopub(np);
+			} else {
+				tryCount = tryCount + 1;
+			}
 		}
 		return np;
 	}
