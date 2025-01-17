@@ -37,6 +37,13 @@ public class NanopubPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
+
+		if (getReq().getPresentationFormat() != null) {
+			getResp().setContentType(getReq().getPresentationFormat());
+		} else {
+			getResp().setContentType(format);
+		}
+
 		if (req.matches("/np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
 			String ac = req.replaceFirst("/np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
 			Document npDoc = collection("nanopubs").find(new Document("_id", ac)).first();
@@ -62,6 +69,13 @@ public class NanopubPage extends Page {
 				println("<h3>ID</h3>");
 				String fullId = npDoc.getString("fullId");
 				println("<p><a href=\"" + fullId + "\"><code>" + fullId + "</code></a></p>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"/np/" + ac + ".trig\">.trig</a> |");
+				println("<a href=\"/np/" + ac + ".trig.txt\">.trig.txt</a> |");
+				println("<a href=\"/np/" + ac + ".jelly\">.jelly</a> |");
+				println("<a href=\"/np/" + ac + ".jelly.txt\">.jelly.txt</a>");
+				println("</p>");
 				println("<h3>Content</h3>");
 				println("<pre>");
 				println(StringEscapeUtils.escapeHtml(npDoc.getString("content")));
@@ -72,10 +86,6 @@ public class NanopubPage extends Page {
 			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
 			return;
 		}
-//		if (url != null && !url.isEmpty()) {
-//			setCanonicalLink(url);
-//		}
-		getResp().setContentType(format);
 	}
 
 }

@@ -54,11 +54,16 @@ public class ListPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
-		getResp().setContentType(format);
+
+		if (getReq().getPresentationFormat() != null) {
+			getResp().setContentType(getReq().getPresentationFormat());
+		} else {
+			getResp().setContentType(format);
+		}
+
 		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
 			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
-	//		String url = ServerConf.getInfo().getPublicUrl();
 
 			if ("application/json".equals(format)) {
 				// TODO
@@ -205,6 +210,11 @@ public class ListPage extends Page {
 			} else {
 				printHtmlHeader("Latest nanopubs - Nanopub Registry");
 				println("<h1>List of Nanopubs</h1>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"latestNanopubs.json\">.json</a> |");
+				println("<a href=\"latestNanopubs.json.txt\">.json.txt</a>");
+				println("</p>");
 				println("<h3>Latest Nanopubs (max. 1000)</h3>");
 				println("<ol>");
 				for (String id : latestNanopubIds) {

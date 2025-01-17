@@ -43,13 +43,24 @@ public class MainPage extends Page {
 			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
 			return;
 		}
-//		String url = ServerConf.getInfo().getPublicUrl();
+
+		if (getReq().getPresentationFormat() != null) {
+			getResp().setContentType(getReq().getPresentationFormat());
+		} else {
+			getResp().setContentType(format);
+		}
+
 		if ("application/json".equals(format)) {
 			println(RegistryInfo.getLocal().asJson());
 		} else {
 			String status = getValue("serverInfo", "status").toString();
 			printHtmlHeader("Nanopub Registry - alpha");
 			println("<h1>Nanopub Registry - alpha</h1>");
+			println("<h3>Formats</h3>");
+			println("<p>");
+			println("<a href=\".json\">.json</a> |");
+			println("<a href=\".json.txt\">.json.txt</a>");
+			println("</p>");
 			println("<h3>Server</h3>");
 			println("<ul>");
 			println("<li><em>setupId:</em> " + getValue("serverInfo", "setupId") + "</li>");
@@ -124,10 +135,6 @@ public class MainPage extends Page {
 			println("<p><a href=\"/latestNanopubs\">&gt; Latest</a></pi>");
 			printHtmlFooter();
 		}
-//		if (url != null && !url.isEmpty()) {
-//			setCanonicalLink(url);
-//		}
-		getResp().setContentType(format);
 	}
 
 }
