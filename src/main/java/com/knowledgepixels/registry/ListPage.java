@@ -14,17 +14,21 @@ import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
+import com.google.gson.Gson;
 import com.knowledgepixels.registry.jelly.NanopubStream;
 import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 public class ListPage extends Page {
+
+	private static Gson gson = new Gson();
 
 	public static void show(ServerRequest req, HttpServletResponse httpResp) throws IOException {
 		ListPage obj = new ListPage(req, httpResp);
@@ -50,9 +54,10 @@ public class ListPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
-		if (req.matches("list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
-			String pubkey = req.replaceFirst("list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
-			String type = req.replaceFirst("list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
+		getResp().setContentType(format);
+		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
+			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
+			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 	//		String url = ServerConf.getInfo().getPublicUrl();
 
 			if ("application/json".equals(format)) {
@@ -91,8 +96,8 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.matches("list/[0-9a-f]{64}")) {
-			String pubkey = req.replaceFirst("list/([0-9a-f]{64})", "$1");
+		} else if (req.matches("/list/[0-9a-f]{64}")) {
+			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
 //			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
 				// TODO
@@ -115,10 +120,9 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("list")) {
+		} else if (req.equals("/list")) {
 //			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
-				// TODO
 				//println(ServerConf.getInfo().asJson());
 			} else {
 				printHtmlHeader("List of accounts - Nanopub Registry");
@@ -141,7 +145,7 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("agent") && getReq().getHttpRequest().getParameter("id") != null) {
+		} else if (req.equals("/agent") && getReq().getHttpRequest().getParameter("id") != null) {
 			String agentId = getReq().getHttpRequest().getParameter("id");
 			Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
 			printHtmlHeader("Agent " + agentId + " - Nanopub Registry");
@@ -171,7 +175,7 @@ public class ListPage extends Page {
 			}
 			println("</ul>");
 			printHtmlFooter();
-		} else if (req.equals("agents")) {
+		} else if (req.equals("/agents")) {
 			printHtmlHeader("List of agents - Nanopub Registry");
 			println("<h1>List of Agents</h1>");
 			println("<h3>Agents</h3>");
@@ -190,26 +194,29 @@ public class ListPage extends Page {
 			}
 			println("</ol>");
 			printHtmlFooter();
-		} else if (req.equals("nanopubs")) {
-			printHtmlHeader("Latest nanopubs - Nanopub Registry");
-			println("<h1>List of Nanopubs</h1>");
-			println("<h3>Latest Nanopubs (max. 1000)</h3>");
-			println("<ol>");
-			MongoCursor<Document> nanopubs = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
-			while (nanopubs.hasNext()) {
-				Document d = nanopubs.next();
-				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id").substring(0, 10) + "</code></a></li>");
+		} else if (req.equals("/latestNanopubs")) {
+			List<String> latestNanopubIds = new ArrayList<String>();
+			MongoCursor<Document> nanopubCursor = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
+			while (nanopubCursor.hasNext()) {
+				latestNanopubIds.add(0, nanopubCursor.next().getString("_id"));
 			}
-			println("</ol>");
-			printHtmlFooter();
+			if ("application/json".equals(format)) {
+				print(gson.toJson(latestNanopubIds));
+			} else {
+				printHtmlHeader("Latest nanopubs - Nanopub Registry");
+				println("<h1>List of Nanopubs</h1>");
+				println("<h3>Latest Nanopubs (max. 1000)</h3>");
+				println("<ol>");
+				for (String id : latestNanopubIds) {
+					println("<li><a href=\"/np/" + id + "\"><code>" + id.substring(0, 10) + "</code></a></li>");
+				}
+				println("</ol>");
+				printHtmlFooter();
+			}
 		} else {
 			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
 			return;
 		}
-//		if (url != null && !url.isEmpty()) {
-//			setCanonicalLink(url);
-//		}
-		getResp().setContentType(format);
 	}
 
 }

@@ -37,8 +37,8 @@ public class NanopubPage extends Page {
 			getResp().sendError(400, "Invalid request: " + req);
 			return;
 		}
-		if (req.matches("np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
-			String ac = req.replaceFirst("np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
+		if (req.matches("/np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
+			String ac = req.replaceFirst("/np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
 			Document npDoc = collection("nanopubs").find(new Document("_id", ac)).first();
 			if (npDoc == null) {
 				//getResp().sendError(404, "Not found: " + ac);

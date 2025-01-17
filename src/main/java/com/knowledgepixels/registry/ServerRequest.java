@@ -47,7 +47,7 @@ public class ServerRequest {
 	}
 
 	public String getRequestString() {
-		return requestString;
+		return "/" + requestString;
 	}
 
 	public String getFullRequest() {

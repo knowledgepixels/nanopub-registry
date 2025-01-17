@@ -121,7 +121,7 @@ public class MainPage extends Page {
 				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id").substring(0, 10) + "</code></a></li>");
 			}
 			println("</ul>");
-			println("<p><a href=\"/nanopubs\">&gt; Latest</a></pi>");
+			println("<p><a href=\"/latestNanopubs\">&gt; Latest</a></pi>");
 			printHtmlFooter();
 		}
 //		if (url != null && !url.isEmpty()) {
