@@ -108,7 +108,7 @@ public enum Task implements Serializable {
 	INIT_COLLECTIONS {
 
 		// DB read from:
-		// DB write to:  trust-paths, endorsements, accounts
+		// DB write to:  trustPaths, endorsements, accounts
 
 		public void run(Document taskDoc) throws Exception {
 			RegistryDB.initLoadingCollections();
@@ -179,8 +179,8 @@ public enum Task implements Serializable {
 		//
 		// ------------------------------------------------------------
 
-		// DB read from: endorsements, trust-edges, accounts
-		// DB write to:  endorsements, trust-edges, accounts
+		// DB read from: endorsements, trustEdges, accounts
+		// DB write to:  endorsements, trustEdges, accounts
 
 		public void run(Document taskDoc) {
 
@@ -246,8 +246,8 @@ public enum Task implements Serializable {
 
 	EXPAND_TRUST_PATHS {
 
-		// DB read from: accounts, trust-paths, trust-edges
-		// DB write to:  accounts, trust-paths
+		// DB read from: accounts, trustPaths, trustEdges
+		// DB write to:  accounts, trustPaths
 
 		public void run(Document taskDoc) {
 
@@ -350,7 +350,7 @@ public enum Task implements Serializable {
 		//
 		// ------------------------------------------------------------
 
-		// DB read from: accounts, trust-paths, endorsements, lists
+		// DB read from: accounts, trustPaths, endorsements, lists
 		// DB write to:  accounts, endorsements, lists
 
 		public void run(Document taskDoc) {
@@ -516,7 +516,7 @@ public enum Task implements Serializable {
 
 	CALCULATE_TRUST_SCORES {
 
-		// DB read from: accounts, trust-paths
+		// DB read from: accounts, trustPaths
 		// DB write to:  accounts
 
 		public void run(Document taskDoc) {
