@@ -33,7 +33,7 @@ public class DebugPage extends Page {
 				resp.getOutputStream().print(getTrustPathsTxt());
 			} else {
 				Long counter = Long.parseLong(counterString);
-				resp.getOutputStream().println(RegistryDB.getOne("debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
+				resp.getOutputStream().print(RegistryDB.getOne("debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
 			}
 			resp.setContentType("text/plain");
 		} else if (r.getRequestString().matches("/debug/endorsements")) {
