@@ -47,8 +47,6 @@ public abstract class Page {
 		println("<meta charset=\"utf-8\"/>");
 		println("<script type=\"text/javascript\" src=\"/scripts/nanopub.js\"></script>");
 		println("<link rel=\"stylesheet\" href=\"/style/plain.css\" type=\"text/css\" media=\"screen\" title=\"Stylesheet\" />");
-		// TODO favicon.ico is currently broken:
-		//println("<link rel=\"icon\" href=\"style/favicon.ico\" type=\"image/x-icon\" />");
 		println("</head><body>");
 	}
 

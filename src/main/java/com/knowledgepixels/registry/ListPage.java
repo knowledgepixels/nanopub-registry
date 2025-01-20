@@ -67,7 +67,6 @@ public class ListPage extends Page {
 
 			if ("application/json".equals(format)) {
 				// TODO
-				//println(ServerConf.getInfo().asJson());
 			} else if ("application/x-jelly-rdf".equals(format)) {
 				// Return all nanopubs in the list as a single Jelly stream
 				List<Bson> pipeline = List.of(
@@ -103,10 +102,8 @@ public class ListPage extends Page {
 			}
 		} else if (req.matches("/list/[0-9a-f]{64}")) {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
-//			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
 				// TODO
-				//println(ServerConf.getInfo().asJson());
 			} else {
 				printHtmlHeader("Account list for pubkey " + pubkey.substring(0, 10) + " - Nanopub Registry");
 				println("<h1>Account List</h1>");
@@ -126,9 +123,8 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else if (req.equals("/list")) {
-//			String url = ServerConf.getInfo().getPublicUrl();
 			if ("application/json".equals(format)) {
-				//println(ServerConf.getInfo().asJson());
+				// TODO
 			} else {
 				printHtmlHeader("List of accounts - Nanopub Registry");
 				println("<h1>List of Accounts</h1>");
