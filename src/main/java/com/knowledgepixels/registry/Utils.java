@@ -99,7 +99,7 @@ public class Utils {
 		if (status.equals("aggregated")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("approved")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("contested")) return true;
-		if (status.equals("to-load")) return true;  // only exists in "accounts_loading"?
+		if (status.equals("toLoad")) return true;  // only exists in "accounts_loading"?
 		if (status.equals("loaded")) return true;
 		return false;
 	}

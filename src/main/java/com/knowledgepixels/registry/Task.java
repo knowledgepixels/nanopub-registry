@@ -640,7 +640,7 @@ public enum Task implements Serializable {
 				// TODO Consider quota too:
 				Document accountId = new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"));
 				if (collection("accounts") == null || !has("accounts", accountId.append("status", "loaded"))) {
-					set("accounts_loading", d.append("status", "to-load"));
+					set("accounts_loading", d.append("status", "toLoad"));
 				} else {
 					set("accounts_loading", d.append("status", "loaded"));
 				}
@@ -721,7 +721,7 @@ public enum Task implements Serializable {
 				schedule(LOAD_FULL.withDelay(60 * 1000));
 				return;
 			}
-			Document a = getOne("accounts", new Document("status", "to-load"));
+			Document a = getOne("accounts", new Document("status", "toLoad"));
 			if (a == null) {
 				System.err.println("Nothing to load; scheduling optional loading checks");
 				schedule(CHECK_MORE_PUBKEYS.withDelay(100));
