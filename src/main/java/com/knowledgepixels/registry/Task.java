@@ -680,6 +680,11 @@ public enum Task implements Serializable {
 			if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
 				increaseStateCounter();
 				setValue("serverInfo", "trustStateHash", newTrustStateHash);
+				insert("debug_trustPaths", new Document()
+						.append("trustStateTxt", DebugPage.getTrustPathsTxt())
+						.append("trustStateHash", newTrustStateHash)
+						.append("trustStateCounter", getValue("serverInfo", "trustStateCounter"))
+					);
 			}
 			setStatus("ready");
 

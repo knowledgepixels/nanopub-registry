@@ -1,14 +1,6 @@
 package com.knowledgepixels.registry;
 
-import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.mongoSession;
-import static com.mongodb.client.model.Indexes.ascending;
-
 import java.io.IOException;
-
-import org.bson.Document;
-
-import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -45,27 +37,8 @@ public class RegistryServlet extends HttpServlet {
 				ListPage.show(r, resp);
 			} else if (r.getRequestString().matches("/np(/.*)?")) {
 				NanopubPage.show(r, resp);
-			} else if (r.getRequestString().matches("/debug/trustPaths")) {
-				MongoCursor<Document> tp = collection("trustPaths").find(mongoSession).sort(ascending("_id")).cursor();
-				while (tp.hasNext()) {
-					Document d = tp.next();
-					resp.getOutputStream().println(d.get("_id") + " (" + d.get("type") + ")");
-				}
-				resp.setContentType("text/plain");
-			} else if (r.getRequestString().matches("/debug/endorsements")) {
-				MongoCursor<Document> tp = collection("endorsements").find(mongoSession).cursor();
-				while (tp.hasNext()) {
-					Document d = tp.next();
-					resp.getOutputStream().println(d.get("agent") + ">" + d.get("pubkey") + " " + d.get("endorsedNanopub") + " " + d.get("source") + " (" + d.get("status") + ")");
-				}
-				resp.setContentType("text/plain");
-			} else if (r.getRequestString().matches("/debug/accounts")) {
-				MongoCursor<Document> tp = collection("accounts").find(mongoSession).cursor();
-				while (tp.hasNext()) {
-					Document d = tp.next();
-					resp.getOutputStream().println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
-				}
-				resp.setContentType("text/plain");
+			} else if (r.getRequestString().matches("/debug/.*")) {
+				DebugPage.show(r, resp);
 			} else if (r.getFullRequest().equals("/style/plain.css")) {
 				ResourcePage.show(r, resp, "style.css", "text/css");
 			}
