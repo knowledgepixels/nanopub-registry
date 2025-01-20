@@ -152,7 +152,7 @@ public class ListPage extends Page {
 				print(AgentInfo.get(agentId).asJson());
 			} else {
 				Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
-				printHtmlHeader("Agent " + agentId + " - Nanopub Registry");
+				printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
 				println("<h1>Agent " + Utils.getAgentLabel(agentId) + "</h1>");
 				println("<h3>Formats</h3>");
 				println("<p>");
@@ -163,15 +163,36 @@ public class ListPage extends Page {
 				println("<p><a href=\"" + agentId + "\"><code>" + agentId + "</code></a></p>");
 				println("<h3>Properties</h3>");
 				println("<ul>");
-				println("<li>Account count: " + agentDoc.get("accountCount") + "</li>");
 				println("<li>Average path count: " + agentDoc.get("avgPathCount") + "</li>");
 				println("<li>Total ratio: " + agentDoc.get("totalRatio") + "</li>");
 				println("</ul>");
 				println("<h3>Accounts</h3>");
+				println("<p>Count: " + agentDoc.get("accountCount") + "</p>");
+				println("<p><a href=\"agentAccounts?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">&gt; agentAccounts</a></p>");
+				printHtmlFooter();
+			}
+		} else if (req.equals("/agentAccounts") && getReq().getHttpRequest().getParameter("id") != null) {
+			String agentId = getReq().getHttpRequest().getParameter("id");
+			MongoCursor<Document> c = collection("accounts").find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
+			if ("application/json".equals(format)) {
+				println("[");
+				while (c.hasNext()) {
+					print(c.next().toJson());
+					println(c.hasNext() ? "," : "");
+				}
+				println("]");
+			} else {
+				printHtmlHeader("Accounts of Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
+				println("<h1>Accounts of Agent " + Utils.getAgentLabel(agentId) + "</h1>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"agentAccounts.json?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json</a> |");
+				println("<a href=\"agentAccounts.json.txt?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json.txt</a>");
+				println("</p>");
+				println("<h3>List</h3>");
 				println("<ul>");
-				MongoCursor<Document> accountList = collection("accounts").find(mongoSession, new Document("agent", agentId)).cursor();
-				while (accountList.hasNext()) {
-					Document d = accountList.next();
+				while (c.hasNext()) {
+					Document d = c.next();
 					String pubkey = d.getString("pubkey");
 	//				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
 	//				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
