@@ -197,6 +197,11 @@ public class ListPage extends Page {
 			} else {
 				printHtmlHeader("List of agents - Nanopub Registry");
 				println("<h1>List of Agents</h1>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"agents.json\">.json</a> |");
+				println("<a href=\"agents.json.txt\">.json.txt</a>");
+				println("</p>");
 				println("<h3>Agents</h3>");
 				println("<ol>");
 				while (c.hasNext()) {

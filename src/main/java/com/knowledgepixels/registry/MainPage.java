@@ -4,16 +4,9 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.knowledgepixels.registry.RegistryDB.mongoSession;
-import static com.mongodb.client.model.Indexes.ascending;
-import static com.mongodb.client.model.Indexes.descending;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.text.DecimalFormat;
-
-import org.bson.Document;
-
-import com.mongodb.client.MongoCursor;
 
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -83,21 +76,7 @@ public class MainPage extends Page {
 				println("<p><em>(loading...)</em></p>");
 			} else {
 				println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
-				println("<ul>");
-				MongoCursor<Document> agents = collection("agents").find(mongoSession).sort(descending("totalRatio")).limit(10).cursor();
-				while (agents.hasNext()) {
-					Document d = agents.next();
-					if (d.get("agent").equals("$")) continue;
-					String a = d.getString("agent");
-					int accountCount = d.getInteger("accountCount");
-					println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " +
-							accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
-							"ratio " + df8.format(d.get("totalRatio")) + ", " +
-							"avg. path count " + df1.format(d.get("avgPathCount")) +
-							"</li>");
-				}
-				println("</ul>");
-				println("<p><a href=\"/agents\">&gt; All</a></pi>");
+				println("<p><a href=\"/agents\">&gt; agents</a></pi>");
 			}
 
 			println("<h3>Accounts</h3>");
@@ -105,34 +84,12 @@ public class MainPage extends Page {
 				println("<p><em>(loading...)</em></p>");
 			} else {
 				println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");
-				println("<ul>");
-				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).limit(11).cursor();
-				while (accountList.hasNext()) {
-					Document d = accountList.next();
-					String pubkey = d.getString("pubkey");
-					if (!pubkey.equals("$")) {
-						println("<li>");
-						println("<a href=\"/list/" + pubkey + "\"><code>" + pubkey.substring(0, 10) + "</code></a>");
-						String a = d.getString("agent");
-						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
-						println(" (" + d.get("status") + ") ");
-						println("</li>");
-					}
-				}
-				println("</ul>");
-				println("<p><a href=\"/list\">&gt; All</a></pi>");
+				println("<p><a href=\"/list\">&gt; accounts</a></pi>");
 			}
 
 			println("<h3>Nanopubs</h3>");
 			println("<p>Count: " + getMaxValue("nanopubs", "counter") + "</p>");
-			println("<ul>");
-			MongoCursor<Document> nanopubs = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(10).cursor();
-			while (nanopubs.hasNext()) {
-				Document d = nanopubs.next();
-				println("<li><a href=\"/np/" + d.getString("_id") + "\"><code>" + d.getString("_id").substring(0, 10) + "</code></a></li>");
-			}
-			println("</ul>");
-			println("<p><a href=\"/latestNanopubs\">&gt; Latest</a></pi>");
+			println("<p><a href=\"/latestNanopubs\">&gt; latestNanopubs</a></pi>");
 			printHtmlFooter();
 		}
 	}
