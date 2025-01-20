@@ -65,9 +65,7 @@ public class ListPage extends Page {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
 			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 
-			if ("application/json".equals(format)) {
-				// TODO
-			} else if ("application/x-jelly-rdf".equals(format)) {
+			if ("application/x-jelly-rdf".equals(format)) {
 				// Return all nanopubs in the list as a single Jelly stream
 				List<Bson> pipeline = List.of(
 						match(new Document("pubkey", pubkey).append("type", type)),
@@ -80,42 +78,69 @@ public class ListPage extends Page {
 				NanopubStream npStream = NanopubStream.fromMongoCursor(result.cursor());
 				npStream.writeToByteStream(getResp().getOutputStream());
 			} else {
-				MongoCursor<Document> entries = collection("listEntries").find(mongoSession,
-						new Document("pubkey", pubkey)
-								.append("type", type)
-				).sort(ascending("position")).cursor();
-				
-				printHtmlHeader("List for pubkey " + pubkey.substring(0, 10) + " / type " + Utils.getShortTypeLabel(type)  + " - Nanopub Registry");
-				println("<h1>List</h1>");
-				println("<h3>Pubkey Hash</h3>");
-				println("<p><code>" + pubkey + "</code></p>");
-				println("<h3>Type Hash</h3>");
-				println("<p><code>" + type + "</code></p>");
-				println("<h3>Entries</h3>");
-				println("<ol>");
-				while (entries.hasNext()) {
-					Document d = entries.next();
-					println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + d.getString("np") + "</code></a></li>");
+				MongoCursor<Document> c = collection("listEntries")
+						.find(mongoSession, new Document("pubkey", pubkey).append("type", type))
+						.projection(exclude("_id"))
+						.sort(ascending("position"))
+						.cursor();
+
+				if ("application/json".equals(format)) {
+					println("[");
+					while (c.hasNext()) {
+						Document d = c.next();
+						// Transforming long to int, so the JSON output looks nice:
+						// TODO Make this scale beyond the int range
+						d.replace("position", d.getLong("position").intValue());
+						print(d.toJson());
+						println(c.hasNext() ? "," : "");
+					}
+					println("]");
+				} else {
+					printHtmlHeader("List for pubkey " + pubkey.substring(0, 10) + " / type " + Utils.getShortTypeLabel(type)  + " - Nanopub Registry");
+					println("<h1>List</h1>");
+					println("<h3>Formats</h3>");
+					println("<p>");
+					println("<a href=\"/list/" + pubkey + "/" + type + ".json\">.json</a> |");
+					println("<a href=\"/list/" + pubkey + "/" + type + ".json.txt\">.json.txt</a>");
+					println("</p>");
+					println("<h3>Pubkey Hash</h3>");
+					println("<p><code>" + pubkey + "</code></p>");
+					println("<h3>Type Hash</h3>");
+					println("<p><code>" + type + "</code></p>");
+					println("<h3>Entries</h3>");
+					println("<ol>");
+					while (c.hasNext()) {
+						Document d = c.next();
+						println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + d.getString("np") + "</code></a></li>");
+					}
+					println("</ol>");
+					printHtmlFooter();
 				}
-				println("</ol>");
-				printHtmlFooter();
 			}
 		} else if (req.matches("/list/[0-9a-f]{64}")) {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
+			MongoCursor<Document> c = collection("lists").find(mongoSession, new Document("pubkey", pubkey)).projection(exclude("_id")).cursor();
 			if ("application/json".equals(format)) {
-				// TODO
+				println("[");
+				while (c.hasNext()) {
+					print(c.next().toJson());
+					println(c.hasNext() ? "," : "");
+				}
+				println("]");
 			} else {
 				printHtmlHeader("Account list for pubkey " + pubkey.substring(0, 10) + " - Nanopub Registry");
 				println("<h1>Account List</h1>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"/list/" + pubkey + ".json\">.json</a> |");
+				println("<a href=\"/list/" + pubkey + ".json.txt\">.json.txt</a>");
+				println("</p>");
 				println("<h3>Pubkey Hash</h3>");
 				println("<p><code>" + pubkey + "</code></p>");
 				println("<h3>Entry Lists</h3>");
 				println("<ol>");
-				MongoCursor<Document> entryLists = collection("lists").find(mongoSession,
-						new Document("pubkey", pubkey)
-					).cursor();
-				while (entryLists.hasNext()) {
-					Document d = entryLists.next();
+				while (c.hasNext()) {
+					Document d = c.next();
 					String type = d.getString("type");
 					println("<li><a href=\"/list/" + pubkey + "/" + type + "\"><code>" + type + "</code></a></li>");
 				}
@@ -123,16 +148,26 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else if (req.equals("/list")) {
+			MongoCursor<Document> c = collection("accounts").find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor();
 			if ("application/json".equals(format)) {
-				// TODO
+				println("[");
+				while (c.hasNext()) {
+					print(c.next().toJson());
+					println(c.hasNext() ? "," : "");
+				}
+				println("]");
 			} else {
 				printHtmlHeader("List of accounts - Nanopub Registry");
 				println("<h1>List of Accounts</h1>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"list.json\">.json</a> |");
+				println("<a href=\"list.json.txt\">.json.txt</a>");
+				println("</p>");
 				println("<h3>Accounts</h3>");
 				println("<ol>");
-				MongoCursor<Document> accountList = collection("accounts").find(mongoSession).sort(ascending("pubkey")).cursor();
-				while (accountList.hasNext()) {
-					Document d = accountList.next();
+				while (c.hasNext()) {
+					Document d = c.next();
 					String pubkey = d.getString("pubkey");
 					if (!pubkey.equals("$")) {
 						println("<li>");
