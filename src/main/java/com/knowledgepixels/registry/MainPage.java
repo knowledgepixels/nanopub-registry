@@ -6,7 +6,6 @@ import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 
 import java.io.IOException;
-import java.text.DecimalFormat;
 
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -20,9 +19,6 @@ public class MainPage extends Page {
 	private MainPage(ServerRequest req, HttpServletResponse httpResp) {
 		super(req, httpResp);
 	}
-
-	static final DecimalFormat df8 = new DecimalFormat("0.00000000");
-	static final DecimalFormat df1 = new DecimalFormat("0.0");
 
 	protected void show() throws IOException {
 		String format;

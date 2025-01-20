@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -8,6 +9,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang.StringEscapeUtils;
 
 public abstract class Page {
+
+	protected static final DecimalFormat df8 = new DecimalFormat("0.00000000");
+	protected static final DecimalFormat df1 = new DecimalFormat("0.0");
 
 	private ServerRequest req;
 	private HttpServletResponse httpResp;

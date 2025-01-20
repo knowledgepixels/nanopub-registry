@@ -1,7 +1,5 @@
 package com.knowledgepixels.registry;
 
-import static com.knowledgepixels.registry.MainPage.df1;
-import static com.knowledgepixels.registry.MainPage.df8;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.mongodb.client.model.Aggregates.lookup;
@@ -173,8 +171,12 @@ public class ListPage extends Page {
 						println("<li>");
 						println("<a href=\"/list/" + pubkey + "\"><code>" + pubkey.substring(0, 10) + "</code></a>");
 						String a = d.getString("agent");
-						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
-						println(" (" + d.get("status") + ") ");
+						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>,");
+						println(" status: " + d.get("status") + ",");
+						println(" depth: " + d.get("depth") + ",");
+						println(" pathCount: " + d.get("pathCount") + ",");
+						println(" ratio: " + df8.format(d.get("ratio")) + ",");
+						println(" quota: " + d.get("quota"));
 						println("</li>");
 					}
 				}
