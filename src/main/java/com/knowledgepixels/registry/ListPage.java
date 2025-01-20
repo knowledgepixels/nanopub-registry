@@ -148,34 +148,43 @@ public class ListPage extends Page {
 			}
 		} else if (req.equals("/agent") && getReq().getHttpRequest().getParameter("id") != null) {
 			String agentId = getReq().getHttpRequest().getParameter("id");
-			Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
-			printHtmlHeader("Agent " + agentId + " - Nanopub Registry");
-			println("<h1>Agent</h1>");
-			println("<h3>ID</h3>");
-			println("<p><a href=\"" + agentId + "\"><code>" + agentId + "</code></a></p>");
-			println("<h3>Properties</h3>");
-			println("<ul>");
-			println("<li>Account count: " + agentDoc.get("accountCount") + "</li>");
-			println("<li>Average path count: " + agentDoc.get("avgPathCount") + "</li>");
-			println("<li>Total ratio: " + agentDoc.get("totalRatio") + "</li>");
-			println("</ul>");
-			println("<h3>Accounts</h3>");
-			println("<ul>");
-			MongoCursor<Document> accountList = collection("accounts").find(mongoSession, new Document("agent", agentId)).cursor();
-			while (accountList.hasNext()) {
-				Document d = accountList.next();
-				String pubkey = d.getString("pubkey");
-//				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
-//				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
-//				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
-				println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), " +
-						"quota " + d.get("quota") + ", " +
-						"ratio " + df8.format(d.get("ratio")) + ", " +
-						"path count " + d.get("pathCount") +
-						"</li>");
+			if ("application/json".equals(format)) {
+				print(AgentInfo.get(agentId).asJson());
+			} else {
+				Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
+				printHtmlHeader("Agent " + agentId + " - Nanopub Registry");
+				println("<h1>Agent " + Utils.getAgentLabel(agentId) + "</h1>");
+				println("<h3>Formats</h3>");
+				println("<p>");
+				println("<a href=\"agent.json?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json</a> |");
+				println("<a href=\"agent.json.txt?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json.txt</a>");
+				println("</p>");
+				println("<h3>ID</h3>");
+				println("<p><a href=\"" + agentId + "\"><code>" + agentId + "</code></a></p>");
+				println("<h3>Properties</h3>");
+				println("<ul>");
+				println("<li>Account count: " + agentDoc.get("accountCount") + "</li>");
+				println("<li>Average path count: " + agentDoc.get("avgPathCount") + "</li>");
+				println("<li>Total ratio: " + agentDoc.get("totalRatio") + "</li>");
+				println("</ul>");
+				println("<h3>Accounts</h3>");
+				println("<ul>");
+				MongoCursor<Document> accountList = collection("accounts").find(mongoSession, new Document("agent", agentId)).cursor();
+				while (accountList.hasNext()) {
+					Document d = accountList.next();
+					String pubkey = d.getString("pubkey");
+	//				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
+	//				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
+	//				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
+					println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), " +
+							"quota " + d.get("quota") + ", " +
+							"ratio " + df8.format(d.get("ratio")) + ", " +
+							"path count " + d.get("pathCount") +
+							"</li>");
+				}
+				println("</ul>");
+				printHtmlFooter();
 			}
-			println("</ul>");
-			printHtmlFooter();
 		} else if (req.equals("/agents")) {
 			MongoCursor<Document> c = collection("agents").find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
 			if ("application/json".equals(format)) {
