@@ -55,6 +55,7 @@ public class MainPage extends Page {
 			println("<li><em>setupId:</em> " + getValue("serverInfo", "setupId") + "</li>");
 			println("<li><em>status:</em> " + status + "</li>");
 			println("<li><em>trustStateCounter:</em> " + getValue("serverInfo", "trustStateCounter") + "</li>");
+			println("<li><em>trustStateHash:</em> " + getValue("serverInfo", "trustStateHash") + "</li>");
 			println("<li><em>loadCounter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("<li><em>coverageTypes:</em> " + getValue("serverInfo", "coverageTypes") + "</li>");
 			println("<li><em>coverageAgents:</em> " + getValue("serverInfo", "coverageAgents") + "</li>");

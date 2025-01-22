@@ -18,6 +18,7 @@ public class RegistryInfo implements Serializable {
 
 	private Long setupId;
 	private Long trustStateCounter;
+	private String trustStateHash;
 	private String status;
 	private String coverageTypes;
 	private String coverateAgents;
@@ -34,6 +35,7 @@ public class RegistryInfo implements Serializable {
 		RegistryInfo ri = new RegistryInfo();
 		ri.setupId = (Long) getValue("serverInfo", "setupId");
 		ri.trustStateCounter = (Long) getValue("serverInfo", "trustStateCounter");
+		ri.trustStateHash = (String) getValue("serverInfo", "trustStateHash");
 		ri.loadCounter = (Long) getMaxValue("nanopubs", "counter");
 		ri.status = (String) getValue("serverInfo", "status");
 		ri.coverageTypes = (String) getValue("serverInfo", "coverageTypes");
