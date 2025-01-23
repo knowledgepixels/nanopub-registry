@@ -53,19 +53,18 @@ public class MainPage extends Page {
 			println("<h3>Server</h3>");
 			println("<ul>");
 			println("<li><em>setupId:</em> " + getValue("serverInfo", "setupId") + "</li>");
-			println("<li><em>status:</em> " + status + "</li>");
-			println("<li><em>trustStateCounter:</em> " + getValue("serverInfo", "trustStateCounter") + "</li>");
-			println("<li><em>trustStateHash:</em> " + getValue("serverInfo", "trustStateHash") + "</li>");
-			println("<li><em>loadCounter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("<li><em>coverageTypes:</em> " + getValue("serverInfo", "coverageTypes") + "</li>");
 			println("<li><em>coverageAgents:</em> " + getValue("serverInfo", "coverageAgents") + "</li>");
-			println("</ul>");
-			println("<h3>Setting</h3>");
-			println("<ul>");
+			println("<li><em>status:</em> " + status + "</li>");
+			println("<li><em>loadCounter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
+			println("<li><em>trustStateCounter:</em> " + getValue("serverInfo", "trustStateCounter") + "</li>");
+			Object trustStateHash = getValue("serverInfo", "trustStateHash");
+			if (trustStateHash != null) trustStateHash = trustStateHash.toString().substring(0, 10);
+			println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");
 			String oSetting = getValue("setting", "original").toString();
-			println("<li><em>original:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");
+			println("<li><em>originalSetting:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");
 			String cSetting = getValue("setting", "current").toString();
-			println("<li><em>current:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
+			println("<li><em>currentSetting:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
 			println("</ul>");
 
 			println("<h3>Agents</h3>");

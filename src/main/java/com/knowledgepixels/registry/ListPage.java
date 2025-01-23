@@ -94,8 +94,9 @@ public class ListPage extends Page {
 					}
 					println("]");
 				} else {
-					printHtmlHeader("List for pubkey " + pubkey.substring(0, 10) + " / type " + Utils.getShortTypeLabel(type)  + " - Nanopub Registry");
+					printHtmlHeader("List for pubkey " + getLabel(pubkey) + " / type " + getLabel(type)  + " - Nanopub Registry");
 					println("<h1>List</h1>");
+					println("<p><a href=\"/list/" + pubkey + "\">&lt; Pubkey</a></p>");
 					println("<h3>Formats</h3>");
 					println("<p>");
 					println("<a href=\"/list/" + pubkey + "/" + type + ".json\">.json</a> |");
@@ -109,7 +110,7 @@ public class ListPage extends Page {
 					println("<ol>");
 					while (c.hasNext()) {
 						Document d = c.next();
-						println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + d.getString("np") + "</code></a></li>");
+						println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + getLabel(d.getString("np")) + "</code></a></li>");
 					}
 					println("</ol>");
 					printHtmlFooter();
@@ -126,8 +127,9 @@ public class ListPage extends Page {
 				}
 				println("]");
 			} else {
-				printHtmlHeader("Account list for pubkey " + pubkey.substring(0, 10) + " - Nanopub Registry");
-				println("<h1>Account List</h1>");
+				printHtmlHeader("Accounts for Pubkey " + getLabel(pubkey) + " - Nanopub Registry");
+				println("<h1>Accounts for Pubkey " + getLabel(pubkey) + "</h1>");
+				println("<p><a href=\"/list\">&lt; Account List</a></p>");
 				println("<h3>Formats</h3>");
 				println("<p>");
 				println("<a href=\"/list/" + pubkey + ".json\">.json</a> |");
@@ -140,7 +142,7 @@ public class ListPage extends Page {
 				while (c.hasNext()) {
 					Document d = c.next();
 					String type = d.getString("type");
-					println("<li><a href=\"/list/" + pubkey + "/" + type + "\"><code>" + type + "</code></a></li>");
+					println("<li><a href=\"/list/" + pubkey + "/" + type + "\"><code>" + getLabel(type) + "</code></a></li>");
 				}
 				println("</ol>");
 				printHtmlFooter();
@@ -155,8 +157,9 @@ public class ListPage extends Page {
 				}
 				println("]");
 			} else {
-				printHtmlHeader("List of accounts - Nanopub Registry");
-				println("<h1>List of Accounts</h1>");
+				printHtmlHeader("Account List - Nanopub Registry");
+				println("<h1>Account List</h1>");
+				println("<p><a href=\"/\">&lt; Home</a></p>");
 				println("<h3>Formats</h3>");
 				println("<p>");
 				println("<a href=\"list.json\">.json</a> |");
@@ -169,7 +172,7 @@ public class ListPage extends Page {
 					String pubkey = d.getString("pubkey");
 					if (!pubkey.equals("$")) {
 						println("<li>");
-						println("<a href=\"/list/" + pubkey + "\"><code>" + pubkey.substring(0, 10) + "</code></a>");
+						println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
 						String a = d.getString("agent");
 						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>,");
 						println(" status: " + d.get("status") + ",");
@@ -191,6 +194,7 @@ public class ListPage extends Page {
 				Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
 				printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
 				println("<h1>Agent " + Utils.getAgentLabel(agentId) + "</h1>");
+				println("<p><a href=\"/agents\">&lt; Agent List</a></p>");
 				println("<h3>Formats</h3>");
 				println("<p>");
 				println("<a href=\"agent.json?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json</a> |");
@@ -221,12 +225,13 @@ public class ListPage extends Page {
 			} else {
 				printHtmlHeader("Accounts of Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
 				println("<h1>Accounts of Agent " + Utils.getAgentLabel(agentId) + "</h1>");
+				println("<p><a href=\"/agent?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">&lt; Agent</a></p>");
 				println("<h3>Formats</h3>");
 				println("<p>");
 				println("<a href=\"agentAccounts.json?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json</a> |");
 				println("<a href=\"agentAccounts.json.txt?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json.txt</a>");
 				println("</p>");
-				println("<h3>List</h3>");
+				println("<h3>Account List</h3>");
 				println("<ul>");
 				while (c.hasNext()) {
 					Document d = c.next();
@@ -234,7 +239,7 @@ public class ListPage extends Page {
 	//				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
 	//				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
 	//				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
-					println("<li><a href=\"/list/" + pubkey + "\"><code>" + pubkey + "</code></a> (" + d.get("status") + "), " +
+					println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a> (" + d.get("status") + "), " +
 							"quota " + d.get("quota") + ", " +
 							"ratio " + df8.format(d.get("ratio")) + ", " +
 							"path count " + d.get("pathCount") +
@@ -253,8 +258,9 @@ public class ListPage extends Page {
 				}
 				println("]");
 			} else {
-				printHtmlHeader("List of agents - Nanopub Registry");
-				println("<h1>List of Agents</h1>");
+				printHtmlHeader("Agent List - Nanopub Registry");
+				println("<h1>Agent List</h1>");
+				println("<p><a href=\"/\">&lt; Home</a></p>");
 				println("<h3>Formats</h3>");
 				println("<p>");
 				println("<a href=\"agents.json\">.json</a> |");
@@ -288,6 +294,7 @@ public class ListPage extends Page {
 			} else {
 				printHtmlHeader("Latest nanopubs - Nanopub Registry");
 				println("<h1>List of Nanopubs</h1>");
+				println("<p><a href=\"/\">&lt; Home</a></p>");
 				println("<h3>Formats</h3>");
 				println("<p>");
 				println("<a href=\"latestNanopubs.json\">.json</a> |");
@@ -297,7 +304,7 @@ public class ListPage extends Page {
 				println("<ol>");
 				while (c.hasNext()) {
 					String npId = c.next().getString("_id");
-					println("<li><a href=\"/np/" + npId + "\"><code>" + npId.substring(0, 10) + "</code></a></li>");
+					println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
 				}
 				println("</ol>");
 				printHtmlFooter();
@@ -306,6 +313,12 @@ public class ListPage extends Page {
 			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
 			return;
 		}
+	}
+
+	private static String getLabel(Object obj) {
+		if (obj == null) return null;
+		if (obj.toString().length() < 10) return obj.toString();
+		return obj.toString().substring(0, 10);
 	}
 
 }

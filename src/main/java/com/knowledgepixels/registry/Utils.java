@@ -75,11 +75,6 @@ public class Utils {
 		return typeHash;
 	}
 
-	public static String getShortTypeLabel(String type) {
-		if (type.equals("$")) return "$";
-		return type.substring(0, 10);
-	}
-
 	public static String getAgentLabel(String agentId) {
 		agentId = agentId.replaceFirst("^https://orcid\\.org/", "orcid:");
 		if (agentId.length() > 55) return agentId.substring(0, 50) + "...";
