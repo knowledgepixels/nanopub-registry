@@ -60,7 +60,12 @@ public class DebugPage extends Page {
 		MongoCursor<Document> tp = collection("trustPaths").find(mongoSession).sort(ascending("_id")).cursor();
 		while (tp.hasNext()) {
 			Document d = tp.next();
-			s += d.get("_id") + " (" + d.get("type") + ")\n";
+			String path = d.getString("_id");
+			path = path.replace(" ", " > ");
+			if (d.getString("type").equals("extended")) {
+				path = path.replaceFirst(" > ([^ ]+)$", " ~ $1");
+			}
+			s += path + "\n";
 		}
 		return s;
 	}

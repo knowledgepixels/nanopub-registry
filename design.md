@@ -192,7 +192,9 @@ Every account has at most one primary path (`>`) leading to it:
     $ > B > C
     $ > B > C > D
 
-Extended paths add a single extended edge (`~`) to the end of a primary path that can reach any other account, including those with their own primary paths, as long as they are not already part of the given path (so no single path can visit the same account more than once.
+Extended paths add a single extended edge (`~`) to the end of a primary path that can reach any other account,
+including those with their own primary paths, as long as they are not already part of the given path
+(so no single path can visit the same account more than once).
 
     $ > A ~ B
     $ > A > X ~ D

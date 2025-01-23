@@ -287,7 +287,7 @@ public enum Task implements Serializable {
 
 						String agent = e.getString("toAgent");
 						String pubkey = e.getString("toPubkey");
-						String pathId = trustPath.getString("_id") + " " + agent + ">" + pubkey;
+						String pathId = trustPath.getString("_id") + " " + agent + "|" + pubkey;
 						newPaths.put(pathId,
 								new Document("_id", pathId)
 									.append("sorthash", Utils.getHash(currentSetting + " " + pathId))
