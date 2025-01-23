@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.mongoSession;
+import static com.knowledgepixels.registry.RegistryDB.unhash;
 import static com.mongodb.client.model.Aggregates.lookup;
 import static com.mongodb.client.model.Aggregates.match;
 import static com.mongodb.client.model.Aggregates.project;
@@ -142,7 +143,14 @@ public class ListPage extends Page {
 				while (c.hasNext()) {
 					Document d = c.next();
 					String type = d.getString("type");
-					println("<li><a href=\"/list/" + pubkey + "/" + type + "\"><code>" + getLabel(type) + "</code></a></li>");
+					println("<li>");
+					println("<a href=\"/list/" + pubkey + "/" + type + "\"><code>" + getLabel(type) + "</code></a> ");
+					if (type.equals("$")) {
+						println("(all types)");
+					} else {
+						println("(type " + unhash(type) + ")");
+					}
+					println("</li>");
 				}
 				println("</ol>");
 				printHtmlFooter();

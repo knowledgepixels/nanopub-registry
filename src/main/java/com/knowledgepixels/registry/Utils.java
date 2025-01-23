@@ -71,7 +71,11 @@ public class Utils {
 
 	public static String getTypeHash(Object type) {
 		String typeHash = Utils.getHash(type.toString());
-		if (type.toString().equals("$")) typeHash = "$";
+		if (type.toString().equals("$")) {
+			typeHash = "$";
+		} else {
+			RegistryDB.recordHash(type.toString());
+		}
 		return typeHash;
 	}
 

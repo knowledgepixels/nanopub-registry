@@ -94,6 +94,9 @@ public class RegistryDB {
 		collection("trustEdges").createIndex(mongoSession, ascending("source"));
 		collection("trustEdges").createIndex(mongoSession, ascending("fromAgent", "fromPubkey", "toAgent", "toPubkey", "source"), unique);
 		collection("trustEdges").createIndex(mongoSession, ascending("invalidated"));
+
+		collection("hashes").createIndex(mongoSession, ascending("hash"), unique);
+		collection("hashes").createIndex(mongoSession, ascending("value"), unique);
 	}
 
 	public static void initLoadingCollections() {
@@ -262,6 +265,18 @@ public class RegistryDB {
 			);
 	}
 
+	public static void recordHash(String value) {
+		if (!has("hashes", new Document("value", value))) {
+			insert("hashes", new Document("value", value).append("hash", Utils.getHash(value)));
+		}
+	}
+
+	public static String unhash(String hash) {
+		var c = collection("hashes").find(new Document("hash", hash)).cursor();
+		if (c.hasNext()) return c.next().get("value").toString();
+		return null;
+	}
+
 	public static void loadNanopub(Nanopub nanopub) {
 		loadNanopub(nanopub, null);
 	}
@@ -277,9 +292,7 @@ public class RegistryDB {
 			System.err.println("Ignoring nanopub with non-matching pubkey: " + nanopub.getUri());
 			return;
 		}
-		if (!has("pubkeys", ph)) {
-			insert("pubkeys", new Document("_id", ph).append("full-pubkey", pubkey));
-		}
+		recordHash(pubkey);
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 		if (has("nanopubs", ac)) {
