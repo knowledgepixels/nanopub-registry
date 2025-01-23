@@ -4,7 +4,7 @@ services:
       - ./target/nanopub-registry/:/usr/local/tomcat/webapps/ROOT
     environment:
       - REGISTRY_COVERAGE_TYPES=*
-      - REGISTRY_COVERAGE_AGENTS=via-setting
+      - REGISTRY_COVERAGE_AGENTS=viaSetting
       - NANOPUB_REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
   mongodb:  # disable when shared MongoDB is used
     deploy:

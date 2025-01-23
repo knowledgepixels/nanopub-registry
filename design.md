@@ -107,7 +107,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       status: ready
       last-update: 20240316-...
       last-uptodate: 20240317-...
-      coverage-agents:_via-setting_
+      coverage-agents:_viaSetting_
       coverage-types:_all_
       global-quota: 1000000
       state-counter: 1423293
