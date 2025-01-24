@@ -60,7 +60,7 @@ public class MainPage extends Page {
 			println("<li><em>trustStateCounter:</em> " + getValue("serverInfo", "trustStateCounter") + "</li>");
 			Object lastTimeUpdate = getValue("serverInfo", "lastTrustStateUpdate");
 			if (lastTimeUpdate != null) {
-				println("<li><em>lastTrustStateUpdate:</em> " + lastTimeUpdate + "</li>");
+				println("<li><em>lastTrustStateUpdate:</em> " + lastTimeUpdate.toString().replaceFirst("\\.[^.]*$", "") + "</li>");
 			} else {
 				println("<li><em>lastTrustStateUpdate:</em> null</li>");
 			}
