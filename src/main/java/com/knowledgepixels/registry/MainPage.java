@@ -74,7 +74,7 @@ public class MainPage extends Page {
 			println("</ul>");
 
 			println("<h3>Agents</h3>");
-			if (status.equals("loading")) {
+			if (status.equals("launching") || status.equals("coreLoading")) {
 				println("<p><em>(loading...)</em></p>");
 			} else {
 				println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
@@ -82,7 +82,7 @@ public class MainPage extends Page {
 			}
 
 			println("<h3>Accounts</h3>");
-			if (status.equals("loading")) {
+			if (status.equals("launching") || status.equals("coreLoading")) {
 				println("<p><em>(loading...)</em></p>");
 			} else {
 				println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");

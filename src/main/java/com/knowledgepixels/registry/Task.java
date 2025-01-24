@@ -61,6 +61,7 @@ public enum Task implements Serializable {
 
 		public void run(Document taskDoc) {
 			setStatus("launching");
+
 			increaseStateCounter();
 			if (RegistryDB.isInitialized()) throw new RuntimeException("DB already initialized");
 			setValue("serverInfo", "setupId", Math.abs(new Random().nextLong()));
@@ -72,13 +73,16 @@ public enum Task implements Serializable {
 	LOAD_CONFIG {
 
 		public void run(Document taskDoc) {
+			if (!getStatus().equals("launching")) {
+				throw new RuntimeException("Illegal status for this task: " + getStatus());
+			}
+
 			if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
 				setValue("serverInfo", "coverageTypes", System.getenv("REGISTRY_COVERAGE_TYPES"));
 			}
 			if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
 				setValue("serverInfo", "coverageAgents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
 			}
-			setStatus("initializing");
 			schedule(LOAD_SETTING);
 		}
 
@@ -87,6 +91,10 @@ public enum Task implements Serializable {
 	LOAD_SETTING {
 
 		public void run(Document taskDoc) throws Exception {
+			if (!getStatus().equals("launching")) {
+				throw new RuntimeException("Illegal status for this task: " + getStatus());
+			}
+
 			NanopubSetting settingNp = getSetting();
 			String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
 			setValue("setting", "original", settingId);
@@ -97,11 +105,12 @@ public enum Task implements Serializable {
 				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
 			setValue("setting", "bootstrap-services", bootstrapServices);
-			setStatus("loading");
 			schedule(INIT_COLLECTIONS);
 			if (PERFORM_FULL_LOAD) {
 				schedule(LOAD_FULL.withDelay(60 * 1000));
 			}
+
+			setStatus("coreLoading");
 		}
 
 	},
@@ -112,6 +121,10 @@ public enum Task implements Serializable {
 		// DB write to:  trustPaths, endorsements, accounts
 
 		public void run(Document taskDoc) throws Exception {
+			if (!getStatus().equals("coreLoading") && !getStatus().equals("updating")) {
+				throw new RuntimeException("Illegal status for this task: " + getStatus());
+			}
+
 			RegistryDB.initLoadingCollections();
 
 			insert("trustPaths_loading",
@@ -669,6 +682,7 @@ public enum Task implements Serializable {
 	RELEASE_DATA {
 
 		public void run(Document taskDoc) {
+			String status = getStatus();
 
 			String newTrustStateHash = taskDoc.getString("newTrustStateHash");
 			String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");
@@ -688,7 +702,12 @@ public enum Task implements Serializable {
 						.append("trustStateCounter", getValue("serverInfo", "trustStateCounter"))
 					);
 			}
-			setStatus("ready");
+
+			if (status.equals("coreLoading")) {
+				setStatus("coreReady");
+			} else {
+				setStatus("ready");
+			}
 
 			// Run update after 1h:
 			schedule(UPDATE.withDelay(60 * 60 * 1000));
@@ -706,7 +725,7 @@ public enum Task implements Serializable {
 				schedule(INIT_COLLECTIONS);
 			} else {
 				System.err.println("Postponing update; currently in status " + status);
-				schedule(UPDATE.withDelay(60 * 60 * 1000));
+				schedule(UPDATE.withDelay(10 * 60 * 1000));
 			}
 			
 		}
@@ -718,14 +737,21 @@ public enum Task implements Serializable {
 		public void run(Document taskDoc) {
 			if (!PERFORM_FULL_LOAD) return;
 
-			if (getOne("accounts", new Document()) == null) {
-				System.err.println("Accounts not yet initialized; checking again later");
+			String status = getStatus();
+			if (!status.equals("coreReady") && !status.equals("ready")) {
+				System.err.println("Server currently not ready; checking again later");
 				schedule(LOAD_FULL.withDelay(60 * 1000));
 				return;
 			}
+
 			Document a = getOne("accounts", new Document("status", "toLoad"));
 			if (a == null) {
-				System.err.println("Nothing to load; scheduling optional loading checks");
+				System.err.println("Nothing to load");
+				if (status.equals("coreReady")) {
+					System.err.println("Full load finished");
+					setStatus("ready");
+				}
+				System.err.println("Scheduling optional loading checks");
 				schedule(CHECK_MORE_PUBKEYS.withDelay(100));
 			} else {
 				final String ph = a.getString("pubkey");
