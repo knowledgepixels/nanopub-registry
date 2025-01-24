@@ -8,6 +8,7 @@ import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
+import org.nanopub.extra.server.PublishNanopub;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -66,16 +67,23 @@ public class RegistryServlet extends HttpServlet {
 				Nanopub np = null;
 				try {
 					np = new NanopubImpl(req.getInputStream(), Rio.getParserFormatForMIMEType(req.getContentType()).orElse(RDFFormat.TRIG));
-				} catch (Exception ex) {
-					resp.sendError(400, "Error reading nanopub: " + ex.getMessage());
-				}
-				if (np != null) {
-					String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
-					if (has("nanopubs", ac)) {
-						System.err.println("POST: known nanopub " + ac);
-					} else {
-						System.err.println("POST: new nanopub " + ac);
+					if (np != null) {
+						String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
+						if (has("nanopubs", ac)) {
+							System.err.println("POST: known nanopub " + ac);
+						} else {
+							System.err.println("POST: new nanopub " + ac);
+
+							// TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
+							NanopubLoader.simpleLoad(np);
+
+							// Here we publish it also to the first-generation services, so they know about it too:
+							// TODO Remove this at some point
+							PublishNanopub.publish(np);
+						}
 					}
+				} catch (Exception ex) {
+					resp.sendError(400, "Error processing nanopub: " + ex.getMessage());
 				}
 			} else {
 				resp.sendError(400, "Invalid request: " + r.getFullRequest());

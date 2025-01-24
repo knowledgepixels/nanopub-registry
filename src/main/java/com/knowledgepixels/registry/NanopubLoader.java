@@ -42,10 +42,13 @@ public class NanopubLoader {
 	//      3. Full load: load to all lists (initialize if needed)
 
 	public static void simpleLoad(String nanopubId) {
-		Nanopub np = retrieveNanopub(nanopubId);
+		simpleLoad(retrieveNanopub(nanopubId));
+	}
+
+	public static void simpleLoad(Nanopub np) {
 		String pubkey = RegistryDB.getPubkey(np);
 		if (pubkey == null) {
-			System.err.println("Ignore (not signed): " + nanopubId);
+			System.err.println("Ignore (not signed): " + np.getUri());
 			return;
 		}
 		String pubkeyHash = Utils.getHash(pubkey);
@@ -98,6 +101,8 @@ public class NanopubLoader {
 				}
 			}
 			System.err.println("Loading " + nanopubId);
+
+			// TODO Reach out to other Nanopub Registries here:
 			np = GetNanopub.get(nanopubId);
 			if (np != null) {
 				RegistryDB.loadNanopub(np);
