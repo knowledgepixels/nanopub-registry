@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -75,9 +76,21 @@ public class NanopubLoader {
 		}
 	}
 
+	private static final String[] peerUrls = new String[] {
+			"https://registry.petapico.org/",
+			"https://registry.knowledgepixels.com/",
+			"https://registry.np.kpxl.org/"
+	};
+	private static Random random = new Random();
+
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
-		// TODO Only used for testing so far
-		String requestUrl = "https://registry.petapico.org/list/" + pubkeyHash + "/" + typeHash + ".jelly";
+		String thisServiceUrl = System.getenv("REGISTRY_SERVICE_URL");
+		String peerUrl = null;
+		do {
+			peerUrl = peerUrls[random.nextInt(peerUrls.length)];
+		} while (peerUrl.equals(thisServiceUrl));
+
+		String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
 		try {
 			InputStream is = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl)).getEntity().getContent();
 			return NanopubStream.fromByteStream(is).getAsNanopubs();
