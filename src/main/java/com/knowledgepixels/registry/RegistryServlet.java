@@ -1,11 +1,19 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.has;
+
 import java.io.IOException;
+
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.Rio;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import net.trustyuri.TrustyUriUtils;
 
 public class RegistryServlet extends HttpServlet {
 
@@ -43,6 +51,34 @@ public class RegistryServlet extends HttpServlet {
 				DebugPage.show(r, resp);
 			} else if (r.getFullRequest().equals("/style/plain.css")) {
 				ResourcePage.show(r, resp, "style.css", "text/css");
+			}
+		} finally {
+			resp.getOutputStream().close();
+			req.getInputStream().close();
+		}
+	}
+
+	@Override
+	protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+		try {
+			ServerRequest r = new ServerRequest(req);
+			if (r.isEmpty()) {
+				Nanopub np = null;
+				try {
+					np = new NanopubImpl(req.getInputStream(), Rio.getParserFormatForMIMEType(req.getContentType()).orElse(RDFFormat.TRIG));
+				} catch (Exception ex) {
+					resp.sendError(400, "Error reading nanopub: " + ex.getMessage());
+				}
+				if (np != null) {
+					String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
+					if (has("nanopubs", ac)) {
+						System.err.println("POST: known nanopub " + ac);
+					} else {
+						System.err.println("POST: new nanopub " + ac);
+					}
+				}
+			} else {
+				resp.sendError(400, "Invalid request: " + r.getFullRequest());
 			}
 		} finally {
 			resp.getOutputStream().close();
