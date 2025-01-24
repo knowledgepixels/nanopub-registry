@@ -58,6 +58,12 @@ public class MainPage extends Page {
 			println("<li><em>status:</em> " + status + "</li>");
 			println("<li><em>loadCounter:</em> " + getMaxValue("nanopubs", "counter") + "</li>");
 			println("<li><em>trustStateCounter:</em> " + getValue("serverInfo", "trustStateCounter") + "</li>");
+			Object lastTimeUpdate = getValue("serverInfo", "lastTrustStateUpdate");
+			if (lastTimeUpdate != null) {
+				println("<li><em>lastTrustStateUpdate:</em> " + lastTimeUpdate + "</li>");
+			} else {
+				println("<li><em>lastTrustStateUpdate:</em> null</li>");
+			}
 			Object trustStateHash = getValue("serverInfo", "trustStateHash");
 			if (trustStateHash != null) trustStateHash = trustStateHash.toString().substring(0, 10);
 			println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");

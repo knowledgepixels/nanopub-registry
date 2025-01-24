@@ -24,6 +24,8 @@ import static com.mongodb.client.model.Sorts.orderBy;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -658,6 +660,7 @@ public enum Task implements Serializable {
 		public void run(Document taskDoc) {
 			String newTrustStateHash = RegistryDB.calculateTrustStateHash();
 			String previousTrustStateHash = (String) getValue("serverInfo", "trustStateHash");
+			setValue("serverInfo", "lastTrustStateUpdate", ZonedDateTime.now().toString());
 
 			schedule(RELEASE_DATA.with("newTrustStateHash", newTrustStateHash).append("previousTrustStateHash", previousTrustStateHash));
 		}
