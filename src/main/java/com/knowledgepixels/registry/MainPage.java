@@ -43,8 +43,8 @@ public class MainPage extends Page {
 			println(RegistryInfo.getLocal().asJson());
 		} else {
 			String status = getValue("serverInfo", "status").toString();
-			printHtmlHeader("Nanopub Registry - alpha");
-			println("<h1>Nanopub Registry - alpha</h1>");
+			printHtmlHeader("Nanopub Registry");
+			println("<h1>Nanopub Registry</h1>");
 			println("<h3>Formats</h3>");
 			println("<p>");
 			println("<a href=\".json\">.json</a> |");
