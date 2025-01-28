@@ -91,6 +91,7 @@ public class NanopubLoader {
 		} while (peerUrl.equals(thisServiceUrl));
 
 		String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
+		System.err.println("Request: " + requestUrl);
 		try {
 			InputStream is = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl)).getEntity().getContent();
 			return NanopubStream.fromByteStream(is).getAsNanopubs();
