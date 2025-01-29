@@ -4,13 +4,19 @@ import static com.knowledgepixels.registry.RegistryDB.has;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import org.apache.http.Header;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.util.EntityUtils;
 import org.bson.Document;
 import org.bson.types.Binary;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
@@ -81,22 +87,42 @@ public class NanopubLoader {
 			"https://registry.knowledgepixels.com/",
 			"https://registry.np.kpxl.org/"
 	};
-	private static Random random = new Random();
 
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
-		String thisServiceUrl = System.getenv("REGISTRY_SERVICE_URL");
-		String peerUrl = null;
-		do {
-			peerUrl = peerUrls[random.nextInt(peerUrls.length)];
-		} while (peerUrl.equals(thisServiceUrl));
+		// TODO Move the code of this method to nanopub-java library.
 
-		String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
-		System.err.println("Request: " + requestUrl);
-		try {
-			InputStream is = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl)).getEntity().getContent();
-			return NanopubStream.fromByteStream(is).getAsNanopubs();
-		} catch (UnsupportedOperationException | IOException ex) {
-			ex.printStackTrace();
+		String thisServiceUrl = System.getenv("REGISTRY_SERVICE_URL");
+		List<String> peerUrlsToTry = new ArrayList<>(Arrays.asList(peerUrls));
+		Collections.shuffle(peerUrlsToTry);
+		while (!peerUrlsToTry.isEmpty()) {
+			String peerUrl = peerUrlsToTry.remove(0);
+			if (peerUrl.equals(thisServiceUrl)) continue;
+	
+			String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
+			System.err.println("Request: " + requestUrl);
+			try {
+				CloseableHttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
+				int httpStatus = resp.getStatusLine().getStatusCode();
+				if (httpStatus < 200 || httpStatus >= 300) {
+					System.err.println("Request failed: " + peerUrl + " " + httpStatus);
+					EntityUtils.consumeQuietly(resp.getEntity());
+					continue;
+				}
+				Header nrStatus = resp.getFirstHeader("Nanopub-Registry-Status");
+				if (nrStatus == null) {
+					System.err.println("Nanopub-Registry-Status header not found at: " + peerUrl);
+					EntityUtils.consumeQuietly(resp.getEntity());
+					continue;
+				} else if (!nrStatus.getValue().equals("ready") && !nrStatus.getValue().equals("updating")) {
+					System.err.println("Peer in non-ready state: " + peerUrl + " " + nrStatus.getValue());
+					EntityUtils.consumeQuietly(resp.getEntity());
+					continue;
+				}
+				InputStream is = resp.getEntity().getContent();
+				return NanopubStream.fromByteStream(is).getAsNanopubs();
+			} catch (UnsupportedOperationException | IOException ex) {
+				ex.printStackTrace();
+			}
 		}
 		return null;
 	}
