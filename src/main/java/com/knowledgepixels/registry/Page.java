@@ -1,5 +1,8 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
+import static com.knowledgepixels.registry.RegistryDB.getValue;
+
 import java.io.IOException;
 import java.text.DecimalFormat;
 
@@ -20,6 +23,15 @@ public abstract class Page {
 		this.req = req;
 		this.httpResp = httpResp;
 		httpResp.setCharacterEncoding("UTF-8");
+
+		// TODO See whether we can cache these better on our side. Not sure how efficient the MongoDB caching is for these
+		//      kinds of DB queries...
+		httpResp.setHeader("Nanopub-Registry-Status", getValue("serverInfo", "status").toString());
+		httpResp.setHeader("Nanopub-Registry-Setup-Id", getValue("serverInfo", "setupId").toString());
+		httpResp.setHeader("Nanopub-Registry-Trust-State-Counter", getValue("serverInfo", "trustStateCounter").toString());
+		httpResp.setHeader("Nanopub-Registry-Last-Trust-State-Update", (String) getValue("serverInfo", "lastTrustStateUpdate"));
+		httpResp.setHeader("Nanopub-Registry-Trust-State-Hash", (String) getValue("serverInfo", "trustStateHash"));
+		httpResp.setHeader("Nanopub-Registry-Load-Counter", getMaxValue("nanopubs", "counter").toString());
 	}
 
 	public ServerRequest getReq() {
