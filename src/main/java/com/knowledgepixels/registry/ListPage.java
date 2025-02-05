@@ -73,9 +73,11 @@ public class ListPage extends Page {
 						project(new Document("jelly", "$nanopub.jelly")),
 						unwind("$jelly")
 				);
-				var result = collection("listEntries").aggregate(mongoSession, pipeline);
-				NanopubStream npStream = NanopubStream.fromMongoCursor(result.cursor());
-				npStream.writeToByteStream(getResp().getOutputStream());
+				// TODO: try with resource should be used for all DB access, really, like here
+				try (var result = collection("listEntries").aggregate(mongoSession, pipeline).cursor()) {
+					NanopubStream npStream = NanopubStream.fromMongoCursor(result);
+					npStream.writeToByteStream(getResp().getOutputStream());
+				}
 			} else {
 				MongoCursor<Document> c = collection("listEntries")
 						.find(mongoSession, new Document("pubkey", pubkey).append("type", type))
