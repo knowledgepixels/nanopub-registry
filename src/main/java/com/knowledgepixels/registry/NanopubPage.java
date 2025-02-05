@@ -3,7 +3,6 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import eu.ostrzyciel.jelly.core.IoUtils$;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame$;
