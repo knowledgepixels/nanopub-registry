@@ -53,6 +53,9 @@ public class RegistryServlet extends HttpServlet {
 			} else if (r.getFullRequest().equals("/style/plain.css")) {
 				ResourcePage.show(r, resp, "style.css", "text/css");
 			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			throw ex;
 		} finally {
 			resp.getOutputStream().close();
 			req.getInputStream().close();

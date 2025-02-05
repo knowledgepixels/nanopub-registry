@@ -792,11 +792,11 @@ public enum Task implements Serializable {
 			}
 		}
 
-		@Override
-		public boolean runAsTransaction() {
-			// TODO Make this a transaction once we connect to other Nanopub Registry instances:
-			return false;
-		}
+//		@Override
+//		public boolean runAsTransaction() {
+//			// TODO Make this a transaction once we connect to other Nanopub Registry instances:
+//			return false;
+//		}
 
 	},
 
@@ -916,7 +916,7 @@ public enum Task implements Serializable {
 
 	};
 
-	private static final boolean PEER_LOADING_TESTING_MODE = false;
+	private static final boolean PEER_LOADING_TESTING_MODE = true;
 	private static final boolean PERFORM_FULL_LOAD = true;
 
 	public abstract void run(Document taskDoc) throws Exception;
