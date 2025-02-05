@@ -79,7 +79,7 @@
     <dependency>
       <groupId>eu.ostrzyciel.jelly</groupId>
       <artifactId>jelly-rdf4j_3</artifactId>
-      <version>2.6.1</version>
+      <version>2.6.3</version>
     </dependency>
   </dependencies>
   <build>

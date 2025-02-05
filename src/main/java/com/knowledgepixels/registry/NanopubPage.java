@@ -3,8 +3,10 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import eu.ostrzyciel.jelly.core.IoUtils$;
+import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame$;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.bson.Document;
 
@@ -38,8 +40,9 @@ public class NanopubPage extends Page {
 			return;
 		}
 
-		if (getReq().getPresentationFormat() != null) {
-			getResp().setContentType(getReq().getPresentationFormat());
+		var presentationFormat = getReq().getPresentationFormat();
+		if (presentationFormat != null) {
+			getResp().setContentType(presentationFormat);
 		} else {
 			getResp().setContentType(format);
 		}
@@ -57,12 +60,20 @@ public class NanopubPage extends Page {
 			if ("application/trig".equals(format)) {
 				println(npDoc.getString("content"));
 			} else if ("application/x-jelly-rdf".equals(format)) {
-				// To return this correctly, we would need to prepend the delimiter byte before the Jelly frame
-				// (the DB stores is non-delimited and the HTTP response must be delimited).
-				IoUtils$.MODULE$.writeFrameAsDelimited(
-					((Binary) npDoc.get("jelly")).getData(),
-					getResp().getOutputStream()
-				);
+				if (presentationFormat != null && presentationFormat.startsWith("text")) {
+					// Parse the Jelly frame and return it as Protobuf Text Format Language
+					// https://protobuf.dev/reference/protobuf/textformat-spec/
+					// It's better than bombarding the browser with a binary file.
+					var frame = RdfStreamFrame$.MODULE$.parseFrom(((Binary) npDoc.get("jelly")).getData());
+					println(frame.toProtoString());
+				} else {
+					// To return this correctly, we would need to prepend the delimiter byte before the Jelly frame
+					// (the DB stores is non-delimited and the HTTP response must be delimited).
+					IoUtils$.MODULE$.writeFrameAsDelimited(
+							((Binary) npDoc.get("jelly")).getData(),
+							getResp().getOutputStream()
+					);
+				}
 			} else {
 				printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
 				println("<h1>Nanopublication</h1>");
