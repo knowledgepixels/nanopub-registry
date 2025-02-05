@@ -3,14 +3,19 @@ services:
     build: .
     image: nanopub/registry
     restart: unless-stopped
+    environment:
+      JPDA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
     ports:
       - 9292:8080
+      - 5005:5005
     volumes:
       - ./setting.trig:/data/setting.trig
+    entrypoint: 'catalina.sh jpda run'
     logging:
       options:
         max-size: "10m"
         max-file: "3"
+
   mongodb:
     image: mongo:7
     restart: unless-stopped
