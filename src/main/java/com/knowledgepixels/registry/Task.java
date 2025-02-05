@@ -792,11 +792,11 @@ public enum Task implements Serializable {
 			}
 		}
 
-//		@Override
-//		public boolean runAsTransaction() {
-//			// TODO Make this a transaction once we connect to other Nanopub Registry instances:
-//			return false;
-//		}
+		@Override
+		public boolean runAsTransaction() {
+			// TODO Make this a transaction once we connect to other Nanopub Registry instances:
+			return false;
+		}
 
 	},
 
