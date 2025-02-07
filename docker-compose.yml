@@ -11,6 +11,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
   mongodb:
     image: mongo:7
     restart: unless-stopped

@@ -19,3 +19,17 @@ The current incomplete implementation is running at this public instance:
 
 - https://registry.np.kpxl.org/
 
+
+## Development
+
+The recommended development environment is Docker Compose. The `docker-compose.yml` file contains a production configuration with minimal exposed ports. To add features like remote JVM debugging and Mongo Express, copy the `docker-compose.override.yml.template` file to `docker-compose.override.yml` and adjust the configuration. Then, simply run:
+
+```bash
+./run.sh
+```
+
+**Development ports:**
+
+- `localhost:9292` - Nanopub Registry
+- `localhost:5005` - Remote JVM debugging of the Nanopub Registry
+- `localhost:8081` - Mongo Express
