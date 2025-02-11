@@ -1,4 +1,23 @@
-FROM tomcat:11.0
+FROM maven:3.9.9-eclipse-temurin-21
 
-COPY conf/server.xml /usr/local/tomcat/conf/server.xml
-COPY target/nanopub-registry.war /usr/local/tomcat/webapps/ROOT.war
+ENV APP_DIR /app
+ENV TMP_DIR /tmp
+
+WORKDIR $TMP_DIR
+
+COPY pom.xml pom.xml
+
+RUN mvn install
+
+COPY src src
+
+RUN mvn install -o && \
+    mkdir $APP_DIR && \
+    mv target/nanopub-registry-*-fat.jar $APP_DIR/nanopub-registry.jar && \
+    rm -rf $TMP_DIR
+
+WORKDIR $APP_DIR
+
+EXPOSE 9292
+
+ENTRYPOINT ["java","-jar","nanopub-registry.jar"]

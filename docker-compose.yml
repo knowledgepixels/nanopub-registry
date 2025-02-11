@@ -4,7 +4,7 @@ services:
     image: nanopub/registry
     restart: unless-stopped
     ports:
-      - 9292:8080
+      - 9292:9292
     volumes:
       - ./setting.trig:/data/setting.trig
     logging:

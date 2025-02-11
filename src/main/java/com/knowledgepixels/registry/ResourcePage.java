@@ -2,37 +2,43 @@ package com.knowledgepixels.registry;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-
-import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.IOUtils;
 
+import io.vertx.ext.web.RoutingContext;
+
 public class ResourcePage extends Page {
 
-	public static void show(ServerRequest req, HttpServletResponse httpResp, String resourceName,
-			String resourceType) throws IOException {
-		ResourcePage obj = new ResourcePage(req, httpResp, resourceName, resourceType);
-		obj.show();
+	public static void show(RoutingContext context, String resourceName, String resourceType) {
+		ResourcePage page;
+		try {
+			page = new ResourcePage(context, resourceName, resourceType);
+			page.show();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			context.response().end();
+			// TODO Clean-up here?
+		}
 	}
 
 	private String resourceName, resourceType;
 
-	public ResourcePage(ServerRequest req, HttpServletResponse httpResp, String resourceName,
-			String resourceType) {
-		super(req, httpResp);
+	public ResourcePage(RoutingContext context, String resourceName, String resourceType) {
+		super(context);
 		this.resourceName = resourceName;
 		this.resourceType = resourceType;
 	}
 
 	public void show() throws IOException {
-		getResp().setContentType(resourceType);
+		getContext().response().putHeader("Content-Type", resourceType);
 		InputStream in = null;
-		OutputStream out = null;
+		BufferOutputStream out = null;
 		try {
-			in = RegistryServlet.class.getResourceAsStream(resourceName);
-			out = getResp().getOutputStream();
+			in = MainVerticle.class.getResourceAsStream(resourceName);
+			out = new BufferOutputStream();
 			IOUtils.copy(in, out);
+			getContext().response().write(out.getBuffer());
 		} finally {
 			if (in != null) in.close();
 			if (out != null) out.close();

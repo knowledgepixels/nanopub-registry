@@ -61,7 +61,6 @@ public class RegistryDB {
 		mongoClient = new MongoClient(REGISTRY_DB_HOST);
 		mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 		mongoSession = mongoClient.startSession();
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> mongoSession.close()));
 
 		if (isInitialized()) return;
 

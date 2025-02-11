@@ -7,36 +7,45 @@ import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 
 import java.io.IOException;
 
-import jakarta.servlet.http.HttpServletResponse;
+import io.vertx.ext.web.RoutingContext;
 
 public class MainPage extends Page {
 
-	public static void show(ServerRequest req, HttpServletResponse httpResp) throws IOException {
-		MainPage obj = new MainPage(req, httpResp);
-		obj.show();
+	public static void show(RoutingContext context) {
+		MainPage page;
+		try {
+			page = new MainPage(context);
+			page.show();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			context.response().end();
+			// TODO Clean-up here?
+		}
 	}
 
-	private MainPage(ServerRequest req, HttpServletResponse httpResp) {
-		super(req, httpResp);
+	private MainPage(RoutingContext context) {
+		super(context);
 	}
 
 	protected void show() throws IOException {
+		RoutingContext c = getContext();
 		String format;
-		String ext = getReq().getExtension();
+		String ext = getExtension();
 		if ("json".equals(ext)) {
 			format = "application/json";
 		} else if (ext == null || "html".equals(ext)) {
 			String suppFormats = "application/json,text/html";
-			format = Utils.getMimeType(getHttpReq(), suppFormats);
+			format = Utils.getMimeType(c, suppFormats);
 		} else {
-			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
+			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
 
-		if (getReq().getPresentationFormat() != null) {
-			getResp().setContentType(getReq().getPresentationFormat());
+		if (getPresentationFormat() != null) {
+			c.response().putHeader("Content-Type", getPresentationFormat());
 		} else {
-			getResp().setContentType(format);
+			c.response().putHeader("Content-Type", format);
 		}
 
 		if ("application/json".equals(format)) {

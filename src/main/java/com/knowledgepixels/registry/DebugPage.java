@@ -10,47 +10,54 @@ import org.bson.Document;
 
 import com.mongodb.client.MongoCursor;
 
-import jakarta.servlet.http.HttpServletResponse;
+import io.vertx.ext.web.RoutingContext;
 
 public class DebugPage extends Page {
 
-	public static void show(ServerRequest req, HttpServletResponse httpResp) throws IOException {
-		DebugPage obj = new DebugPage(req, httpResp);
-		obj.show();
+	public static void show(RoutingContext context) {
+		DebugPage page;
+		try {
+			page = new DebugPage(context);
+			page.show();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			context.response().end();
+			// TODO Clean-up here?
+		}
 	}
 
-	private DebugPage(ServerRequest req, HttpServletResponse httpResp) {
-		super(req, httpResp);
+	private DebugPage(RoutingContext context) {
+		super(context);
 	}
 
 	protected void show() throws IOException {
-		ServerRequest r = getReq();
-		HttpServletResponse resp = getResp();
+		RoutingContext c = getContext();
 
-		if (r.getRequestString().matches("/debug/trustPaths")) {
-			String counterString = r.getHttpRequest().getParameter("trustStateCounter");
+		if (getRequestString().matches("/debug/trustPaths")) {
+			String counterString = c.request().getParam("trustStateCounter");
 			if (counterString == null) {
-				resp.getOutputStream().print(getTrustPathsTxt());
+				print(getTrustPathsTxt());
 			} else {
 				Long counter = Long.parseLong(counterString);
-				resp.getOutputStream().print(RegistryDB.getOne("debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
+				print(RegistryDB.getOne("debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
 			}
-			resp.setContentType("text/plain");
-		} else if (r.getRequestString().matches("/debug/endorsements")) {
+			c.response().putHeader("Content-Type", "text/plain");
+		} else if (getRequestString().matches("/debug/endorsements")) {
 			MongoCursor<Document> tp = collection("endorsements").find(mongoSession).cursor();
 			while (tp.hasNext()) {
 				Document d = tp.next();
-				resp.getOutputStream().println(d.get("agent") + ">" + d.get("pubkey") + " " + d.get("endorsedNanopub") + " " + d.get("source") + " (" + d.get("status") + ")");
+				println(d.get("agent") + ">" + d.get("pubkey") + " " + d.get("endorsedNanopub") + " " + d.get("source") + " (" + d.get("status") + ")");
 			}
-			resp.setContentType("text/plain");
-		} else if (r.getRequestString().matches("/debug/accounts")) {
+			c.response().putHeader("Content-Type", "text/plain");
+		} else if (getRequestString().matches("/debug/accounts")) {
 			MongoCursor<Document> tp = collection("accounts").find(mongoSession).cursor();
 			while (tp.hasNext()) {
 				Document d = tp.next();
-				resp.getOutputStream().println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
+				println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
 			}
 		} else {
-			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
+			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
 	}

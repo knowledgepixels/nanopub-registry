@@ -23,41 +23,50 @@ import com.google.gson.Gson;
 import com.knowledgepixels.registry.jelly.NanopubStream;
 import com.mongodb.client.MongoCursor;
 
-import jakarta.servlet.http.HttpServletResponse;
+import io.vertx.ext.web.RoutingContext;
 
 public class ListPage extends Page {
 
 	private static Gson gson = new Gson();
 
-	public static void show(ServerRequest req, HttpServletResponse httpResp) throws IOException {
-		ListPage obj = new ListPage(req, httpResp);
-		obj.show();
+	public static void show(RoutingContext context) {
+		ListPage page;
+		try {
+			page = new ListPage(context);
+			page.show();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			context.response().end();
+			// TODO Clean-up here?
+		}
 	}
 
-	private ListPage(ServerRequest req, HttpServletResponse httpResp) {
-		super(req, httpResp);
+	private ListPage(RoutingContext context) {
+		super(context);
 	}
 
 	protected void show() throws IOException {
+		RoutingContext context = getContext();
 		String format;
-		String ext = getReq().getExtension();
-		final String req = getReq().getRequestString();
+		String ext = getExtension();
+		final String req = getRequestString();
 		if ("json".equals(ext)) {
 			format = "application/json";
 		} else if ("jelly".equals(ext)) {
 			format = "application/x-jelly-rdf";
 		} else if (ext == null || "html".equals(ext)) {
 			String suppFormats = "application/x-jelly-rdf,application/json,text/html";
-			format = Utils.getMimeType(getHttpReq(), suppFormats);
+			format = Utils.getMimeType(context, suppFormats);
 		} else {
-			getResp().sendError(400, "Invalid request: " + req);
+			context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
 
-		if (getReq().getPresentationFormat() != null) {
-			getResp().setContentType(getReq().getPresentationFormat());
+		if (getPresentationFormat() != null) {
+			context.response().putHeader("Content-Type", getPresentationFormat());
 		} else {
-			getResp().setContentType(format);
+			context.response().putHeader("Content-Type", format);
 		}
 
 		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
@@ -76,7 +85,12 @@ public class ListPage extends Page {
 				// TODO: try with resource should be used for all DB access, really, like here
 				try (var result = collection("listEntries").aggregate(mongoSession, pipeline).cursor()) {
 					NanopubStream npStream = NanopubStream.fromMongoCursor(result);
-					npStream.writeToByteStream(getResp().getOutputStream());
+
+					// Does this work???
+					BufferOutputStream outputStream = new BufferOutputStream();
+					npStream.writeToByteStream(outputStream);
+					context.response().write(outputStream.getBuffer());
+
 				}
 			} else {
 				MongoCursor<Document> c = collection("listEntries")
@@ -196,8 +210,8 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("/agent") && getReq().getHttpRequest().getParameter("id") != null) {
-			String agentId = getReq().getHttpRequest().getParameter("id");
+		} else if (req.equals("/agent") && context.request().getParam("id") != null) {
+			String agentId = context.request().getParam("id");
 			if ("application/json".equals(format)) {
 				print(AgentInfo.get(agentId).asJson());
 			} else {
@@ -222,8 +236,8 @@ public class ListPage extends Page {
 				println("<p><a href=\"agentAccounts?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">&gt; agentAccounts</a></p>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("/agentAccounts") && getReq().getHttpRequest().getParameter("id") != null) {
-			String agentId = getReq().getHttpRequest().getParameter("id");
+		} else if (req.equals("/agentAccounts") && context.request().getParam("id") != null) {
+			String agentId = context.request().getParam("id");
 			MongoCursor<Document> c = collection("accounts").find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
 			if ("application/json".equals(format)) {
 				println("[");
@@ -320,7 +334,7 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else {
-			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
+			context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
 	}

@@ -20,18 +20,18 @@ import org.nanopub.NanopubUtils;
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
 
-import jakarta.servlet.http.HttpServletRequest;
+import io.vertx.ext.web.RoutingContext;
 import net.trustyuri.TrustyUriUtils;
 
 public class Utils {
 
 	private Utils() {}  // no instances allowed
 
-	public static String getMimeType(HttpServletRequest req, String supported) {
+	public static String getMimeType(RoutingContext context, String supported) {
 		List<String> supportedList = Arrays.asList(StringUtils.split(supported, ','));
 		String mimeType = supportedList.get(0);
 		try {
-			mimeType = MIMEParse.bestMatch(supportedList, req.getHeader("Accept"));
+			mimeType = MIMEParse.bestMatch(supportedList, context.request().getHeader("Accept"));
 		} catch (Exception ex) {}
 		return mimeType;
 	}

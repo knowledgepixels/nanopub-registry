@@ -6,44 +6,54 @@ import java.io.IOException;
 
 import eu.ostrzyciel.jelly.core.IoUtils$;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame$;
+import io.vertx.ext.web.RoutingContext;
+
 import org.apache.commons.lang.StringEscapeUtils;
 import org.bson.Document;
 
-import jakarta.servlet.http.HttpServletResponse;
 import org.bson.types.Binary;
 
 public class NanopubPage extends Page {
 
-	public static void show(ServerRequest req, HttpServletResponse httpResp) throws IOException {
-		NanopubPage obj = new NanopubPage(req, httpResp);
-		obj.show();
+	public static void show(RoutingContext context) {
+		NanopubPage page;
+		try {
+			page = new NanopubPage(context);
+			page.show();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			context.response().end();
+			// TODO Clean-up here?
+		}
 	}
 
-	private NanopubPage(ServerRequest req, HttpServletResponse httpResp) {
-		super(req, httpResp);
+	private NanopubPage(RoutingContext context) {
+		super(context);
 	}
 
 	protected void show() throws IOException {
+		RoutingContext c = getContext();
 		String format;
-		String ext = getReq().getExtension();
-		final String req = getReq().getRequestString();
+		String ext = getExtension();
+		final String req = getRequestString();
 		if ("trig".equals(ext)) {
 			format = "application/trig";
 		} else if ("jelly".equals(ext)) {
 			format = "application/x-jelly-rdf";
 		} else if (ext == null || "html".equals(ext)) {
 			String suppFormats = "application/x-jelly-rdf,application/trig,text/html";
-			format = Utils.getMimeType(getHttpReq(), suppFormats);
+			format = Utils.getMimeType(c, suppFormats);
 		} else {
-			getResp().sendError(400, "Invalid request: " + req);
+			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
 
-		var presentationFormat = getReq().getPresentationFormat();
+		var presentationFormat = getPresentationFormat();
 		if (presentationFormat != null) {
-			getResp().setContentType(presentationFormat);
+			c.response().putHeader("Content-Type", presentationFormat);
 		} else {
-			getResp().setContentType(format);
+			c.response().putHeader("Content-Type", format);
 		}
 
 		if (req.matches("/np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
@@ -51,8 +61,8 @@ public class NanopubPage extends Page {
 			Document npDoc = collection("nanopubs").find(new Document("_id", ac)).first();
 			if (npDoc == null) {
 				//getResp().sendError(404, "Not found: " + ac);
-				getResp().setStatus(HttpServletResponse.SC_TEMPORARY_REDIRECT);
-				getResp().setHeader("Location", "https://np.knowledgepixels.com/" + ac);
+				c.response().setStatusCode(307);
+				c.response().putHeader("Location", "https://np.knowledgepixels.com/" + ac);
 				return;
 			}
 	//		String url = ServerConf.getInfo().getPublicUrl();
@@ -68,10 +78,14 @@ public class NanopubPage extends Page {
 				} else {
 					// To return this correctly, we would need to prepend the delimiter byte before the Jelly frame
 					// (the DB stores is non-delimited and the HTTP response must be delimited).
+
+					// Does this work???
+					BufferOutputStream outputStream = new BufferOutputStream();
 					IoUtils$.MODULE$.writeFrameAsDelimited(
 							((Binary) npDoc.get("jelly")).getData(),
-							getResp().getOutputStream()
+							outputStream
 					);
+					c.response().write(outputStream.getBuffer());
 				}
 			} else {
 				printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
@@ -94,7 +108,7 @@ public class NanopubPage extends Page {
 				printHtmlFooter();
 			}
 		} else {
-			getResp().sendError(400, "Invalid request: " + getReq().getFullRequest());
+			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
 	}
