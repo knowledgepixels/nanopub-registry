@@ -1,13 +1,13 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.mongodb.client.model.Indexes.ascending;
 
 import java.io.IOException;
 
 import org.bson.Document;
 
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 
 import io.vertx.ext.web.RoutingContext;
@@ -16,8 +16,9 @@ public class DebugPage extends Page {
 
 	public static void show(RoutingContext context) {
 		DebugPage page;
-		try {
-			page = new DebugPage(context);
+		try (ClientSession s = RegistryDB.getClient().startSession()) {
+			s.startTransaction();
+			page = new DebugPage(s, context);
 			page.show();
 		} catch (IOException ex) {
 			ex.printStackTrace();
@@ -27,8 +28,8 @@ public class DebugPage extends Page {
 		}
 	}
 
-	private DebugPage(RoutingContext context) {
-		super(context);
+	private DebugPage(ClientSession mongoSession, RoutingContext context) {
+		super(mongoSession, context);
 	}
 
 	protected void show() throws IOException {
@@ -37,10 +38,10 @@ public class DebugPage extends Page {
 		if (getRequestString().matches("/debug/trustPaths")) {
 			String counterString = c.request().getParam("trustStateCounter");
 			if (counterString == null) {
-				print(getTrustPathsTxt());
+				print(getTrustPathsTxt(mongoSession));
 			} else {
 				Long counter = Long.parseLong(counterString);
-				print(RegistryDB.getOne("debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
+				print(RegistryDB.getOne(mongoSession, "debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
 			}
 			c.response().putHeader("Content-Type", "text/plain");
 		} else if (getRequestString().matches("/debug/endorsements")) {
@@ -62,7 +63,7 @@ public class DebugPage extends Page {
 		}
 	}
 
-	public static String getTrustPathsTxt() {
+	public static String getTrustPathsTxt(ClientSession mongoSession) {
 		String s = "";
 		MongoCursor<Document> tp = collection("trustPaths").find(mongoSession).sort(ascending("_id")).cursor();
 		while (tp.hasNext()) {

@@ -30,6 +30,7 @@ import org.nanopub.extra.services.ApiResponseEntry;
 import com.knowledgepixels.registry.jelly.JellyUtils;
 import com.knowledgepixels.registry.jelly.MaybeNanopub;
 import com.knowledgepixels.registry.jelly.NanopubStream;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
@@ -48,11 +49,11 @@ public class NanopubLoader {
 	//      2. Core load: load to all core lists (initialize if needed), or load to all lists if pubkey is "full-loaded"
 	//      3. Full load: load to all lists (initialize if needed)
 
-	public static void simpleLoad(String nanopubId) {
-		simpleLoad(retrieveNanopub(nanopubId));
+	public static void simpleLoad(ClientSession mongoSession, String nanopubId) {
+		simpleLoad(mongoSession, retrieveNanopub(mongoSession, nanopubId));
 	}
 
-	public static void simpleLoad(Nanopub np) {
+	public static void simpleLoad(ClientSession mongoSession, Nanopub np) {
 		String pubkey = RegistryDB.getPubkey(np);
 		if (pubkey == null) {
 			System.err.println("Ignore (not signed): " + np.getUri());
@@ -60,10 +61,10 @@ public class NanopubLoader {
 		}
 		String pubkeyHash = Utils.getHash(pubkey);
 		// TODO Do we need to load anything else here, into the other DB collections?
-		if (has("lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
-			RegistryDB.loadNanopub(np, pubkeyHash, "$");
-		} else if (has("lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
-			RegistryDB.loadNanopub(np, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
+		if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
+			RegistryDB.loadNanopub(mongoSession, np, pubkeyHash, "$");
+		} else if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
+			RegistryDB.loadNanopub(mongoSession, np, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
 		}
 	}
 
@@ -127,8 +128,8 @@ public class NanopubLoader {
 		return null;
 	}
 
-	public static Nanopub retrieveNanopub(String nanopubId) {
-		Nanopub np = retrieveLocalNanopub(nanopubId);
+	public static Nanopub retrieveNanopub(ClientSession mongoSession, String nanopubId) {
+		Nanopub np = retrieveLocalNanopub(mongoSession, nanopubId);
 		int tryCount = 0;
 		while (np == null) {
 			if (tryCount > 10) {
@@ -145,7 +146,7 @@ public class NanopubLoader {
 			// TODO Reach out to other Nanopub Registries here:
 			np = GetNanopub.get(nanopubId);
 			if (np != null) {
-				RegistryDB.loadNanopub(np);
+				RegistryDB.loadNanopub(mongoSession, np);
 			} else {
 				tryCount = tryCount + 1;
 			}
@@ -153,9 +154,9 @@ public class NanopubLoader {
 		return np;
 	}
 
-	public static Nanopub retrieveLocalNanopub(String nanopubId) {
+	public static Nanopub retrieveLocalNanopub(ClientSession mongoSession, String nanopubId) {
 		String ac = TrustyUriUtils.getArtifactCode(nanopubId);
-		MongoCursor<Document> cursor = RegistryDB.get("nanopubs", new Document("_id", ac));
+		MongoCursor<Document> cursor = RegistryDB.get(mongoSession, "nanopubs", new Document("_id", ac));
 		if (!cursor.hasNext()) return null;
 		try {
 			// Parse from Jelly, not TriG (it's faster)

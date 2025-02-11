@@ -5,14 +5,17 @@ import java.io.InputStream;
 
 import org.apache.commons.io.IOUtils;
 
+import com.mongodb.client.ClientSession;
+
 import io.vertx.ext.web.RoutingContext;
 
 public class ResourcePage extends Page {
 
 	public static void show(RoutingContext context, String resourceName, String resourceType) {
 		ResourcePage page;
-		try {
-			page = new ResourcePage(context, resourceName, resourceType);
+		try (ClientSession s = RegistryDB.getClient().startSession()) {
+			s.startTransaction();
+			page = new ResourcePage(s, context, resourceName, resourceType);
 			page.show();
 		} catch (IOException ex) {
 			ex.printStackTrace();
@@ -24,8 +27,8 @@ public class ResourcePage extends Page {
 
 	private String resourceName, resourceType;
 
-	public ResourcePage(RoutingContext context, String resourceName, String resourceType) {
-		super(context);
+	public ResourcePage(ClientSession mongoSession, RoutingContext context, String resourceName, String resourceType) {
+		super(mongoSession, context);
 		this.resourceName = resourceName;
 		this.resourceType = resourceType;
 	}

@@ -13,6 +13,7 @@ import org.apache.http.util.EntityUtils;
 import org.nanopub.NanopubUtils;
 
 import com.google.common.base.Charsets;
+import com.mongodb.client.ClientSession;
 
 // This class is used to connect to the 1st-generation publishing services in the form of nanopub-server.
 // This code can be removed once the transition to Nanopub Registry is completed.
@@ -26,15 +27,15 @@ public class LegacyConnector {
 	// Just to make sure we don't need 1000+ DB requests each time we check for updates:
 	private static Map<String,Boolean> loadedCache = new HashMap<>();
 
-	public static void checkForNewNanopubs() {
+	public static void checkForNewNanopubs(ClientSession mongoSession) {
 		String baseUrl = serverUrls[random.nextInt(serverUrls.length)];
-		String prev = checkUrl(baseUrl + "nanopubs");
+		String prev = checkUrl(mongoSession, baseUrl + "nanopubs");
 		if (prev != null) {
-			checkUrl(baseUrl + prev);
+			checkUrl(mongoSession, baseUrl + prev);
 		}
 	}
 
-	private static String checkUrl(String url) {
+	private static String checkUrl(ClientSession mongoSession, String url) {
 		System.err.println("Checking legacy URL " + url);
 		HttpGet get = new HttpGet(url);
 		get.setHeader("Accept", "text/plain");
@@ -52,7 +53,7 @@ public class LegacyConnector {
 				while ((npUri = i.readLine()) != null) {
 					if (loadedCache.containsKey(npUri)) continue;
 					// TODO: Here we need to make sure to append to existing lists:
-					NanopubLoader.simpleLoad(npUri);
+					NanopubLoader.simpleLoad(mongoSession, npUri);
 					loadedCache.put(npUri, true);
 				}
 			};

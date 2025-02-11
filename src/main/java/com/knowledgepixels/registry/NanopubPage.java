@@ -4,21 +4,23 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
 
 import java.io.IOException;
 
+import org.apache.commons.lang.StringEscapeUtils;
+import org.bson.Document;
+import org.bson.types.Binary;
+
+import com.mongodb.client.ClientSession;
+
 import eu.ostrzyciel.jelly.core.IoUtils$;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame$;
 import io.vertx.ext.web.RoutingContext;
-
-import org.apache.commons.lang.StringEscapeUtils;
-import org.bson.Document;
-
-import org.bson.types.Binary;
 
 public class NanopubPage extends Page {
 
 	public static void show(RoutingContext context) {
 		NanopubPage page;
-		try {
-			page = new NanopubPage(context);
+		try (ClientSession s = RegistryDB.getClient().startSession()) {
+			s.startTransaction();
+			page = new NanopubPage(s, context);
 			page.show();
 		} catch (IOException ex) {
 			ex.printStackTrace();
@@ -28,8 +30,8 @@ public class NanopubPage extends Page {
 		}
 	}
 
-	private NanopubPage(RoutingContext context) {
-		super(context);
+	private NanopubPage(ClientSession mongoSession, RoutingContext context) {
+		super(mongoSession, context);
 	}
 
 	protected void show() throws IOException {

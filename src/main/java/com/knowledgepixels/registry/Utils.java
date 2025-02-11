@@ -19,6 +19,7 @@ import org.nanopub.NanopubUtils;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
+import com.mongodb.client.ClientSession;
 
 import io.vertx.ext.web.RoutingContext;
 import net.trustyuri.TrustyUriUtils;
@@ -69,12 +70,12 @@ public class Utils {
 		return value;
 	}
 
-	public static String getTypeHash(Object type) {
+	public static String getTypeHash(ClientSession mongoSession, Object type) {
 		String typeHash = Utils.getHash(type.toString());
 		if (type.toString().equals("$")) {
 			typeHash = "$";
 		} else {
-			RegistryDB.recordHash(type.toString());
+			RegistryDB.recordHash(mongoSession, type.toString());
 		}
 		return typeHash;
 	}

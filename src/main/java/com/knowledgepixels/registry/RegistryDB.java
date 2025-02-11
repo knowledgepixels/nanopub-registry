@@ -44,10 +44,13 @@ public class RegistryDB {
 
 	private static MongoClient mongoClient;
 	private static MongoDatabase mongoDB;
-	static ClientSession mongoSession;
 
 	public static MongoDatabase getDB() {
 		return mongoDB;
+	}
+
+	public static MongoClient getClient() {
+		return mongoClient;
 	}
 
 	public static MongoCollection<Document> collection(String name) {
@@ -60,45 +63,46 @@ public class RegistryDB {
 		if (mongoClient != null) return;
 		mongoClient = new MongoClient(REGISTRY_DB_HOST);
 		mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
-		mongoSession = mongoClient.startSession();
 
-		if (isInitialized()) return;
-
-		final IndexOptions unique = new IndexOptions().unique(true);
-
-		collection("tasks").createIndex(mongoSession, Indexes.descending("not-before"));
-
-		collection("nanopubs").createIndex(mongoSession, ascending("fullId"), unique);
-		collection("nanopubs").createIndex(mongoSession, descending("counter"), unique);
-		collection("nanopubs").createIndex(mongoSession, ascending("pubkey"));
-
-		collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
-		collection("lists").createIndex(mongoSession, ascending("status"));
-
-		collection("listEntries").createIndex(mongoSession, ascending("np"));
-		collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "np"), unique);
-		collection("listEntries").createIndex(mongoSession, compoundIndex(ascending("pubkey"), ascending("type"), descending("position")), unique);
-		collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "checksum"), unique);
-		collection("listEntries").createIndex(mongoSession, ascending("invalidated"));
-
-		collection("invalidations").createIndex(mongoSession, ascending("invalidatingNp"));
-		collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey"));
-		collection("invalidations").createIndex(mongoSession, ascending("invalidatedNp"));
-		collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey", "invalidatedNp"));
-
-		collection("trustEdges").createIndex(mongoSession, ascending("fromAgent"));
-		collection("trustEdges").createIndex(mongoSession, ascending("fromPubkey"));
-		collection("trustEdges").createIndex(mongoSession, ascending("toAgent"));
-		collection("trustEdges").createIndex(mongoSession, ascending("toPubkey"));
-		collection("trustEdges").createIndex(mongoSession, ascending("source"));
-		collection("trustEdges").createIndex(mongoSession, ascending("fromAgent", "fromPubkey", "toAgent", "toPubkey", "source"), unique);
-		collection("trustEdges").createIndex(mongoSession, ascending("invalidated"));
-
-		collection("hashes").createIndex(mongoSession, ascending("hash"), unique);
-		collection("hashes").createIndex(mongoSession, ascending("value"), unique);
+		try (ClientSession mongoSession = mongoClient.startSession()) {
+			if (isInitialized(mongoSession)) return;
+	
+			final IndexOptions unique = new IndexOptions().unique(true);
+	
+			collection("tasks").createIndex(mongoSession, Indexes.descending("not-before"));
+	
+			collection("nanopubs").createIndex(mongoSession, ascending("fullId"), unique);
+			collection("nanopubs").createIndex(mongoSession, descending("counter"), unique);
+			collection("nanopubs").createIndex(mongoSession, ascending("pubkey"));
+	
+			collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
+			collection("lists").createIndex(mongoSession, ascending("status"));
+	
+			collection("listEntries").createIndex(mongoSession, ascending("np"));
+			collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "np"), unique);
+			collection("listEntries").createIndex(mongoSession, compoundIndex(ascending("pubkey"), ascending("type"), descending("position")), unique);
+			collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "checksum"), unique);
+			collection("listEntries").createIndex(mongoSession, ascending("invalidated"));
+	
+			collection("invalidations").createIndex(mongoSession, ascending("invalidatingNp"));
+			collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey"));
+			collection("invalidations").createIndex(mongoSession, ascending("invalidatedNp"));
+			collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey", "invalidatedNp"));
+	
+			collection("trustEdges").createIndex(mongoSession, ascending("fromAgent"));
+			collection("trustEdges").createIndex(mongoSession, ascending("fromPubkey"));
+			collection("trustEdges").createIndex(mongoSession, ascending("toAgent"));
+			collection("trustEdges").createIndex(mongoSession, ascending("toPubkey"));
+			collection("trustEdges").createIndex(mongoSession, ascending("source"));
+			collection("trustEdges").createIndex(mongoSession, ascending("fromAgent", "fromPubkey", "toAgent", "toPubkey", "source"), unique);
+			collection("trustEdges").createIndex(mongoSession, ascending("invalidated"));
+	
+			collection("hashes").createIndex(mongoSession, ascending("hash"), unique);
+			collection("hashes").createIndex(mongoSession, ascending("value"), unique);
+		}
 	}
 
-	public static void initLoadingCollections() {
+	public static void initLoadingCollections(ClientSession mongoSession) {
 		collection("endorsements_loading").createIndex(mongoSession, ascending("agent"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("pubkey"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("endorsedNanopub"));
@@ -123,57 +127,8 @@ public class RegistryDB {
 		collection("trustPaths_loading").createIndex(mongoSession, descending("ratio"));
 	}
 
-	public static boolean isInitialized() {
-		return getValue("serverInfo", "setupId") != null;
-	}
-
-	public synchronized static void startTransaction() {
-		if (mongoSession.hasActiveTransaction()) throw new RuntimeException("Cannot start transaction: one already running");
-		mongoSession.startTransaction();
-	}
-
-	public synchronized static void commitTransaction() {
-		mongoSession.commitTransaction();
-	}
-
-	public synchronized static void abortTransaction(String message) {
-		boolean successful = false;
-		while (!successful) {
-			try {
-				cleanTransaction();
-				successful = true;
-			} catch (Exception ex) {
-				ex.printStackTrace();
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException iex) {
-					iex.printStackTrace();
-				}
-			}
-		}
-	}
-
-	public synchronized static void cleanTransactionWithRetry() {
-		boolean successful = false;
-		while (!successful) {
-			try {
-				cleanTransaction();
-				successful = true;
-			} catch (Exception ex) {
-				ex.printStackTrace();
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException iex) {
-					iex.printStackTrace();
-				}
-			}
-		}
-	}
-
-	public synchronized static void cleanTransaction() {
-		if (mongoSession.hasActiveTransaction()) {
-			mongoSession.abortTransaction();
-		}
+	public static boolean isInitialized(ClientSession mongoSession) {
+		return getValue(mongoSession, "serverInfo", "setupId") != null;
 	}
 
 	public static void rename(String oldCollectionName, String newCollectionName) {
@@ -190,7 +145,7 @@ public class RegistryDB {
 		return mongoDB.listCollectionNames().into(new ArrayList<String>()).contains(collectionName);
 	}
 
-	public static void increaseStateCounter() {
+	public static void increaseStateCounter(ClientSession mongoSession) {
 		MongoCursor<Document> cursor = collection("serverInfo").find(mongoSession, new Document("_id", "trustStateCounter")).cursor();
 		if (cursor.hasNext()) {
 			long counter = cursor.next().getLong("value");
@@ -200,51 +155,51 @@ public class RegistryDB {
 		}
 	}
 
-	public static boolean has(String collection, String elementName) {
-		return has(collection, new Document("_id", elementName));
+	public static boolean has(ClientSession mongoSession, String collection, String elementName) {
+		return has(mongoSession, collection, new Document("_id", elementName));
 	}
 
-	public static boolean has(String collection, Bson find) {
+	public static boolean has(ClientSession mongoSession, String collection, Bson find) {
 		return collection(collection).find(mongoSession, find).cursor().hasNext();
 	}
 
-	public static MongoCursor<Document> get(String collection, Bson find) {
+	public static MongoCursor<Document> get(ClientSession mongoSession, String collection, Bson find) {
 		return collection(collection).find(mongoSession, find).cursor();
 	}
 
-	public static Object getValue(String collection, String elementName) {
+	public static Object getValue(ClientSession mongoSession, String collection, String elementName) {
 		Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
 		if (d == null) return null;
 		return d.get("value");
 	}
 
-	public static Document getOne(String collection, Bson find) {
+	public static Document getOne(ClientSession mongoSession, String collection, Bson find) {
 		return collection(collection).find(mongoSession, find).first();
 	}
 
-	public static Document getOne(String collection, Bson find, Bson sort) {
+	public static Document getOne(ClientSession mongoSession, String collection, Bson find, Bson sort) {
 		return collection(collection).find(mongoSession, find).sort(sort).first();
 	}
 
-	public static Object getMaxValue(String collection, String fieldName) {
+	public static Object getMaxValue(ClientSession mongoSession, String collection, String fieldName) {
 		MongoCursor<Document> cursor = collection(collection).find(mongoSession).sort(new Document(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
 	}
 
-	public static Object getMaxValue(String collection, Bson find, String fieldName) {
+	public static Object getMaxValue(ClientSession mongoSession, String collection, Bson find, String fieldName) {
 		MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next().get(fieldName);
 	}
 
-	public static Document getMaxValueDocument(String collection, Bson find, String fieldName) {
+	public static Document getMaxValueDocument(ClientSession mongoSession, String collection, Bson find, String fieldName) {
 		MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).cursor();
 		if (!cursor.hasNext()) return null;
 		return cursor.next();
 	}
 
-	public static void set(String collection, Document update) {
+	public static void set(ClientSession mongoSession, String collection, Document update) {
 		Bson find = new Document("_id", update.get("_id"));
 		MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).cursor();
 		if (cursor.hasNext()) {
@@ -252,11 +207,11 @@ public class RegistryDB {
 		}
 	}
 
-	public static void insert(String collection, Document doc) {
+	public static void insert(ClientSession mongoSession, String collection, Document doc) {
 		collection(collection).insertOne(mongoSession, doc);
 	}
 
-	public static void setValue(String collection, String elementId, Object value) {
+	public static void setValue(ClientSession mongoSession, String collection, String elementId, Object value) {
 		collection(collection).updateOne(mongoSession,
 				new Document("_id", elementId),
 				new Document("$set", new Document("value", value)),
@@ -264,9 +219,9 @@ public class RegistryDB {
 			);
 	}
 
-	public static void recordHash(String value) {
-		if (!has("hashes", new Document("value", value))) {
-			insert("hashes", new Document("value", value).append("hash", Utils.getHash(value)));
+	public static void recordHash(ClientSession mongoSession, String value) {
+		if (!has(mongoSession, "hashes", new Document("value", value))) {
+			insert(mongoSession, "hashes", new Document("value", value).append("hash", Utils.getHash(value)));
 		}
 	}
 
@@ -276,11 +231,11 @@ public class RegistryDB {
 		return null;
 	}
 
-	public static void loadNanopub(Nanopub nanopub) {
-		loadNanopub(nanopub, null);
+	public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub) {
+		loadNanopub(mongoSession, nanopub, null);
 	}
 
-	public static void loadNanopub(Nanopub nanopub, String pubkeyHash, String... types) {
+	public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
 		String pubkey = getPubkey(nanopub);
 		if (pubkey == null) {
 			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
@@ -291,13 +246,13 @@ public class RegistryDB {
 			System.err.println("Ignoring nanopub with non-matching pubkey: " + nanopub.getUri());
 			return;
 		}
-		recordHash(pubkey);
+		recordHash(mongoSession, pubkey);
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-		if (has("nanopubs", ac)) {
+		if (has(mongoSession, "nanopubs", ac)) {
 			System.err.println("Already loaded: " + nanopub.getUri());
 		} else {
-			Long counter = (Long) getMaxValue("nanopubs", "counter");
+			Long counter = (Long) getMaxValue(mongoSession, "nanopubs", "counter");
 			if (counter == null) counter = 0l;
 			String nanopubString;
 			byte[] jellyContent;
@@ -331,7 +286,7 @@ public class RegistryDB {
 					).cursor();
 				while (invalidatedEntries.hasNext()) {
 					Document invalidatedEntry = invalidatedEntries.next();
-					addToList(nanopub, ph, invalidatedEntry.getString("type"));
+					addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"));
 				}
 
 				collection("listEntries").updateMany(mongoSession,
@@ -348,11 +303,11 @@ public class RegistryDB {
 		if (pubkeyHash != null) {
 			for (String type : types) {
 				if (!hasType(nanopub, type)) continue;
-				addToList(nanopub, pubkeyHash, Utils.getTypeHash(type));
+				addToList(mongoSession, nanopub, pubkeyHash, Utils.getTypeHash(mongoSession, type));
 			}
 		}
 
-		if (has("invalidations", new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))) {
+		if (has(mongoSession, "invalidations", new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))) {
 
 			// Add the invalidating nanopubs also to the lists of this nanopub:
 			MongoCursor<Document> invalidations = collection("invalidations").find(mongoSession,
@@ -363,7 +318,7 @@ public class RegistryDB {
 				try {
 					Nanopub inp = new NanopubImpl(collection("nanopubs").find(mongoSession, new Document("_id", iac)).first().getString("content"), RDFFormat.TRIG);
 					for (IRI type : NanopubUtils.getTypes(inp)) {
-						addToList(inp, ph, Utils.getTypeHash(type));
+						addToList(mongoSession, inp, ph, Utils.getTypeHash(mongoSession, type));
 					}
 				} catch (RDF4JException | MalformedNanopubException ex) {
 					ex.printStackTrace();
@@ -382,17 +337,17 @@ public class RegistryDB {
 
 	}
 
-	private static void addToList(Nanopub nanopub, String pubkeyHash, String typeHash) {
+	private static void addToList(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String typeHash) {
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-		if (!has("lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
-			insert("lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
+		if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
+			insert(mongoSession, "lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
 		}
 
-		if (has("listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+		if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
 			System.err.println("Already listed: " + nanopub.getUri());
 		} else {
 			
-			Document doc = getMaxValueDocument("listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
+			Document doc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
 			long position;
 			String checksum;
 			if (doc == null) {
@@ -442,7 +397,7 @@ public class RegistryDB {
 //		return false;
 	}
 
-	public static String calculateTrustStateHash() {
+	public static String calculateTrustStateHash(ClientSession mongoSession) {
 		MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor();
 		// TODO Improve this so we don't create the full string just for calculating its hash:
 		String s = "";

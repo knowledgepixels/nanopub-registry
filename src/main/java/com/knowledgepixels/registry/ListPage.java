@@ -1,7 +1,6 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.mongoSession;
 import static com.knowledgepixels.registry.RegistryDB.unhash;
 import static com.mongodb.client.model.Aggregates.lookup;
 import static com.mongodb.client.model.Aggregates.match;
@@ -21,6 +20,7 @@ import org.bson.conversions.Bson;
 
 import com.google.gson.Gson;
 import com.knowledgepixels.registry.jelly.NanopubStream;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 
 import io.vertx.ext.web.RoutingContext;
@@ -31,8 +31,9 @@ public class ListPage extends Page {
 
 	public static void show(RoutingContext context) {
 		ListPage page;
-		try {
-			page = new ListPage(context);
+		try (ClientSession s = RegistryDB.getClient().startSession()) {
+			s.startTransaction();
+			page = new ListPage(s, context);
 			page.show();
 		} catch (IOException ex) {
 			ex.printStackTrace();
@@ -42,8 +43,8 @@ public class ListPage extends Page {
 		}
 	}
 
-	private ListPage(RoutingContext context) {
-		super(context);
+	private ListPage(ClientSession mongoSession, RoutingContext context) {
+		super(mongoSession, context);
 	}
 
 	protected void show() throws IOException {
@@ -213,9 +214,9 @@ public class ListPage extends Page {
 		} else if (req.equals("/agent") && context.request().getParam("id") != null) {
 			String agentId = context.request().getParam("id");
 			if ("application/json".equals(format)) {
-				print(AgentInfo.get(agentId).asJson());
+				print(AgentInfo.get(mongoSession, agentId).asJson());
 			} else {
-				Document agentDoc = RegistryDB.getOne("agents", new Document("agent", agentId));
+				Document agentDoc = RegistryDB.getOne(mongoSession, "agents", new Document("agent", agentId));
 				printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
 				println("<h1>Agent " + Utils.getAgentLabel(agentId) + "</h1>");
 				println("<p><a href=\"/agents\">&lt; Agent List</a></p>");

@@ -14,6 +14,8 @@ import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.server.PublishNanopub;
 
+import com.mongodb.client.ClientSession;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
@@ -65,21 +67,23 @@ public class MainVerticle extends AbstractVerticle {
 							ex.printStackTrace();
 						}
 						if (np != null) {
-							String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
-							if (has("nanopubs", ac)) {
-								System.err.println("POST: known nanopub " + ac);
-							} else {
-								System.err.println("POST: new nanopub " + ac);
-
-								// TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
-								NanopubLoader.simpleLoad(np);
-
-								// Here we publish it also to the first-generation services, so they know about it too:
-								// TODO Remove this at some point
-								try {
-									PublishNanopub.publish(np);
-								} catch (IOException ex) {
-									ex.printStackTrace();
+							try (ClientSession s = RegistryDB.getClient().startSession()) {
+								String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
+								if (has(s, "nanopubs", ac)) {
+									System.err.println("POST: known nanopub " + ac);
+								} else {
+									System.err.println("POST: new nanopub " + ac);
+	
+									// TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
+									NanopubLoader.simpleLoad(s, np);
+	
+									// Here we publish it also to the first-generation services, so they know about it too:
+									// TODO Remove this at some point
+									try {
+										PublishNanopub.publish(np);
+									} catch (IOException ex) {
+										ex.printStackTrace();
+									}
 								}
 							}
 						}
@@ -113,7 +117,7 @@ public class MainVerticle extends AbstractVerticle {
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
 			try {
 				System.err.println("Gracefully shutting down...");
-				RegistryDB.mongoSession.close();
+				RegistryDB.getClient().close();
 				vertx.close() .toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
 				System.err.println("Graceful shutdown completed");
 			} catch (Exception ex) {

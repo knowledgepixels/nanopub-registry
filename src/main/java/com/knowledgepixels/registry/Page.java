@@ -8,6 +8,8 @@ import java.text.DecimalFormat;
 
 import org.apache.commons.lang.StringEscapeUtils;
 
+import com.mongodb.client.ClientSession;
+
 import io.vertx.ext.web.RoutingContext;
 
 public abstract class Page {
@@ -16,23 +18,25 @@ public abstract class Page {
 	protected static final DecimalFormat df1 = new DecimalFormat("0.0");
 
 	private RoutingContext context;
+	protected ClientSession mongoSession;
 
 	private String presentationFormat;
 	private String extension;
 	private String requestString;
 
-	public Page(RoutingContext context) {
+	public Page(ClientSession mongoSession, RoutingContext context) {
+		this.mongoSession = mongoSession;
 		this.context = context;
 		context.response().setChunked(true);
 
 		// TODO See whether we can cache these better on our side. Not sure how efficient the MongoDB caching is for these
 		//      kinds of DB queries...
-		context.response().putHeader("Nanopub-Registry-Status", getValue("serverInfo", "status").toString());
-		context.response().putHeader("Nanopub-Registry-Setup-Id", getValue("serverInfo", "setupId").toString());
-		context.response().putHeader("Nanopub-Registry-Trust-State-Counter", getValue("serverInfo", "trustStateCounter").toString());
-		context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", (String) getValue("serverInfo", "lastTrustStateUpdate"));
-		context.response().putHeader("Nanopub-Registry-Trust-State-Hash", (String) getValue("serverInfo", "trustStateHash"));
-		context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue("nanopubs", "counter").toString());
+		context.response().putHeader("Nanopub-Registry-Status", getValue(mongoSession, "serverInfo", "status").toString());
+		context.response().putHeader("Nanopub-Registry-Setup-Id", getValue(mongoSession, "serverInfo", "setupId").toString());
+		context.response().putHeader("Nanopub-Registry-Trust-State-Counter", getValue(mongoSession, "serverInfo", "trustStateCounter").toString());
+		context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", (String) getValue(mongoSession, "serverInfo", "lastTrustStateUpdate"));
+		context.response().putHeader("Nanopub-Registry-Trust-State-Hash", (String) getValue(mongoSession, "serverInfo", "trustStateHash"));
+		context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue(mongoSession, "nanopubs", "counter").toString());
 
 		String r = context.request().path().substring(1);
 		if (r.endsWith(".txt")) {
