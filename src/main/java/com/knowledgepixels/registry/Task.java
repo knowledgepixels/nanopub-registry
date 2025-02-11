@@ -103,13 +103,15 @@ public enum Task implements Serializable {
 			for (IRI i : settingNp.getBootstrapServices()) {
 				bootstrapServices.add(new Document("_id", i.stringValue()));
 			}
+			// potentially currently hardcoded in the nanopub lib
 			setValue(s, "setting", "bootstrap-services", bootstrapServices);
-			schedule(s, INIT_COLLECTIONS);
+
 			if (PERFORM_FULL_LOAD) {
 				schedule(s, LOAD_FULL.withDelay(60 * 1000));
 			}
 
 			setStatus(s, "coreLoading");
+			schedule(s, INIT_COLLECTIONS);
 		}
 
 	},
@@ -118,6 +120,7 @@ public enum Task implements Serializable {
 
 		// DB read from:
 		// DB write to:  trustPaths, endorsements, accounts
+		// This state is periodically executed
 
 		public void run(ClientSession s, Document taskDoc) throws Exception {
 			if (!getStatus(s).equals("coreLoading") && !getStatus(s).equals("updating")) {
@@ -126,6 +129,8 @@ public enum Task implements Serializable {
 
 			RegistryDB.initLoadingCollections(s);
 
+			// since this may take long, we start with postfix "_loading"
+			// and only at completion it's changed to trustPath, endorsements, accounts
 			insert(s, "trustPaths_loading",
 					new Document("_id", "$")
 						.append("sorthash", "")
@@ -926,11 +931,15 @@ public enum Task implements Serializable {
 
 	private static MongoCollection<Document> tasks = collection("tasks");
 
+	/**
+	 * The super important base entry point!
+	 */
 	static void runTasks() {
 		try (ClientSession s = RegistryDB.getClient().startSession()) {
 			if (!RegistryDB.isInitialized(s)) {
-				schedule(s, INIT_DB);
+				schedule(s, INIT_DB); // does not yet execute, only schedules
 			}
+
 			while (true) {
 				FindIterable<Document> taskResult = tasks.find(s).sort(ascending("not-before"));
 				Document taskDoc = taskResult.first();
@@ -1032,6 +1041,7 @@ public enum Task implements Serializable {
 		return agentIntro;
 	}
 
+	// TODO make an ENUM out of the statuses
 	private static void setStatus(ClientSession mongoSession, String status) {
 		setValue(mongoSession, "serverInfo", "status", status);
 	}

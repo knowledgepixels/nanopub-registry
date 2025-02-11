@@ -231,6 +231,9 @@ public class RegistryDB {
 		return null;
 	}
 
+	/**
+	 * Insert nanopub to the DB.
+	 */
 	public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub) {
 		loadNanopub(mongoSession, nanopub, null);
 	}
