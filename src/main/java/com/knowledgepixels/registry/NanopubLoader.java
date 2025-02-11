@@ -86,7 +86,7 @@ public class NanopubLoader {
 	private static final String[] peerUrls = new String[] {
 			"https://registry.petapico.org/",
 			"https://registry.knowledgepixels.com/",
-			"https://registry.np.kpxl.org/"
+			"https://registry.np.trustyuri.net/"
 	};
 
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
