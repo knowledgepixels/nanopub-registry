@@ -39,7 +39,6 @@ import org.eclipse.rdf4j.model.Statement;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
-import org.nanopub.NanopubUtils;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
 import org.nanopub.extra.security.KeyDeclaration;
@@ -762,24 +761,13 @@ public enum Task implements Serializable {
 						try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph)) {
 							stream.forEach(m -> {
 								if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-								Nanopub np = m.getNanopub();
-								Set<String> types = new HashSet<>();
-								types.add("$");
-								for (IRI typeIri : NanopubUtils.getTypes(np)) {
-									types.add(typeIri.stringValue());
-								}
-								loadNanopub(s, np, ph, types.toArray(new String[types.size()]));
+								loadNanopub(s, m.getNanopub(), ph, "$");
 							});
 						}
 					} else {
 						NanopubLoader.retrieveNanopubs(null, ph, e -> {
 							Nanopub np = NanopubLoader.retrieveNanopub(s, e.get("np"));
-							Set<String> types = new HashSet<>();
-							types.add("$");
-							for (IRI typeIri : NanopubUtils.getTypes(np)) {
-								types.add(typeIri.stringValue());
-							}
-							loadNanopub(s, np, ph, types.toArray(new String[types.size()]));
+							loadNanopub(s, np, ph, "$");
 						});
 					}
 				}
@@ -875,24 +863,13 @@ public enum Task implements Serializable {
 					try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash)) {
 						stream.forEach(m -> {
 							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-							Nanopub np = m.getNanopub();
-							Set<String> types = new HashSet<>();
-							types.add("$");
-							for (IRI typeIri : NanopubUtils.getTypes(np)) {
-								types.add(typeIri.stringValue());
-							}
-							loadNanopub(s, np, pubkeyHash, types.toArray(new String[types.size()]));
+							loadNanopub(s, m.getNanopub(), pubkeyHash, "$");
 						});
 					}
 				} else {
 					NanopubLoader.retrieveNanopubs(null, pubkeyHash, e -> {
 						Nanopub np = NanopubLoader.retrieveNanopub(s, e.get("np"));
-						Set<String> types = new HashSet<>();
-						types.add("$");
-						for (IRI typeIri : NanopubUtils.getTypes(np)) {
-							types.add(typeIri.stringValue());
-						}
-						loadNanopub(s, np, pubkeyHash, types.toArray(new String[types.size()]));
+						loadNanopub(s, np, pubkeyHash, "$");
 					});
 				}
 

@@ -302,8 +302,13 @@ public class RegistryDB {
 
 		if (pubkeyHash != null) {
 			for (String type : types) {
-				if (!hasType(nanopub, type)) continue;
+				// TODO Check if nanopub really has the type?
 				addToList(mongoSession, nanopub, pubkeyHash, Utils.getTypeHash(mongoSession, type));
+				if (type.equals("$")) {
+					for (IRI t : NanopubUtils.getTypes(nanopub)) {
+						addToList(mongoSession, nanopub, pubkeyHash, Utils.getTypeHash(mongoSession, t));
+					}
+				}
 			}
 		}
 
@@ -384,17 +389,6 @@ public class RegistryDB {
 			ex.printStackTrace();
 		}
 		return null;
-	}
-
-	private static boolean hasType(Nanopub nanopub, String type) {
-		return true;
-		// TODO We need to do a proper check here. Type applies also if the nanopub itself
-		//      doesn't directly have the type but is an invalidation of a nanopub that has it.
-//		if (type.equals("$")) return true;
-//		for (IRI typeIri : NanopubUtils.getTypes(nanopub)) {
-//			if (typeIri.stringValue().equals(type)) return true;
-//		}
-//		return false;
 	}
 
 	public static String calculateTrustStateHash(ClientSession mongoSession) {
