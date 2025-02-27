@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,8 +57,8 @@ public class LegacyConnector {
 					NanopubLoader.simpleLoad(mongoSession, npUri);
 					loadedCache.put(npUri, true);
 				}
-			};
-		} catch (Exception ex) {
+			}
+		} catch (IOException ex) {
 			if (resp != null) EntityUtils.consumeQuietly(resp.getEntity());
 			ex.printStackTrace();
 			System.err.println("Request to " + url + " was not successful: " + ex.getMessage());

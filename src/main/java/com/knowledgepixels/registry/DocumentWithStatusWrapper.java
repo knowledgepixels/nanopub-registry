@@ -2,22 +2,26 @@ package com.knowledgepixels.registry;
 
 import org.bson.Document;
 
-public class MongoDbDocumentWrapper {
+public class DocumentWithStatusWrapper {
 
-    // Inspired by https://www.mongodb.com/community/forums/t/cannot-store-java-enum-values-in-mongodb/99719/3
-    // TODO discuss: Do we want Document<T> extends Document and have a specific Config with Writer and readers,
-    // which gave us more Type Savety  @see: @RegistryDB :112
+    public static final String statusField = "status";
 
     private final Document document;
 
-    public MongoDbDocumentWrapper(Document document) {
+    public DocumentWithStatusWrapper(EntryStatus status) {
+        this.document = new Document(statusField, status.getValue());
+    }
+    public DocumentWithStatusWrapper(Document document) {
         this.document = document;
+    }
+    public DocumentWithStatusWrapper(Document document, EntryStatus status) {
+        this.document = document.append(statusField, status.getValue());
     }
     public Document getDocument() {
         return document;
     }
     public Document setStatus(EntryStatus status) {
-        document.append("status", status.getValue());
+        document.append(statusField, status.getValue());
         return document;
     }
 }

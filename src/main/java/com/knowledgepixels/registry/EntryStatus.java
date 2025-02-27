@@ -1,20 +1,24 @@
 package com.knowledgepixels.registry;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+import org.bson.codecs.pojo.annotations.BsonProperty;
+
 /**
  * The status field of several Documents, especially:
  * endorsements-loading, intro-lists, and accounts-loading.
  *
  * The states of the different Document Types are not dependant of each other.
+ *
+ * We decided to break with Java Conventions and have lowercase Enum Values,
+ * which directly represent the string in the MongoDB for aesthetic reasons.
  */
 public enum EntryStatus {
-    /** endorsements_loading, */
-    to_retrieve {
 
-    @Override
-    public String toString () {
-    return "to-retrieve"; // cannot name the enum with a dash
-    }
-    },
+    /** endorsements_loading, */
+    to_retrieve, // WARNING: Breaking Change! it was "to-retrieve" before
+    // We may avoid the change by adding an annotation
+    // @BsonProperty(value = "to-retrieve") or having a custom toString()
     /** accounts-loading */
     seen,
     /** endorsements_loading, */
@@ -42,5 +46,28 @@ public enum EntryStatus {
     /** accounts-loading */
     approved,
     /** accounts-loading */
-    contested
+    contested;
+
+    // The code is inspired by: https://www.mongodb.com/community/forums/t/cannot-store-java-enum-values-in-mongodb/99719/3
+    // It's not really necessary right now, since we call getValue by hand,
+    // we may also just call toString()...
+    @BsonProperty(value="status")
+    String status;
+
+    EntryStatus() {
+        this.status = this.toString();
+    }
+
+    public static EntryStatus fromValue(String value) {
+        for (EntryStatus e : EntryStatus.values()) {
+            if (e.toString().equals(value)) {
+                return e;
+            }
+        }
+        throw new RuntimeException("Unsupported EntryStatus Value" + value);
+    }
+
+    public String getValue() {
+        return this.status;
+    }
 }

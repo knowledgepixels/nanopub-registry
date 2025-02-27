@@ -108,6 +108,9 @@ public class RegistryDB {
 		collection("endorsements_loading").createIndex(mongoSession, ascending("endorsedNanopub"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("source"));
 		collection("endorsements_loading").createIndex(mongoSession, ascending("status"));
+		// zip: Hmm, not possible to set com.mongodb.client.model.WriteModel<T> here
+		// I'd currently recommend to have a package with the DB related stuff
+		// and therein a Custom Extension T of <Document>, where we could put that WriteModel<T>.
 
 		collection("agents_loading").createIndex(mongoSession, ascending("agent"), unique);
 		collection("agents_loading").createIndex(mongoSession, descending("accountCount"));

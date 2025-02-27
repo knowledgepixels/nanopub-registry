@@ -203,7 +203,13 @@ public class ListPage extends Page {
 						println(" status: " + d.get("status") + ",");
 						println(" depth: " + d.get("depth") + ",");
 						println(" pathCount: " + d.get("pathCount") + ",");
-						println(" ratio: " + df8.format(d.get("ratio")) + ",");
+							// TODO is this the right fix for the problem??
+						try {
+							Object ratio = d.get("ratio");
+							println(" ratio: " + df8.format(ratio) + ",");
+						} catch (IllegalArgumentException e) {
+							println(" ratio: NOT A NUMBER !! " + d.get("ratio"));
+						}
 						println(" quota: " + d.get("quota"));
 						println("</li>");
 					}
