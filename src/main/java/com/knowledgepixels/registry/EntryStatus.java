@@ -50,7 +50,7 @@ public enum EntryStatus {
     // It's not really necessary right now, since we call getValue by hand,
     // we may also just call toString()...
     @BsonProperty(value="status")
-    String status;
+    final String status;
 
     EntryStatus() {
         this.status = this.toString();
