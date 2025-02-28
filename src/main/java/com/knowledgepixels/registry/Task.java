@@ -74,7 +74,7 @@ public enum Task implements Serializable {
 	LOAD_CONFIG {
 
 		public void run(ClientSession s, Document taskDoc) {
-			if (!getServerStatus(s).equals("launching")) {
+			if (getServerStatus(s) != launching) {
 				throw new RuntimeException("Illegal status for this task: " + getServerStatus(s));
 			}
 
@@ -92,7 +92,7 @@ public enum Task implements Serializable {
 	LOAD_SETTING {
 
 		public void run(ClientSession s, Document taskDoc) throws Exception {
-			if (!getServerStatus(s).equals("launching")) {
+			if (getServerStatus(s) != launching) {
 				throw new RuntimeException("Illegal status for this task: " + getServerStatus(s));
 			}
 
@@ -125,7 +125,7 @@ public enum Task implements Serializable {
 		// This state is periodically executed
 
 		public void run(ClientSession s, Document taskDoc) throws Exception {
-			if (!getServerStatus(s).equals("coreLoading") && !getServerStatus(s).equals("updating")) {
+			if (getServerStatus(s) != coreLoading && getServerStatus(s) != updating) {
 				throw new RuntimeException("Illegal status for this task: " + getServerStatus(s));
 			}
 
@@ -153,14 +153,15 @@ public enum Task implements Serializable {
 							.append("pubkey", "$")
 							.append("endorsedNanopub", declarationAc)
 							.append("source", getValue(s, "setting", "current"))
-							.append("status", to_retrieve)
+							.append("status", toRetrieve.getValue())
+
 					);
 
 			}
 			insert(s, "accounts_loading",
 					new Document("agent", "$")
 						.append("pubkey", "$")
-						.append("status", visited)
+						.append("status", visited.getValue())
 						.append("depth", 0)
 				);
 
@@ -206,8 +207,9 @@ public enum Task implements Serializable {
 
 			int depth = taskDoc.getInteger("depth");
 
-			if (has(s, "endorsements_loading", new Document("status", to_retrieve))) {
-				Document d = getOne(s, "endorsements_loading", new Document("status", to_retrieve));
+			if (has(s, "endorsements_loading", new Document("status", toRetrieve.getValue()))) {
+				Document d = getOne(s, "endorsements_loading",
+						new DbEntryWrapper(toRetrieve).getDocument());
 
 				IntroNanopub agentIntro = getAgentIntro(s, d.getString("endorsedNanopub"));
 				if (agentIntro != null) {
@@ -229,13 +231,13 @@ public enum Task implements Serializable {
 
 						Document agent = new Document("agent", agentId).append("pubkey", agentPubkey);
 						if (!has(s, "accounts_loading", agent)) {
-							insert(s, "accounts_loading", agent.append("status", seen).append("depth", depth));
+							insert(s, "accounts_loading", agent.append("status", seen.getValue()).append("depth", depth));
 						}
 					}
 
-					set(s, "endorsements_loading", d.append("status", retrieved));
+					set(s, "endorsements_loading", d.append("status", retrieved.getValue()));
 				} else {
-					set(s, "endorsements_loading", d.append("status", discarded));
+					set(s, "endorsements_loading", d.append("status", discarded.getValue()));
 				}
 
 				schedule(s, LOAD_DECLARATIONS.with("depth", depth));
@@ -274,7 +276,7 @@ public enum Task implements Serializable {
 			int depth = taskDoc.getInteger("depth");
 
 			Document d = getOne(s, "accounts_loading",
-					new Document("status", visited)
+					new Document("status", visited.getValue())
 						.append("depth", depth - 1)
 				);
 
@@ -326,7 +328,7 @@ public enum Task implements Serializable {
 						insert(s, "trustPaths_loading", pd.append("ratio", newRatio));
 					}
 					set(s, "trustPaths_loading", trustPath.append("type", "primary"));
-					set(s, "accounts_loading", d.append("status", expanded));
+					set(s, "accounts_loading", d.append("status", expanded.getValue()));
 				}
 				schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
 	
@@ -378,7 +380,8 @@ public enum Task implements Serializable {
 			int depth = taskDoc.getInteger("depth");
 			int loadCount = taskDoc.getInteger("load-count");
 
-			Document agentAccount = getOne(s, "accounts_loading", new Document("depth", depth).append("status", seen));
+			Document agentAccount = getOne(s, "accounts_loading",
+					new Document("depth", depth).append("status", seen.getValue()));
 			Document trustPath = null;
 			final String agentId;
 			final String pubkeyHash;
@@ -398,10 +401,10 @@ public enum Task implements Serializable {
 			if (trustPath == null) {
 				schedule(s, FINISH_ITERATION.with("depth", depth).append("load-count", loadCount));
 			} else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
-				set(s, "accounts_loading", agentAccount.append("status", skipped));
+				set(s, "accounts_loading", agentAccount.append("status", skipped.getValue()));
 				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
 				if (!has(s, "lists", d)) {
-					insert(s, "lists", d.append("status", encountered));
+					insert(s, "lists", d.append("status", encountered.getValue()));
 				}
 				schedule(s, LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			} else {
@@ -409,7 +412,7 @@ public enum Task implements Serializable {
 				Document introList = new Document()
 						.append("pubkey", pubkeyHash)
 						.append("type", INTRO_TYPE_HASH)
-						.append("status", loading);
+						.append("status", loading.getValue());
 				if (!has(s, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
 					insert(s, "lists", introList);
 				}
@@ -427,15 +430,13 @@ public enum Task implements Serializable {
 					});
 				}
 
-				set(s, "lists", introList.append("status", loaded));
+				set(s, "lists", introList.append("status", loaded.getValue()));
 
 				// TODO check endorsement limit
 				Document endorseList = new Document()
 						.append("pubkey", pubkeyHash)
 						.append("type", ENDORSE_TYPE_HASH)
-						.append("status", loading);
-				// TODO discuss about inheriting EndoresList from Document
-				//  for type safety and convenience
+						.append("status", loading.getValue());
 				if (!has(s, "lists", new Document("pubkey", pubkeyHash).append("type", ENDORSE_TYPE_HASH))) {
 					insert(s, "lists", endorseList);
 				}
@@ -459,7 +460,8 @@ public enum Task implements Serializable {
 										.append("endorsedNanopub", endorsedNpId)
 										.append("source", sourceNpId);
 								if (!has(s, "endorsements_loading", endorsement)) {
-									insert(s, "endorsements_loading", endorsement.append("status", to_retrieve));
+									insert(s, "endorsements_loading",
+											endorsement.append("status", toRetrieve.getValue()));
 								}
 							}
 						});
@@ -481,18 +483,20 @@ public enum Task implements Serializable {
 									.append("endorsedNanopub", endorsedNpId)
 									.append("source", sourceNpId);
 							if (!has(s, "endorsements_loading", endorsement)) {
-								insert(s, "endorsements_loading", endorsement.append("status", to_retrieve));
+								insert(s, "endorsements_loading",
+										endorsement.append("status", toRetrieve.getValue()));
 							}
 						}
 					});
 				}
 
-				set(s, "lists", endorseList.append("status", loaded));
+				set(s, "lists", endorseList.append("status", loaded.getValue()));
 
 				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
-				if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered));
+				if (!has(s, "lists", df)) insert(s, "lists",
+						df.append("status", encountered.getValue()));
 
-				set(s, "accounts_loading", agentAccount.append("status", visited));
+				set(s, "accounts_loading", agentAccount.append("status", visited.getValue()));
 
 				schedule(s, LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
 			}
@@ -545,7 +549,7 @@ public enum Task implements Serializable {
 
 		public void run(ClientSession s, Document taskDoc) {
 
-			Document d = getOne(s, "accounts_loading", new Document("status", expanded));
+			Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
 
 			if (d == null) {
 				schedule(s, AGGREGATE_AGENTS);
@@ -580,7 +584,7 @@ public enum Task implements Serializable {
 					quota = MAX_USER_QUOTA;
 				}
 				set(s, "accounts_loading",
-						d.append("status", processed)
+						d.append("status", processed.getValue())
 							.append("ratio", ratio)
 							.append("pathCount", pathCount)
 							.append("quota", quota)
@@ -599,11 +603,11 @@ public enum Task implements Serializable {
 
 		public void run(ClientSession s, Document taskDoc) {
 
-			Document a = getOne(s, "accounts_loading", new Document("status", processed));
+			Document a = getOne(s, "accounts_loading", new Document("status", processed.getValue()));
 			if (a == null) {
 				schedule(s, ASSIGN_PUBKEYS);
 			} else {
-				Document agentId = new Document("agent", a.getString("agent")).append("status", processed);
+				Document agentId = new Document("agent", a.getString("agent")).append("status", processed.getValue());
 				int count = 0;
 				int pathCountSum = 0;
 				double totalRatio = 0.0d;
@@ -614,7 +618,8 @@ public enum Task implements Serializable {
 					pathCountSum += d.getInteger("pathCount");
 					totalRatio += d.getDouble("ratio");
 				}
-				collection("accounts_loading").updateMany(s, agentId, new Document("$set", new Document("status", aggregated)));
+				collection("accounts_loading").updateMany(s, agentId, new Document("$set",
+						new DbEntryWrapper(aggregated).getDocument()));
 				insert(s, "agents_loading",
 						agentId.append("accountCount", count)
 							.append("avgPathCount", (double) pathCountSum / count)
@@ -634,22 +639,24 @@ public enum Task implements Serializable {
 
 		public void run(ClientSession s, Document taskDoc) {
 
-			Document a = getOne(s, "accounts_loading", new Document("status", aggregated));
+			Document a = getOne(s, "accounts_loading", new DbEntryWrapper(aggregated).getDocument());
 			if (a == null) {
 				schedule(s, DETERMINE_UPDATES);
 			} else {
 				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
 				if (collection("accounts_loading").countDocuments(s, pubkeyId) == 1) {
-					collection("accounts_loading").updateMany(s, pubkeyId, new Document("$set", new Document("status", approved)));
+					collection("accounts_loading").updateMany(s, pubkeyId,
+							new Document("$set", new DbEntryWrapper(approved).getDocument()));
 				} else {
 					// TODO At the moment all get marked as 'contested'; implement more nuanced algorithm
-					collection("accounts_loading").updateMany(s, pubkeyId, new Document("$set", new Document("status", contested)));
+					collection("accounts_loading").updateMany(s, pubkeyId, new Document("$set",
+							new DbEntryWrapper( contested).getDocument()));
 				}
 				schedule(s, ASSIGN_PUBKEYS);
 			}
-			
+
 		}
-		
+
 	},
 
 	DETERMINE_UPDATES {
@@ -660,13 +667,15 @@ public enum Task implements Serializable {
 		public void run(ClientSession s, Document taskDoc) {
 
 			// TODO Handle contested accounts properly:
-			for (Document d : collection("accounts_loading").find(new Document("status", approved))) {
+			for (Document d : collection("accounts_loading").find(
+					new DbEntryWrapper(approved).getDocument())) {
 				// TODO Consider quota too:
 				Document accountId = new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"));
-				if (collection("accounts") == null || !has(s, "accounts", accountId.append("status", loaded))) {
-					set(s, "accounts_loading", d.append("status", toLoad));
+				if (collection("accounts") == null || !has(s, "accounts",
+						accountId.append("status", loaded.getValue()))) {
+					set(s, "accounts_loading", d.append("status", toLoad.getValue()));
 				} else {
-					set(s, "accounts_loading", d.append("status", loaded));
+					set(s, "accounts_loading", d.append("status", loaded.getValue()));
 				}
 			}
 			schedule(s, FINALIZE_TRUST_STATE);
@@ -713,7 +722,7 @@ public enum Task implements Serializable {
 					);
 			}
 
-			if (status.equals("coreLoading")) {
+			if (status == coreLoading) {
 				setServerStatus(s, coreReady);
 			} else {
 				setServerStatus(s, ready);
@@ -730,7 +739,7 @@ public enum Task implements Serializable {
 		public void run(ClientSession s, Document taskDoc) {
 
 			ServerStatus status = getServerStatus(s);
-			if (status.equals("ready")) {
+			if (status == ready) {
 				setServerStatus(s, updating);
 				schedule(s, INIT_COLLECTIONS);
 			} else {
@@ -748,16 +757,16 @@ public enum Task implements Serializable {
 			if (!PERFORM_FULL_LOAD) return;
 
 			ServerStatus status = getServerStatus(s);
-			if (!status.equals("coreReady") && !status.equals("ready")) {
+			if (status != coreReady && status != ready) {
 				System.err.println("Server currently not ready; checking again later");
 				schedule(s, LOAD_FULL.withDelay(60 * 1000));
 				return;
 			}
 
-			Document a = getOne(s, "accounts", new Document("status", toLoad));
+			Document a = getOne(s, "accounts", new DbEntryWrapper(toLoad).getDocument());
 			if (a == null) {
 				System.err.println("Nothing to load");
-				if (status.equals("coreReady")) {
+				if (status == coreReady) {
 					System.err.println("Full load finished");
 					setServerStatus(s, ready);
 				}
@@ -782,8 +791,8 @@ public enum Task implements Serializable {
 				}
 
 				Document l = getOne(s, "lists", new Document().append("pubkey", ph).append("type", "$"));
-				if (l != null) set(s, "lists", l.append("status", loaded));
-				set(s, "accounts", a.append("status", loaded));
+				if (l != null) set(s, "lists", l.append("status", loaded.getValue()));
+				set(s, "accounts", a.append("status", loaded.getValue()));
 
 				schedule(s, LOAD_FULL.withDelay(100));
 			}
@@ -805,7 +814,7 @@ public enum Task implements Serializable {
 				String pubkeyHash = e.get("pubkeyhash");
 				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
 				if (!has(s, "lists", d)) {
-					insert(s, "lists", d.append("status", encountered));
+					insert(s, "lists", d.append("status", encountered.getValue()));
 				}
 			}
 
@@ -817,7 +826,7 @@ public enum Task implements Serializable {
 	RUN_OPTIONAL_LOAD {
 
 		public void run(ClientSession s, Document taskDoc) {
-			Document di = getOne(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered));
+			Document di = getOne(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()));
 			if (di != null) {
 				final String pubkeyHash = di.getString("pubkey");
 				System.err.println("Optional core loading: " + pubkeyHash);
@@ -834,7 +843,7 @@ public enum Task implements Serializable {
 						loadNanopub(s, NanopubLoader.retrieveNanopub(s, e.get("np")), pubkeyHash, INTRO_TYPE);
 					});
 				}
-				set(s, "lists", di.append("status", loaded));
+				set(s, "lists", di.append("status", loaded.getValue()));
 
 				if (PEER_LOADING_TESTING_MODE) {
 					try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
@@ -851,19 +860,19 @@ public enum Task implements Serializable {
 
 				Document de = new Document("pubkey", pubkeyHash).append("type", ENDORSE_TYPE_HASH);
 				if (has(s, "lists", de)) {
-					set(s, "lists", de.append("status", loaded));
+					set(s, "lists", de.append("status", loaded.getValue()));
 				} else {
-					insert(s, "lists", de.append("status", loaded));
+					insert(s, "lists", de.append("status", loaded.getValue()));
 				}
 
 				Document df = new Document("pubkey", pubkeyHash).append("type", "$");
-				if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered));
+				if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered.getValue()));
 
 				schedule(s, CHECK_NEW.withDelay(100));
 				return;
 			}
 
-			Document df = getOne(s, "lists", new Document("type", "$").append("status", encountered));
+			Document df = getOne(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
 			if (df != null) {
 				final String pubkeyHash = df.getString("pubkey");
 				System.err.println("Optional full loading: " + pubkeyHash);
@@ -882,7 +891,7 @@ public enum Task implements Serializable {
 					});
 				}
 
-				set(s, "lists", df.append("status", loaded));
+				set(s, "lists", df.append("status", loaded.getValue()));
 			}
 
 			schedule(s, CHECK_NEW.withDelay(100));
@@ -1046,7 +1055,7 @@ public enum Task implements Serializable {
 	}
 
 	private static void setServerStatus(ClientSession mongoSession, ServerStatus status) {
-		setValue(mongoSession, "serverInfo", "status", status);
+		setValue(mongoSession, "serverInfo", "status", status.toString());
 	}
 
 	private static ServerStatus getServerStatus(ClientSession mongoSession) {
