@@ -2,19 +2,27 @@ package com.knowledgepixels.registry;
 
 import org.bson.Document;
 
-public class DocumentWithStatusWrapper {
+/**
+ * Wrapper for a MongoDB Entry
+ *
+ * This allows us to have more control over some fields, which are just strings on the database.
+ *
+ * Currently used for:
+ * - status: can only take values of the @EntryStatus Enum.
+ */
+public class DbEntryWrapper {
 
     public static final String statusField = "status";
 
     private final Document document;
 
-    public DocumentWithStatusWrapper(EntryStatus status) {
+    public DbEntryWrapper(EntryStatus status) {
         this.document = new Document(statusField, status.getValue());
     }
-    public DocumentWithStatusWrapper(Document document) {
+    public DbEntryWrapper(Document document) {
         this.document = document;
     }
-    public DocumentWithStatusWrapper(Document document, EntryStatus status) {
+    public DbEntryWrapper(Document document, EntryStatus status) {
         this.document = document.append(statusField, status.getValue());
     }
     public Document getDocument() {

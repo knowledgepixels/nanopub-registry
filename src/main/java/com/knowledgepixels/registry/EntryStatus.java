@@ -1,7 +1,5 @@
 package com.knowledgepixels.registry;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 import org.bson.codecs.pojo.annotations.BsonProperty;
 
 /**
@@ -16,7 +14,7 @@ import org.bson.codecs.pojo.annotations.BsonProperty;
 public enum EntryStatus {
 
     /** endorsements_loading, */
-    to_retrieve, // WARNING: Breaking Change! it was "to-retrieve" before
+    toRetrieve, // WARNING: Breaking Change! it was "to-retrieve" before
     // We may avoid the change by adding an annotation
     // @BsonProperty(value = "to-retrieve") or having a custom toString()
     /** accounts-loading */

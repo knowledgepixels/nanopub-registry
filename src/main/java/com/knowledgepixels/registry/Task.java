@@ -92,7 +92,7 @@ public enum Task implements Serializable {
 	LOAD_SETTING {
 
 		public void run(ClientSession s, Document taskDoc) throws Exception {
-			if (!getServerStatus(s).equals("launching")) {
+			if (getServerStatus(s) != launching) {
 				throw new RuntimeException("Illegal status for this task: " + getServerStatus(s));
 			}
 
@@ -153,7 +153,8 @@ public enum Task implements Serializable {
 							.append("pubkey", "$")
 							.append("endorsedNanopub", declarationAc)
 							.append("source", getValue(s, "setting", "current"))
-							.append("status", to_retrieve.getValue())
+							.append("status", toRetrieve.getValue())
+
 					);
 
 			}
@@ -206,9 +207,9 @@ public enum Task implements Serializable {
 
 			int depth = taskDoc.getInteger("depth");
 
-			if (has(s, "endorsements_loading", new Document("status", to_retrieve.getValue()))) {
+			if (has(s, "endorsements_loading", new Document("status", toRetrieve.getValue()))) {
 				Document d = getOne(s, "endorsements_loading",
-						new DocumentWithStatusWrapper(to_retrieve).getDocument());
+						new DbEntryWrapper(toRetrieve).getDocument());
 
 				IntroNanopub agentIntro = getAgentIntro(s, d.getString("endorsedNanopub"));
 				if (agentIntro != null) {
@@ -460,7 +461,7 @@ public enum Task implements Serializable {
 										.append("source", sourceNpId);
 								if (!has(s, "endorsements_loading", endorsement)) {
 									insert(s, "endorsements_loading",
-											endorsement.append("status", to_retrieve.getValue()));
+											endorsement.append("status", toRetrieve.getValue()));
 								}
 							}
 						});
@@ -483,7 +484,7 @@ public enum Task implements Serializable {
 									.append("source", sourceNpId);
 							if (!has(s, "endorsements_loading", endorsement)) {
 								insert(s, "endorsements_loading",
-										endorsement.append("status", to_retrieve.getValue()));
+										endorsement.append("status", toRetrieve.getValue()));
 							}
 						}
 					});
@@ -618,7 +619,7 @@ public enum Task implements Serializable {
 					totalRatio += d.getDouble("ratio");
 				}
 				collection("accounts_loading").updateMany(s, agentId, new Document("$set",
-						new DocumentWithStatusWrapper(aggregated).getDocument()));
+						new DbEntryWrapper(aggregated).getDocument()));
 				insert(s, "agents_loading",
 						agentId.append("accountCount", count)
 							.append("avgPathCount", (double) pathCountSum / count)
@@ -638,18 +639,18 @@ public enum Task implements Serializable {
 
 		public void run(ClientSession s, Document taskDoc) {
 
-			Document a = getOne(s, "accounts_loading", new DocumentWithStatusWrapper(aggregated).getDocument());
+			Document a = getOne(s, "accounts_loading", new DbEntryWrapper(aggregated).getDocument());
 			if (a == null) {
 				schedule(s, DETERMINE_UPDATES);
 			} else {
 				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
 				if (collection("accounts_loading").countDocuments(s, pubkeyId) == 1) {
 					collection("accounts_loading").updateMany(s, pubkeyId,
-							new Document("$set", new DocumentWithStatusWrapper(approved).getDocument()));
+							new Document("$set", new DbEntryWrapper(approved).getDocument()));
 				} else {
 					// TODO At the moment all get marked as 'contested'; implement more nuanced algorithm
 					collection("accounts_loading").updateMany(s, pubkeyId, new Document("$set",
-							new DocumentWithStatusWrapper( contested).getDocument()));
+							new DbEntryWrapper( contested).getDocument()));
 				}
 				schedule(s, ASSIGN_PUBKEYS);
 			}
@@ -667,7 +668,7 @@ public enum Task implements Serializable {
 
 			// TODO Handle contested accounts properly:
 			for (Document d : collection("accounts_loading").find(
-					new DocumentWithStatusWrapper(approved).getDocument())) {
+					new DbEntryWrapper(approved).getDocument())) {
 				// TODO Consider quota too:
 				Document accountId = new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"));
 				if (collection("accounts") == null || !has(s, "accounts",
@@ -762,7 +763,7 @@ public enum Task implements Serializable {
 				return;
 			}
 
-			Document a = getOne(s, "accounts", new DocumentWithStatusWrapper(toLoad).getDocument());
+			Document a = getOne(s, "accounts", new DbEntryWrapper(toLoad).getDocument());
 			if (a == null) {
 				System.err.println("Nothing to load");
 				if (status == coreReady) {
