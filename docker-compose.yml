@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     ports:
       - 9292:9292
+      - 5005:5005
     volumes:
       - ./setting.trig:/data/setting.trig
     logging:

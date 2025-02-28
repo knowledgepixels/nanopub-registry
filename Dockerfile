@@ -19,5 +19,6 @@ RUN mvn install -o && \
 WORKDIR $APP_DIR
 
 EXPOSE 9292
+EXPOSE 5005
 
-ENTRYPOINT ["java","-jar","nanopub-registry.jar"]
+ENTRYPOINT ["java","-jar","-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005","nanopub-registry.jar"]
