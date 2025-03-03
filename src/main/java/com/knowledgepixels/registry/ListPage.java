@@ -199,18 +199,19 @@ public class ListPage extends Page {
 						println("<li>");
 						println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
 						String a = d.getString("agent");
-						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
-						println(", status: " + d.get("status"));
-						println(", depth: " + d.get("depth"));
+						print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+						print(", status: " + d.get("status"));
+						print(", depth: " + d.get("depth"));
 						if (d.get("pathCount") != null) {
-							println(", pathCount: " + d.get("pathCount"));
+							print(", pathCount: " + d.get("pathCount"));
 						}
 						if (d.get("ratio") != null) {
-							println(", ratio: " + df8.format(d.get("ratio")));
+							print(", ratio: " + df8.format(d.get("ratio")));
 						}
 						if (d.get("quota") != null) {
-							println(", quota: " + d.get("quota"));
+							print(", quota: " + d.get("quota"));
 						}
+						println("");
 						println("</li>");
 					}
 				}
