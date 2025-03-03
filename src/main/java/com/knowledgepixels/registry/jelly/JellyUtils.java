@@ -132,9 +132,9 @@ public class JellyUtils {
             RdfStreamFrame frame, ProtoDecoder<Statement> decoder, Vector<Statement> statements
     ) {
         CollectionConverters.SeqHasAsJava(frame.rows()).asJava().forEach(row -> {
-            Option<Statement> maybeSt = decoder.ingestRow(row);
-            if (maybeSt.isDefined()) {
-                statements.add(maybeSt.get());
+            Statement maybeSt = (Statement) decoder.ingestRowFlat(row);
+            if (maybeSt != null) {
+                statements.add(maybeSt);
             }
         });
     }

@@ -1,13 +1,13 @@
 package com.knowledgepixels.registry.jelly;
 
 import eu.ostrzyciel.jelly.convert.rdf4j.Rdf4jConverterFactory$;
-import eu.ostrzyciel.jelly.convert.rdf4j.Rdf4jProtoEncoder;
 import eu.ostrzyciel.jelly.core.ProtoEncoder;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamFrame$;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamOptions;
 import eu.ostrzyciel.jelly.core.proto.v1.RdfStreamRow;
 import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.rio.helpers.AbstractRDFHandler;
 import scala.Some$;
 import scala.collection.mutable.ListBuffer;
@@ -16,7 +16,7 @@ import scala.collection.mutable.ListBuffer;
  * RDF4J Rio RDFHandler that converts nanopubs into Jelly RdfStreamFrames.
  */
 public class JellyWriterRDFHandler extends AbstractRDFHandler {
-    private final Rdf4jProtoEncoder encoder;
+    private final ProtoEncoder<Value, Statement, Statement, ?> encoder;
     private final ListBuffer<RdfStreamRow> rowBuffer = new ListBuffer<>();
 
     JellyWriterRDFHandler(RdfStreamOptions options) {
