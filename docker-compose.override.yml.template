@@ -1,21 +1,19 @@
 services:
   registry:
-    volumes:
-      - ./target/nanopub-registry/:/usr/local/tomcat/webapps/ROOT
     environment:
       # Enable debugging at port 5005
       - JPDA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
       - REGISTRY_COVERAGE_TYPES=all
       - REGISTRY_COVERAGE_AGENTS=viaSetting
-      - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
-      - NANOPUB_REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
+#     - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
+#     - NANOPUB_REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
     ports:
       - 5005:5005
-    entrypoint: 'catalina.sh jpda run'
+    entrypoint: 'java -jar -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 nanopub-registry.jar'
 
-  mongodb:  # disable when shared MongoDB is used
-    deploy:
-      replicas: 0
+# mongodb:  # disable when shared MongoDB is used
+#   deploy:
+#     replicas: 0
 
   mongo-express:
     image: mongo-express
