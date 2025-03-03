@@ -199,18 +199,18 @@ public class ListPage extends Page {
 						println("<li>");
 						println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
 						String a = d.getString("agent");
-						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>,");
-						println(" status: " + d.get("status") + ",");
-						println(" depth: " + d.get("depth") + ",");
-						println(" pathCount: " + d.get("pathCount") + ",");
-							// TODO is this the right fix for the problem??
-						try {
-							Object ratio = d.get("ratio");
-							println(" ratio: " + df8.format(ratio) + ",");
-						} catch (IllegalArgumentException e) {
-							println(" ratio: NOT A NUMBER !! " + d.get("ratio"));
+						println(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+						println(", status: " + d.get("status"));
+						println(", depth: " + d.get("depth"));
+						if (d.get("pathCount") != null) {
+							println(", pathCount: " + d.get("pathCount"));
 						}
-						println(" quota: " + d.get("quota"));
+						if (d.get("ratio") != null) {
+							println(", ratio: " + df8.format(d.get("ratio")));
+						}
+						if (d.get("quota") != null) {
+							println(", quota: " + d.get("quota"));
+						}
 						println("</li>");
 					}
 				}
