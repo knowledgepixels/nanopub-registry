@@ -53,9 +53,9 @@ public class NanopubPage extends Page {
 
 		var presentationFormat = getPresentationFormat();
 		if (presentationFormat != null) {
-			c.response().putHeader("Content-Type", presentationFormat);
+			setRespContentType(presentationFormat);
 		} else {
-			c.response().putHeader("Content-Type", format);
+			setRespContentType(format);
 		}
 
 		if (req.matches("/np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {

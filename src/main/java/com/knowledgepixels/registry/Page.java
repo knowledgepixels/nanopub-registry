@@ -10,6 +10,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 
 import com.mongodb.client.ClientSession;
 
+import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 
 public abstract class Page {
@@ -66,7 +67,13 @@ public abstract class Page {
 	}
 
 	public void print(String s) throws IOException {
+		if (context.request().method() == HttpMethod.HEAD) return;
 		context.response().write(s);
+	}
+
+	public void setRespContentType(String contentType) {
+		if (context.request().method() == HttpMethod.HEAD) return;
+		context.response().putHeader("Content-Type", contentType);
 	}
 
 	protected abstract void show() throws IOException;

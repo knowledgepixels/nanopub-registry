@@ -54,6 +54,9 @@ public class MainVerticle extends AbstractVerticle {
 		router.route(HttpMethod.GET, "/*").handler(c -> {
 			MainPage.show(c);
 		});
+		router.route(HttpMethod.HEAD, "/*").handler(c -> {
+			MainPage.show(c);
+		});
 
 		router.route(HttpMethod.POST, "/").handler(c -> {
 			if (c.request().path().equals("/")) {

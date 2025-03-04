@@ -43,14 +43,14 @@ public class DebugPage extends Page {
 				Long counter = Long.parseLong(counterString);
 				print(RegistryDB.getOne(mongoSession, "debug_trustPaths", new Document("trustStateCounter", counter)).getString("trustStateTxt"));
 			}
-			c.response().putHeader("Content-Type", "text/plain");
+			setRespContentType("text/plain");
 		} else if (getRequestString().matches("/debug/endorsements")) {
 			MongoCursor<Document> tp = collection("endorsements").find(mongoSession).cursor();
 			while (tp.hasNext()) {
 				Document d = tp.next();
 				println(d.get("agent") + ">" + d.get("pubkey") + " " + d.get("endorsedNanopub") + " " + d.get("source") + " (" + d.get("status") + ")");
 			}
-			c.response().putHeader("Content-Type", "text/plain");
+			setRespContentType("text/plain");
 		} else if (getRequestString().matches("/debug/accounts")) {
 			MongoCursor<Document> tp = collection("accounts").find(mongoSession).cursor();
 			while (tp.hasNext()) {

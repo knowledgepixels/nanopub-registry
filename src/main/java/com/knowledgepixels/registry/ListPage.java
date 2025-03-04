@@ -65,9 +65,9 @@ public class ListPage extends Page {
 		}
 
 		if (getPresentationFormat() != null) {
-			context.response().putHeader("Content-Type", getPresentationFormat());
+			setRespContentType(getPresentationFormat());
 		} else {
-			context.response().putHeader("Content-Type", format);
+			setRespContentType(format);
 		}
 
 		if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {

@@ -45,9 +45,9 @@ public class MainPage extends Page {
 		}
 
 		if (getPresentationFormat() != null) {
-			c.response().putHeader("Content-Type", getPresentationFormat());
+			setRespContentType(getPresentationFormat());
 		} else {
-			c.response().putHeader("Content-Type", format);
+			setRespContentType(format);
 		}
 
 		if ("application/json".equals(format)) {
