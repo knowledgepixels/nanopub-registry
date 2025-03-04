@@ -314,32 +314,53 @@ public class ListPage extends Page {
 				println("</ol>");
 				printHtmlFooter();
 			}
-		} else if (req.equals("/latestNanopubs")) {
-			MongoCursor<Document> c = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
-			if ("application/json".equals(format)) {
-				println("[");
-				while (c.hasNext()) {
-					print(gson.toJson(c.next().getString("_id")));
-					println(c.hasNext() ? "," : "");
+		} else if (req.equals("/nanopubs")) {
+			if ("application/x-jelly-rdf".equals(format)) {
+				// Return all nanopubs
+
+				// TODO Code copied from above; refactor/check
+				List<Bson> pipeline = List.of(
+						sort(ascending("counter")),
+						lookup("nanopubs", "_id", "_id", "nanopub"),
+						project(new Document("jelly", "$nanopub.jelly")),
+						unwind("$jelly")
+				);
+				try (var result = collection("nanopubs").aggregate(mongoSession, pipeline).cursor()) {
+					NanopubStream npStream = NanopubStream.fromMongoCursor(result);
+					BufferOutputStream outputStream = new BufferOutputStream();
+					npStream.writeToByteStream(outputStream);
+					context.response().write(outputStream.getBuffer());
 				}
-				println("]");
+
 			} else {
-				printHtmlHeader("Latest nanopubs - Nanopub Registry");
-				println("<h1>List of Nanopubs</h1>");
-				println("<p><a href=\"/\">&lt; Home</a></p>");
-				println("<h3>Formats</h3>");
-				println("<p>");
-				println("<a href=\"latestNanopubs.json\">.json</a> |");
-				println("<a href=\"latestNanopubs.json.txt\">.json.txt</a>");
-				println("</p>");
-				println("<h3>Latest Nanopubs (max. 1000)</h3>");
-				println("<ol>");
-				while (c.hasNext()) {
-					String npId = c.next().getString("_id");
-					println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
+				// Return latest nanopubs
+
+				MongoCursor<Document> c = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
+				if ("application/json".equals(format)) {
+					println("[");
+					while (c.hasNext()) {
+						print(gson.toJson(c.next().getString("_id")));
+						println(c.hasNext() ? "," : "");
+					}
+					println("]");
+				} else {
+					printHtmlHeader("Latest nanopubs - Nanopub Registry");
+					println("<h1>Nanopubs</h1>");
+					println("<p><a href=\"/\">&lt; Home</a></p>");
+					println("<h3>Latest Nanopubs JSON (max. 1000)</h3>");
+					println("<p>");
+					println("<a href=\"nanopubs.json\">.json</a> |");
+					println("<a href=\"nanopubs.json.txt\">.json.txt</a>");
+					println("</p>");
+					println("<h3>Latest Nanopubs List (max. 1000)</h3>");
+					println("<ol>");
+					while (c.hasNext()) {
+						String npId = c.next().getString("_id");
+						println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
+					}
+					println("</ol>");
+					printHtmlFooter();
 				}
-				println("</ol>");
-				printHtmlFooter();
 			}
 		} else {
 			context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());

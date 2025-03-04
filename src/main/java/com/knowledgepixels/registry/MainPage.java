@@ -102,7 +102,7 @@ public class MainPage extends Page {
 
 			println("<h3>Nanopubs</h3>");
 			println("<p>Count: " + getMaxValue(mongoSession, "nanopubs", "counter") + "</p>");
-			println("<p><a href=\"/latestNanopubs\">&gt; latestNanopubs</a></pi>");
+			println("<p><a href=\"/nanopubs\">&gt; nanopubs</a></pi>");
 			printHtmlFooter();
 		}
 	}

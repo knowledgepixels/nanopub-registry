@@ -36,7 +36,7 @@ public class MainVerticle extends AbstractVerticle {
 			// /agent/... | /agents | /agentAccounts
 			ListPage.show(c);
 		});
-		router.route(HttpMethod.GET, "/latestNanopubs*").handler(c -> {
+		router.route(HttpMethod.GET, "/nanopubs*").handler(c -> {
 			ListPage.show(c);
 		});
 		router.route(HttpMethod.GET, "/list*").handler(c -> {
