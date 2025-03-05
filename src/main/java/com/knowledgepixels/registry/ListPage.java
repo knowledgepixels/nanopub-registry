@@ -17,9 +17,9 @@ import java.util.List;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.nanopub.jelly.NanopubStream;
 
 import com.google.gson.Gson;
-import com.knowledgepixels.registry.jelly.NanopubStream;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 

@@ -21,8 +21,8 @@ import org.nanopub.NanopubUtils;
 import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
+import org.nanopub.jelly.JellyUtils;
 
-import com.knowledgepixels.registry.jelly.JellyUtils;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.ClientSession;

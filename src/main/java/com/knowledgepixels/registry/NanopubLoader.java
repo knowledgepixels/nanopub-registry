@@ -26,10 +26,10 @@ import org.nanopub.NanopubUtils;
 import org.nanopub.extra.server.GetNanopub;
 import org.nanopub.extra.services.ApiResponse;
 import org.nanopub.extra.services.ApiResponseEntry;
+import org.nanopub.jelly.JellyUtils;
+import org.nanopub.jelly.MaybeNanopub;
+import org.nanopub.jelly.NanopubStream;
 
-import com.knowledgepixels.registry.jelly.JellyUtils;
-import com.knowledgepixels.registry.jelly.MaybeNanopub;
-import com.knowledgepixels.registry.jelly.NanopubStream;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 
