@@ -118,4 +118,10 @@ public class Utils {
 	public static final IRI INTRO_TYPE = vf.createIRI("http://purl.org/nanopub/x/declaredBy");
 	public static final IRI APPROVAL_TYPE = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
 
+	public static final String TYPE_JSON = "application/json";
+	public static final String TYPE_JELLY = "application/x-jelly-rdf";
+	public static final String TYPE_HTML = "text/html";
+
+	// Content types supported on a ListPage
+	public static final String SUPPORTED_TYPES_LIST = TYPE_JSON + "," + TYPE_JELLY + "," + TYPE_HTML;
 }

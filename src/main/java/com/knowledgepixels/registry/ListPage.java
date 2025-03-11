@@ -7,9 +7,11 @@ import static com.mongodb.client.model.Aggregates.match;
 import static com.mongodb.client.model.Aggregates.project;
 import static com.mongodb.client.model.Aggregates.sort;
 import static com.mongodb.client.model.Aggregates.unwind;
+import static com.mongodb.client.model.Filters.gt;
 import static com.mongodb.client.model.Indexes.ascending;
 import static com.mongodb.client.model.Indexes.descending;
 import static com.mongodb.client.model.Projections.exclude;
+import static com.mongodb.client.model.Projections.include;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -53,12 +55,11 @@ public class ListPage extends Page {
 		String ext = getExtension();
 		final String req = getRequestString();
 		if ("json".equals(ext)) {
-			format = "application/json";
+			format = Utils.TYPE_JSON;
 		} else if ("jelly".equals(ext)) {
-			format = "application/x-jelly-rdf";
+			format = Utils.TYPE_JELLY;
 		} else if (ext == null || "html".equals(ext)) {
-			String suppFormats = "application/x-jelly-rdf,application/json,text/html";
-			format = Utils.getMimeType(context, suppFormats);
+			format = Utils.getMimeType(context, Utils.SUPPORTED_TYPES_LIST);
 		} else {
 			context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
@@ -74,7 +75,7 @@ public class ListPage extends Page {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
 			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 
-			if ("application/x-jelly-rdf".equals(format)) {
+			if (Utils.TYPE_JELLY.equals(format)) {
 				// Return all nanopubs in the list as a single Jelly stream
 				List<Bson> pipeline = List.of(
 						match(new Document("pubkey", pubkey).append("type", type)),
@@ -86,12 +87,9 @@ public class ListPage extends Page {
 				// TODO: try with resource should be used for all DB access, really, like here
 				try (var result = collection("listEntries").aggregate(mongoSession, pipeline).cursor()) {
 					NanopubStream npStream = NanopubStream.fromMongoCursor(result);
-
-					// Does this work???
 					BufferOutputStream outputStream = new BufferOutputStream();
 					npStream.writeToByteStream(outputStream);
 					context.response().write(outputStream.getBuffer());
-
 				}
 			} else {
 				MongoCursor<Document> c = collection("listEntries")
@@ -100,7 +98,7 @@ public class ListPage extends Page {
 						.sort(ascending("position"))
 						.cursor();
 
-				if ("application/json".equals(format)) {
+				if (Utils.TYPE_JSON.equals(format)) {
 					println("[");
 					while (c.hasNext()) {
 						Document d = c.next();
@@ -137,7 +135,7 @@ public class ListPage extends Page {
 		} else if (req.matches("/list/[0-9a-f]{64}")) {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
 			MongoCursor<Document> c = collection("lists").find(mongoSession, new Document("pubkey", pubkey)).projection(exclude("_id")).cursor();
-			if ("application/json".equals(format)) {
+			if (Utils.TYPE_JSON.equals(format)) {
 				println("[");
 				while (c.hasNext()) {
 					print(c.next().toJson());
@@ -173,54 +171,60 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else if (req.equals("/list")) {
-			MongoCursor<Document> c = collection("accounts").find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor();
-			if ("application/json".equals(format)) {
-				println("[");
-				while (c.hasNext()) {
-					print(c.next().toJson());
-					println(c.hasNext() ? "," : "");
-				}
-				println("]");
-			} else {
-				printHtmlHeader("Account List - Nanopub Registry");
-				println("<h1>Account List</h1>");
-				println("<p><a href=\"/\">&lt; Home</a></p>");
-				println("<h3>Formats</h3>");
-				println("<p>");
-				println("<a href=\"list.json\">.json</a> |");
-				println("<a href=\"list.json.txt\">.json.txt</a>");
-				println("</p>");
-				println("<h3>Accounts</h3>");
-				println("<ol>");
-				while (c.hasNext()) {
-					Document d = c.next();
-					String pubkey = d.getString("pubkey");
-					if (!pubkey.equals("$")) {
-						println("<li>");
-						println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
-						String a = d.getString("agent");
-						print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
-						print(", status: " + d.get("status"));
-						print(", depth: " + d.get("depth"));
-						if (d.get("pathCount") != null) {
-							print(", pathCount: " + d.get("pathCount"));
-						}
-						if (d.get("ratio") != null) {
-							print(", ratio: " + df8.format(d.get("ratio")));
-						}
-						if (d.get("quota") != null) {
-							print(", quota: " + d.get("quota"));
-						}
-						println("");
-						println("</li>");
+			try (var c = collection("accounts")
+					.find(mongoSession)
+					.sort(ascending("pubkey"))
+					.projection(exclude("_id"))
+					.cursor()
+			) {
+				if (Utils.TYPE_JSON.equals(format)) {
+					println("[");
+					while (c.hasNext()) {
+						print(c.next().toJson());
+						println(c.hasNext() ? "," : "");
 					}
+					println("]");
+				} else {
+					printHtmlHeader("Account List - Nanopub Registry");
+					println("<h1>Account List</h1>");
+					println("<p><a href=\"/\">&lt; Home</a></p>");
+					println("<h3>Formats</h3>");
+					println("<p>");
+					println("<a href=\"list.json\">.json</a> |");
+					println("<a href=\"list.json.txt\">.json.txt</a>");
+					println("</p>");
+					println("<h3>Accounts</h3>");
+					println("<ol>");
+					while (c.hasNext()) {
+						Document d = c.next();
+						String pubkey = d.getString("pubkey");
+						if (!pubkey.equals("$")) {
+							println("<li>");
+							println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
+							String a = d.getString("agent");
+							print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+							print(", status: " + d.get("status"));
+							print(", depth: " + d.get("depth"));
+							if (d.get("pathCount") != null) {
+								print(", pathCount: " + d.get("pathCount"));
+							}
+							if (d.get("ratio") != null) {
+								print(", ratio: " + df8.format(d.get("ratio")));
+							}
+							if (d.get("quota") != null) {
+								print(", quota: " + d.get("quota"));
+							}
+							println("");
+							println("</li>");
+						}
+					}
+					println("</ol>");
+					printHtmlFooter();
 				}
-				println("</ol>");
-				printHtmlFooter();
 			}
 		} else if (req.equals("/agent") && context.request().getParam("id") != null) {
 			String agentId = context.request().getParam("id");
-			if ("application/json".equals(format)) {
+			if (Utils.TYPE_JSON.equals(format)) {
 				print(AgentInfo.get(mongoSession, agentId).asJson());
 			} else {
 				Document agentDoc = RegistryDB.getOne(mongoSession, "agents", new Document("agent", agentId));
@@ -247,7 +251,7 @@ public class ListPage extends Page {
 		} else if (req.equals("/agentAccounts") && context.request().getParam("id") != null) {
 			String agentId = context.request().getParam("id");
 			MongoCursor<Document> c = collection("accounts").find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
-			if ("application/json".equals(format)) {
+			if (Utils.TYPE_JSON.equals(format)) {
 				println("[");
 				while (c.hasNext()) {
 					print(c.next().toJson());
@@ -282,7 +286,7 @@ public class ListPage extends Page {
 			}
 		} else if (req.equals("/agents")) {
 			MongoCursor<Document> c = collection("agents").find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
-			if ("application/json".equals(format)) {
+			if (Utils.TYPE_JSON.equals(format)) {
 				println("[");
 				while (c.hasNext()) {
 					print(c.next().toJson());
@@ -315,28 +319,37 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else if (req.equals("/nanopubs")) {
-			if ("application/x-jelly-rdf".equals(format)) {
-				// Return all nanopubs
+			if (Utils.TYPE_JELLY.equals(format)) {
+				// Return all nanopubs from after counter X (-1 by default)
+				long afterCounter;
+				try {
+					afterCounter = Long.parseLong(getParam("afterCounter", "-1"));
+				} catch (NumberFormatException ex) {
+					context.response().setStatusCode(400).setStatusMessage(
+							"Invalid afterCounter parameter."
+					);
+					return;
+				}
+				// TODO: something is aborting the Mongo transaction here after a while,
+				//  find out what exactly.
+				var pipeline = collection("nanopubs")
+						.find(mongoSession)
+						.filter(gt("counter", afterCounter))
+						.sort(ascending("counter"))
+						// Only include the needed fields to save bandwidth to the DB
+						.projection(include("jelly", "counter"));
 
-				// TODO Code copied from above; refactor/check
-				List<Bson> pipeline = List.of(
-						sort(ascending("counter")),
-						lookup("nanopubs", "_id", "_id", "nanopub"),
-						project(new Document("jelly", "$nanopub.jelly")),
-						unwind("$jelly")
-				);
-				try (var result = collection("nanopubs").aggregate(mongoSession, pipeline).cursor()) {
-					NanopubStream npStream = NanopubStream.fromMongoCursor(result);
+				try (var result = pipeline.cursor()) {
+					NanopubStream npStream = NanopubStream.fromMongoCursorWithCounter(result);
 					BufferOutputStream outputStream = new BufferOutputStream();
 					npStream.writeToByteStream(outputStream);
 					context.response().write(outputStream.getBuffer());
 				}
-
 			} else {
 				// Return latest nanopubs
 
 				MongoCursor<Document> c = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
-				if ("application/json".equals(format)) {
+				if (Utils.TYPE_JSON.equals(format)) {
 					println("[");
 					while (c.hasNext()) {
 						print(gson.toJson(c.next().getString("_id")));
@@ -352,6 +365,8 @@ public class ListPage extends Page {
 					println("<a href=\"nanopubs.json\">.json</a> |");
 					println("<a href=\"nanopubs.json.txt\">.json.txt</a>");
 					println("</p>");
+					println("<h3>All Nanopubs (Jelly)</h3>");
+					println("<p><a href=\"nanopubs.jelly\">.jelly</a></p>");
 					println("<h3>Latest Nanopubs List (max. 1000)</h3>");
 					println("<ol>");
 					while (c.hasNext()) {

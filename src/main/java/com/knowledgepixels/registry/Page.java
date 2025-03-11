@@ -129,6 +129,18 @@ public abstract class Page {
 		return context.request().path();
 	}
 
+	/**
+	 * Get a parameter from the request.
+	 * @param name The name of the parameter.
+	 * @param defaultValue The default value of the parameter.
+	 * @return The value of the parameter.
+	 */
+	public String getParam(String name, String defaultValue) {
+		String value = context.request().getParam(name);
+		if (value == null) value = defaultValue;
+		return value;
+	}
+
 	public boolean isEmpty() {
 		return requestString.isEmpty();
 	}
