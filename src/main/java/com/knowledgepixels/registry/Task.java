@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import org.apache.commons.lang.Validate;
 import org.bson.Document;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
@@ -147,12 +148,13 @@ public enum Task implements Serializable {
 			loadNanopub(s, agentIndex);
 			for (IRI el : agentIndex.getElements()) {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
+				Validate.notNull(declarationAc);
 
 				insert(s, "endorsements_loading",
 						new Document("agent", "$")
 							.append("pubkey", "$")
 							.append("endorsedNanopub", declarationAc)
-							.append("source", getValue(s, "setting", "current"))
+							.append("source", getValue(s, "setting", "current").toString())
 							.append("status", toRetrieve.getValue())
 
 					);
@@ -216,10 +218,15 @@ public enum Task implements Serializable {
 					String agentId = agentIntro.getUser().stringValue();
 
 					for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
+						String sourceAgent = d.getString("agent");
+						Validate.notNull(sourceAgent);
 						String sourcePubkey = d.getString("pubkey");
+						Validate.notNull(sourcePubkey);
 						String sourceAc = d.getString("source");
+						Validate.notNull(sourceAc);
 						String agentPubkey = Utils.getHash(kd.getPublicKeyString());
-						Document trustEdge = new Document("fromAgent", d.getString("agent"))
+						Validate.notNull(agentPubkey);
+						Document trustEdge = new Document("fromAgent", sourceAgent)
 								.append("fromPubkey", sourcePubkey)
 								.append("toAgent", agentId)
 								.append("toPubkey", agentPubkey)
@@ -283,7 +290,9 @@ public enum Task implements Serializable {
 			if (d != null) {
 	
 				String agentId = d.getString("agent");
+				Validate.notNull(agentId);
 				String pubkeyHash = d.getString("pubkey");
+				Validate.notNull(pubkeyHash);
 
 				Document trustPath = collection("trustPaths_loading").find(s,
 						new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
@@ -308,7 +317,9 @@ public enum Task implements Serializable {
 						Document e = edgeCursor.next();
 
 						String agent = e.getString("toAgent");
+						Validate.notNull(agent);
 						String pubkey = e.getString("toPubkey");
+						Validate.notNull(pubkey);
 						String pathId = trustPath.getString("_id") + " " + agent + "|" + pubkey;
 						newPaths.put(pathId,
 								new Document("_id", pathId)
@@ -382,12 +393,14 @@ public enum Task implements Serializable {
 
 			Document agentAccount = getOne(s, "accounts_loading",
 					new Document("depth", depth).append("status", seen.getValue()));
-			Document trustPath = null;
 			final String agentId;
 			final String pubkeyHash;
+			final Document trustPath;
 			if (agentAccount != null) {
 				agentId = agentAccount.getString("agent");
+				Validate.notNull(agentId);
 				pubkeyHash = agentAccount.getString("pubkey");
+				Validate.notNull(pubkeyHash);
 				trustPath = getOne(s, "trustPaths_loading",
 						new Document("depth", depth)
 							.append("agent", agentId)
@@ -396,6 +409,7 @@ public enum Task implements Serializable {
 			} else {
 				agentId = null;
 				pubkeyHash = null;
+				trustPath = null;
 			}
 
 			if (trustPath == null) {
@@ -448,6 +462,7 @@ public enum Task implements Serializable {
 							Nanopub nanopub = m.getNanopub();
 							loadNanopub(s, nanopub, pubkeyHash, ENDORSE_TYPE);
 							String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+							Validate.notNull(sourceNpId);
 							for (Statement st : nanopub.getAssertion()) {
 								if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
 								if (!(st.getObject() instanceof IRI)) continue;
@@ -455,6 +470,7 @@ public enum Task implements Serializable {
 								String objStr = st.getObject().stringValue();
 								if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
 								String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+								Validate.notNull(endorsedNpId);
 								Document endorsement = new Document("agent", agentId)
 										.append("pubkey", pubkeyHash)
 										.append("endorsedNanopub", endorsedNpId)
@@ -471,6 +487,7 @@ public enum Task implements Serializable {
 						Nanopub nanopub = NanopubLoader.retrieveNanopub(s, e.get("np"));
 						loadNanopub(s, nanopub, pubkeyHash, ENDORSE_TYPE);
 						String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+						Validate.notNull(sourceNpId);
 						for (Statement st : nanopub.getAssertion()) {
 							if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
 							if (!(st.getObject() instanceof IRI)) continue;
@@ -478,6 +495,7 @@ public enum Task implements Serializable {
 							String objStr = st.getObject().stringValue();
 							if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
 							String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
+							Validate.notNull(endorsedNpId);
 							Document endorsement = new Document("agent", agentId)
 									.append("pubkey", pubkeyHash)
 									.append("endorsedNanopub", endorsedNpId)
@@ -558,7 +576,7 @@ public enum Task implements Serializable {
 				Map<String,Boolean> seenPathElements = new HashMap<>();
 				int pathCount = 0;
 				MongoCursor<Document> trustPaths = collection("trustPaths_loading").find(s,
-						new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"))
+						new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString())
 					).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor();
 				while (trustPaths.hasNext()) {
 					Document trustPath = trustPaths.next();
@@ -607,7 +625,7 @@ public enum Task implements Serializable {
 			if (a == null) {
 				schedule(s, ASSIGN_PUBKEYS);
 			} else {
-				Document agentId = new Document("agent", a.getString("agent")).append("status", processed.getValue());
+				Document agentId = new Document("agent", a.get("agent").toString()).append("status", processed.getValue());
 				int count = 0;
 				int pathCountSum = 0;
 				double totalRatio = 0.0d;
@@ -643,7 +661,7 @@ public enum Task implements Serializable {
 			if (a == null) {
 				schedule(s, DETERMINE_UPDATES);
 			} else {
-				Document pubkeyId = new Document("pubkey", a.getString("pubkey"));
+				Document pubkeyId = new Document("pubkey", a.get("pubkey").toString());
 				if (collection("accounts_loading").countDocuments(s, pubkeyId) == 1) {
 					collection("accounts_loading").updateMany(s, pubkeyId,
 							new Document("$set", new DbEntryWrapper(approved).getDocument()));
@@ -670,7 +688,7 @@ public enum Task implements Serializable {
 			for (Document d : collection("accounts_loading").find(
 					new DbEntryWrapper(approved).getDocument())) {
 				// TODO Consider quota too:
-				Document accountId = new Document("agent", d.get("agent")).append("pubkey", d.get("pubkey"));
+				Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString());
 				if (collection("accounts") == null || !has(s, "accounts",
 						accountId.append("status", loaded.getValue()))) {
 					set(s, "accounts_loading", d.append("status", toLoad.getValue()));
@@ -690,7 +708,7 @@ public enum Task implements Serializable {
 		// properly re-run (as some renaming outside of transactions will have taken place).
 		public void run(ClientSession s, Document taskDoc) {
 			String newTrustStateHash = RegistryDB.calculateTrustStateHash(s);
-			String previousTrustStateHash = (String) getValue(s, "serverInfo", "trustStateHash");
+			String previousTrustStateHash = (String) getValue(s, "serverInfo", "trustStateHash");  // may be null
 			setValue(s, "serverInfo", "lastTrustStateUpdate", ZonedDateTime.now().toString());
 
 			schedule(s, RELEASE_DATA.with("newTrustStateHash", newTrustStateHash).append("previousTrustStateHash", previousTrustStateHash));
@@ -703,8 +721,8 @@ public enum Task implements Serializable {
 		public void run(ClientSession s, Document taskDoc) {
 			ServerStatus status = getServerStatus(s);
 
-			String newTrustStateHash = taskDoc.getString("newTrustStateHash");
-			String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");
+			String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
+			String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
 
 			// Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
 			rename("accounts_loading", "accounts");
@@ -812,6 +830,7 @@ public enum Task implements Serializable {
 			ApiResponse resp = ApiCache.retrieveResponse("RAWpFps2f4rvpLhFQ-_KiAyphGuXO6YGJLqiW3QBxQQhM/get-all-pubkeys", null);
 			for (ApiResponseEntry e : resp.getData()) {
 				String pubkeyHash = e.get("pubkeyhash");
+				Validate.notNull(pubkeyHash);
 				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
 				if (!has(s, "lists", d)) {
 					insert(s, "lists", d.append("status", encountered.getValue()));
@@ -829,6 +848,7 @@ public enum Task implements Serializable {
 			Document di = getOne(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()));
 			if (di != null) {
 				final String pubkeyHash = di.getString("pubkey");
+				Validate.notNull(pubkeyHash);
 				System.err.println("Optional core loading: " + pubkeyHash);
 
 				if (PEER_LOADING_TESTING_MODE) {
