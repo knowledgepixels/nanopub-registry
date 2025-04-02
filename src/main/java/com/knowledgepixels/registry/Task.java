@@ -431,16 +431,10 @@ public enum Task implements Serializable {
 					insert(s, "lists", introList);
 				}
 
-				if (PEER_LOADING_TESTING_MODE) {
-					try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
-						stream.forEach(m -> {
-							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-							loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
-						});
-					}
-				} else {
-					NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
-						loadNanopub(s, NanopubLoader.retrieveNanopub(s, e.get("np")), pubkeyHash, INTRO_TYPE);
+				try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
+					stream.forEach(m -> {
+						if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
+						loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
 					});
 				}
 
@@ -455,36 +449,10 @@ public enum Task implements Serializable {
 					insert(s, "lists", endorseList);
 				}
 
-				if (PEER_LOADING_TESTING_MODE) {
-					try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
-						stream.forEach(m -> {
-							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-							Nanopub nanopub = m.getNanopub();
-							loadNanopub(s, nanopub, pubkeyHash, ENDORSE_TYPE);
-							String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-							Validate.notNull(sourceNpId);
-							for (Statement st : nanopub.getAssertion()) {
-								if (!st.getPredicate().equals(Utils.APPROVES_OF)) continue;
-								if (!(st.getObject() instanceof IRI)) continue;
-								if (!agentId.equals(st.getSubject().stringValue())) continue;
-								String objStr = st.getObject().stringValue();
-								if (!TrustyUriUtils.isPotentialTrustyUri(objStr)) continue;
-								String endorsedNpId = TrustyUriUtils.getArtifactCode(objStr);
-								Validate.notNull(endorsedNpId);
-								Document endorsement = new Document("agent", agentId)
-										.append("pubkey", pubkeyHash)
-										.append("endorsedNanopub", endorsedNpId)
-										.append("source", sourceNpId);
-								if (!has(s, "endorsements_loading", endorsement)) {
-									insert(s, "endorsements_loading",
-											endorsement.append("status", toRetrieve.getValue()));
-								}
-							}
-						});
-					}
-				} else {
-					NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
-						Nanopub nanopub = NanopubLoader.retrieveNanopub(s, e.get("np"));
+				try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
+					stream.forEach(m -> {
+						if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
+						Nanopub nanopub = m.getNanopub();
 						loadNanopub(s, nanopub, pubkeyHash, ENDORSE_TYPE);
 						String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 						Validate.notNull(sourceNpId);
@@ -793,17 +761,10 @@ public enum Task implements Serializable {
 			} else {
 				final String ph = a.getString("pubkey");
 				if (!ph.equals("$")) {
-					if (PEER_LOADING_TESTING_MODE) {
-						try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph)) {
-							stream.forEach(m -> {
-								if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-								loadNanopub(s, m.getNanopub(), ph, "$");
-							});
-						}
-					} else {
-						NanopubLoader.retrieveNanopubs(null, ph, e -> {
-							Nanopub np = NanopubLoader.retrieveNanopub(s, e.get("np"));
-							loadNanopub(s, np, ph, "$");
+					try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph)) {
+						stream.forEach(m -> {
+							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
+							loadNanopub(s, m.getNanopub(), ph, "$");
 						});
 					}
 				}
@@ -851,30 +812,18 @@ public enum Task implements Serializable {
 				Validate.notNull(pubkeyHash);
 				System.err.println("Optional core loading: " + pubkeyHash);
 
-				if (PEER_LOADING_TESTING_MODE) {
-					try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
-						stream.forEach(m -> {
-							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-							loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
-						});
-					}
-				} else {
-					NanopubLoader.retrieveNanopubs(INTRO_TYPE, pubkeyHash, e -> {
-						loadNanopub(s, NanopubLoader.retrieveNanopub(s, e.get("np")), pubkeyHash, INTRO_TYPE);
+				try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
+					stream.forEach(m -> {
+						if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
+						loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
 					});
 				}
 				set(s, "lists", di.append("status", loaded.getValue()));
 
-				if (PEER_LOADING_TESTING_MODE) {
-					try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
-						stream.forEach(m -> {
-							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-							loadNanopub(s, m.getNanopub(), pubkeyHash, ENDORSE_TYPE);
-						});
-					}
-				} else {
-					NanopubLoader.retrieveNanopubs(ENDORSE_TYPE, pubkeyHash, e -> {
-						loadNanopub(s, NanopubLoader.retrieveNanopub(s, e.get("np")), pubkeyHash, ENDORSE_TYPE);
+				try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
+					stream.forEach(m -> {
+						if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
+						loadNanopub(s, m.getNanopub(), pubkeyHash, ENDORSE_TYPE);
 					});
 				}
 
@@ -897,17 +846,10 @@ public enum Task implements Serializable {
 				final String pubkeyHash = df.getString("pubkey");
 				System.err.println("Optional full loading: " + pubkeyHash);
 
-				if (PEER_LOADING_TESTING_MODE) {
-					try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash)) {
-						stream.forEach(m -> {
-							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
-							loadNanopub(s, m.getNanopub(), pubkeyHash, "$");
-						});
-					}
-				} else {
-					NanopubLoader.retrieveNanopubs(null, pubkeyHash, e -> {
-						Nanopub np = NanopubLoader.retrieveNanopub(s, e.get("np"));
-						loadNanopub(s, np, pubkeyHash, "$");
+				try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash)) {
+					stream.forEach(m -> {
+						if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
+						loadNanopub(s, m.getNanopub(), pubkeyHash, "$");
 					});
 				}
 
@@ -931,7 +873,6 @@ public enum Task implements Serializable {
 
 	};
 
-	private static final boolean PEER_LOADING_TESTING_MODE = true;
 	private static final boolean PERFORM_FULL_LOAD = true;
 
 	public abstract void run(ClientSession s, Document taskDoc) throws Exception;
