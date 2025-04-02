@@ -5,6 +5,7 @@ services:
       - JPDA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
       - REGISTRY_COVERAGE_TYPES=all
       - REGISTRY_COVERAGE_AGENTS=viaSetting
+#     - REGISTRY_PERFORM_FULL_LOAD=false  # Set this to not perform a full load, e.g. for test instances
 #     - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
 #     - NANOPUB_REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
     ports:

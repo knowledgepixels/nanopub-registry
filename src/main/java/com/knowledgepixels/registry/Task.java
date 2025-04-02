@@ -109,7 +109,7 @@ public enum Task implements Serializable {
 			// potentially currently hardcoded in the nanopub lib
 			setValue(s, "setting", "bootstrap-services", bootstrapServices);
 
-			if (PERFORM_FULL_LOAD) {
+			if (!"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
 				schedule(s, LOAD_FULL.withDelay(60 * 1000));
 			}
 
@@ -740,7 +740,7 @@ public enum Task implements Serializable {
 	LOAD_FULL {
 
 		public void run(ClientSession s, Document taskDoc) {
-			if (!PERFORM_FULL_LOAD) return;
+			if ("false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) return;
 
 			ServerStatus status = getServerStatus(s);
 			if (status != coreReady && status != ready) {
@@ -872,8 +872,6 @@ public enum Task implements Serializable {
 		}
 
 	};
-
-	private static final boolean PERFORM_FULL_LOAD = true;
 
 	public abstract void run(ClientSession s, Document taskDoc) throws Exception;
 
