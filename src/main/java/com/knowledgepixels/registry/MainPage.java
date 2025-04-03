@@ -56,6 +56,9 @@ public class MainPage extends Page {
 			String status = getValue(mongoSession, "serverInfo", "status").toString();
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
+			if ("true".equals(System.getenv("REGISTRY_TEST_INSTANCE"))) {
+				println("<p style=\"color: red\">This is a test instance.</p>");
+			}
 			println("<h3>Formats</h3>");
 			println("<p>");
 			println("<a href=\".json\">.json</a> |");

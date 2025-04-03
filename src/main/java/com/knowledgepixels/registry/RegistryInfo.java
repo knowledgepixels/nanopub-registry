@@ -27,6 +27,7 @@ public class RegistryInfo implements Serializable {
 	private Long accountCount;
 	private Long nanopubCount;
 	private Long loadCounter;
+	private Boolean isTestInstance;
 
 	private static Gson gson = new Gson();
 
@@ -45,6 +46,7 @@ public class RegistryInfo implements Serializable {
 		ri.agentCount = collection("agents").countDocuments(mongoSession);
 		ri.accountCount = collection("accounts").countDocuments(mongoSession);
 		ri.nanopubCount = collection("nanopubs").countDocuments(mongoSession);
+		ri.isTestInstance = "true".equals(System.getenv("REGISTRY_TEST_INSTANCE"));
 		return ri;
 	}
 
