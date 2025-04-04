@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.unhash;
+import static com.knowledgepixels.registry.Utils.*;
 import static com.mongodb.client.model.Aggregates.lookup;
 import static com.mongodb.client.model.Aggregates.match;
 import static com.mongodb.client.model.Aggregates.project;
@@ -29,7 +30,7 @@ import io.vertx.ext.web.RoutingContext;
 
 public class ListPage extends Page {
 
-	private static Gson gson = new Gson();
+	private static final Gson gson = new Gson();
 
 	public static void show(RoutingContext context) {
 		ListPage page;
@@ -55,11 +56,11 @@ public class ListPage extends Page {
 		String ext = getExtension();
 		final String req = getRequestString();
 		if ("json".equals(ext)) {
-			format = Utils.TYPE_JSON;
+			format = TYPE_JSON;
 		} else if ("jelly".equals(ext)) {
-			format = Utils.TYPE_JELLY;
+			format = TYPE_JELLY;
 		} else if (ext == null || "html".equals(ext)) {
-			format = Utils.getMimeType(context, Utils.SUPPORTED_TYPES_LIST);
+			format = Utils.getMimeType(context, SUPPORTED_TYPES_LIST);
 		} else {
 			context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
@@ -75,7 +76,7 @@ public class ListPage extends Page {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
 			String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 
-			if (Utils.TYPE_JELLY.equals(format)) {
+			if (TYPE_JELLY.equals(format)) {
 				// Return all nanopubs in the list as a single Jelly stream
 				List<Bson> pipeline = List.of(
 						match(new Document("pubkey", pubkey).append("type", type)),
@@ -98,7 +99,7 @@ public class ListPage extends Page {
 						.sort(ascending("position"))
 						.cursor();
 
-				if (Utils.TYPE_JSON.equals(format)) {
+				if (TYPE_JSON.equals(format)) {
 					println("[");
 					while (c.hasNext()) {
 						Document d = c.next();
@@ -135,7 +136,7 @@ public class ListPage extends Page {
 		} else if (req.matches("/list/[0-9a-f]{64}")) {
 			String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
 			MongoCursor<Document> c = collection("lists").find(mongoSession, new Document("pubkey", pubkey)).projection(exclude("_id")).cursor();
-			if (Utils.TYPE_JSON.equals(format)) {
+			if (TYPE_JSON.equals(format)) {
 				println("[");
 				while (c.hasNext()) {
 					print(c.next().toJson());
@@ -177,7 +178,7 @@ public class ListPage extends Page {
 					.projection(exclude("_id"))
 					.cursor()
 			) {
-				if (Utils.TYPE_JSON.equals(format)) {
+				if (TYPE_JSON.equals(format)) {
 					println("[");
 					while (c.hasNext()) {
 						print(c.next().toJson());
@@ -224,7 +225,7 @@ public class ListPage extends Page {
 			}
 		} else if (req.equals("/agent") && context.request().getParam("id") != null) {
 			String agentId = context.request().getParam("id");
-			if (Utils.TYPE_JSON.equals(format)) {
+			if (TYPE_JSON.equals(format)) {
 				print(AgentInfo.get(mongoSession, agentId).asJson());
 			} else {
 				Document agentDoc = RegistryDB.getOne(mongoSession, "agents", new Document("agent", agentId));
@@ -251,7 +252,7 @@ public class ListPage extends Page {
 		} else if (req.equals("/agentAccounts") && context.request().getParam("id") != null) {
 			String agentId = context.request().getParam("id");
 			MongoCursor<Document> c = collection("accounts").find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
-			if (Utils.TYPE_JSON.equals(format)) {
+			if (TYPE_JSON.equals(format)) {
 				println("[");
 				while (c.hasNext()) {
 					print(c.next().toJson());
@@ -286,7 +287,7 @@ public class ListPage extends Page {
 			}
 		} else if (req.equals("/agents")) {
 			MongoCursor<Document> c = collection("agents").find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
-			if (Utils.TYPE_JSON.equals(format)) {
+			if (TYPE_JSON.equals(format)) {
 				println("[");
 				while (c.hasNext()) {
 					print(c.next().toJson());
@@ -319,7 +320,7 @@ public class ListPage extends Page {
 				printHtmlFooter();
 			}
 		} else if (req.equals("/nanopubs")) {
-			if (Utils.TYPE_JELLY.equals(format)) {
+			if (TYPE_JELLY.equals(format)) {
 				// Return all nanopubs from after counter X (-1 by default)
 				long afterCounter;
 				try {
@@ -349,7 +350,7 @@ public class ListPage extends Page {
 				// Return latest nanopubs
 
 				MongoCursor<Document> c = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
-				if (Utils.TYPE_JSON.equals(format)) {
+				if (TYPE_JSON.equals(format)) {
 					println("[");
 					while (c.hasNext()) {
 						print(gson.toJson(c.next().getString("_id")));
