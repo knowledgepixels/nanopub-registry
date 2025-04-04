@@ -2,22 +2,26 @@
 
 The Nanopub Registry implements a publication/lookup service as envisaged by the [Knowledge Space](https://w3id.org/knowledge-space/).
 
-The Nanopub Registry is designed as the next-generation publication/lookup service for nanopublications, to supersede the
+See the [design document](design.md) for some more details on the conceptual and technical parts.
+
+The Nanopub Registry is the second-generation publication/lookup service for nanopublications, superseding the
 [nanopub-server](https://github.com/tkuhn/nanopub-server).
 
 
 ## Status
 
-This code base is in design phase. See the [design document](design.md).
-
-At the moment only the core nanopublications needed to calculate the trust network (agent introductions and approvals) are loaded.
+This code base is in beta phase.
 
 
 ## Public Instance
 
-The current incomplete implementation is running at this public instance:
+These are some currently running instances:
 
-- https://registry.np.kpxl.org/
+- https://registry.np.trustyuri.net/
+- https://registry.knowledgepixels.com/
+- https://registry.petapico.org/
+
+Or check out the [Nanopub Monitor](https://monitor.knowledgepixels.com/).
 
 
 ## Development
