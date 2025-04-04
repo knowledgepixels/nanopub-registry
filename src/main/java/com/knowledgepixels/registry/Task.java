@@ -67,6 +67,7 @@ public enum Task implements Serializable {
 			increaseStateCounter(s);
 			if (RegistryDB.isInitialized(s)) throw new RuntimeException("DB already initialized");
 			setValue(s, "serverInfo", "setupId", Math.abs(new Random().nextLong()));
+			setValue(s, "serverInfo", "testInstance", "true".equals(System.getenv("REGISTRY_TEST_INSTANCE")));
 			schedule(s, LOAD_CONFIG);
 		}
 

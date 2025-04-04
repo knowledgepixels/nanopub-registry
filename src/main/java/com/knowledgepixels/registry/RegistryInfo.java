@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 import java.io.Serializable;
 
@@ -46,7 +47,7 @@ public class RegistryInfo implements Serializable {
 		ri.agentCount = collection("agents").countDocuments(mongoSession);
 		ri.accountCount = collection("accounts").countDocuments(mongoSession);
 		ri.nanopubCount = collection("nanopubs").countDocuments(mongoSession);
-		ri.isTestInstance = "true".equals(System.getenv("REGISTRY_TEST_INSTANCE"));
+		ri.isTestInstance = isSet(mongoSession, "serverInfo", "testInstance");
 		return ri;
 	}
 

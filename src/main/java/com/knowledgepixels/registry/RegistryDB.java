@@ -176,6 +176,12 @@ public class RegistryDB {
 		return d.get("value");
 	}
 
+	public static boolean isSet(ClientSession mongoSession, String collection, String elementName) {
+		Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
+		if (d == null) return false;
+		return d.getBoolean("value");
+	}
+
 	public static Document getOne(ClientSession mongoSession, String collection, Bson find) {
 		return collection(collection).find(mongoSession, find).first();
 	}

@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 import static com.knowledgepixels.registry.RegistryDB.has;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class MainVerticle extends AbstractVerticle {
 									// TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
 									NanopubLoader.simpleLoad(s, np);
 
-									if (!"true".equals(System.getenv("REGISTRY_TEST_INSTANCE"))) {
+									if (isSet(s, "serverInfo", "testInstance")) {
 										// Here we publish it also to the first-generation services, so they know about it too:
 										// TODO Remove this at some point
 										try {

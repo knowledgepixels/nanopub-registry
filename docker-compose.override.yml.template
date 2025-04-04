@@ -6,7 +6,7 @@ services:
       - REGISTRY_COVERAGE_TYPES=all
       - REGISTRY_COVERAGE_AGENTS=viaSetting
 #     - REGISTRY_PERFORM_FULL_LOAD=false
-#     - REGISTRY_TEST_INSTANCE=false
+#     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
 #     - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
 #     - REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
     ports:

@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 import java.io.IOException;
 
@@ -56,7 +57,7 @@ public class MainPage extends Page {
 			String status = getValue(mongoSession, "serverInfo", "status").toString();
 			printHtmlHeader("Nanopub Registry");
 			println("<h1>Nanopub Registry</h1>");
-			if ("true".equals(System.getenv("REGISTRY_TEST_INSTANCE"))) {
+			if (isSet(mongoSession, "serverInfo", "testInstance")) {
 				println("<p style=\"color: red\">This is a test instance.</p>");
 			}
 			println("<h3>Formats</h3>");

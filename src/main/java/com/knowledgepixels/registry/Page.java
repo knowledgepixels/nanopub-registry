@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
@@ -38,6 +39,7 @@ public abstract class Page {
 		context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", (String) getValue(mongoSession, "serverInfo", "lastTrustStateUpdate"));
 		context.response().putHeader("Nanopub-Registry-Trust-State-Hash", (String) getValue(mongoSession, "serverInfo", "trustStateHash"));
 		context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue(mongoSession, "nanopubs", "counter").toString());
+		context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(isSet(mongoSession, "serverInfo", "testInstance")));
 
 		String r = context.request().path().substring(1);
 		if (r.endsWith(".txt")) {
