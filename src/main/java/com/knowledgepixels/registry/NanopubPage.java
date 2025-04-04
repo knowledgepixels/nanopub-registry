@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.Utils.*;
 
 import java.io.IOException;
 
@@ -40,12 +41,11 @@ public class NanopubPage extends Page {
 		String ext = getExtension();
 		final String req = getRequestString();
 		if ("trig".equals(ext)) {
-			format = "application/trig";
+			format = TYPE_TRIG;
 		} else if ("jelly".equals(ext)) {
-			format = "application/x-jelly-rdf";
+			format = TYPE_JELLY;
 		} else if (ext == null || "html".equals(ext)) {
-			String suppFormats = "application/x-jelly-rdf,application/trig,text/html";
-			format = Utils.getMimeType(c, suppFormats);
+			format = Utils.getMimeType(c, SUPPORTED_TYPES_NANOPUB);
 		} else {
 			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
@@ -68,9 +68,9 @@ public class NanopubPage extends Page {
 				return;
 			}
 	//		String url = ServerConf.getInfo().getPublicUrl();
-			if ("application/trig".equals(format)) {
+			if (TYPE_TRIG.equals(format)) {
 				println(npDoc.getString("content"));
-			} else if ("application/x-jelly-rdf".equals(format)) {
+			} else if (TYPE_JELLY.equals(format)) {
 				if (presentationFormat != null && presentationFormat.startsWith("text")) {
 					// Parse the Jelly frame and return it as Protobuf Text Format Language
 					// https://protobuf.dev/reference/protobuf/textformat-spec/
@@ -80,8 +80,6 @@ public class NanopubPage extends Page {
 				} else {
 					// To return this correctly, we would need to prepend the delimiter byte before the Jelly frame
 					// (the DB stores is non-delimited and the HTTP response must be delimited).
-
-					// Does this work???
 					BufferOutputStream outputStream = new BufferOutputStream();
 					IoUtils$.MODULE$.writeFrameAsDelimited(
 							((Binary) npDoc.get("jelly")).getData(),
