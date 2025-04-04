@@ -8,3 +8,9 @@
 *.log
 /docker-compose.override.yml
 /bin/
+
+# IntelliJ
+/.idea
+
+# Maven shade plugin
+dependency-reduced-pom.xml
