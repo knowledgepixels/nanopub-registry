@@ -998,11 +998,13 @@ public enum Task implements Serializable {
 		}
 	}
 
+	private static final String SETTING_FILE_PATH =
+			Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
 	private static NanopubSetting settingNp;
 
 	private static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
 		if (settingNp == null) {
-			settingNp = new NanopubSetting(new NanopubImpl(new File("/data/setting.trig")));
+			settingNp = new NanopubSetting(new NanopubImpl(new File(SETTING_FILE_PATH)));
 		}
 		return settingNp;
 	}
