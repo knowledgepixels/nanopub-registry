@@ -61,8 +61,8 @@ public class MainVerticle extends AbstractVerticle {
 
 		router.route(HttpMethod.POST, "/").handler(c -> {
 			if (c.request().path().equals("/")) {
-				try {
-					c.request().bodyHandler(bh -> {
+				c.request().bodyHandler(bh -> {
+					try {
 						String contentType = c.request().getHeader("Content-Type");
 						Nanopub np = null;
 						try {
@@ -93,13 +93,14 @@ public class MainVerticle extends AbstractVerticle {
 								}
 							}
 						}
-					});
+						c.response().setStatusCode(201);
+					} catch (Exception ex) {
+						c.response().setStatusCode(400).setStatusMessage("Error processing nanopub: " + ex.getMessage());
+					} finally {
+						c.response().end();
+					}
+				});
 					
-				} catch (Exception ex) {
-					c.response().setStatusCode(400).setStatusMessage("Error processing nanopub: " + ex.getMessage());
-				} finally {
-					c.response().end();
-				}
 			} else {
 				c.response().setStatusCode(400).setStatusMessage("Invalid POST request: " + c.request().path());
 			}
