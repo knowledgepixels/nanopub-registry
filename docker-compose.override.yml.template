@@ -9,8 +9,9 @@ services:
 #     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
 #     - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
 #     - REGISTRY_DB_HOST=172.17.0.1  # use shared MongoDB
-    ports:
+#   ports: !override
 #     - 9290:9292  # use port number 9290 for test instances
+    ports:
       - 5005:5005
     entrypoint: 'java -jar -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 nanopub-registry.jar'
 
