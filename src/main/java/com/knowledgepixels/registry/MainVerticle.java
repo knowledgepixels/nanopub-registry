@@ -81,7 +81,7 @@ public class MainVerticle extends AbstractVerticle {
 									// TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
 									NanopubLoader.simpleLoad(s, np);
 
-									if (isSet(s, "serverInfo", "testInstance")) {
+									if (!isSet(s, "serverInfo", "testInstance")) {
 										// Here we publish it also to the first-generation services, so they know about it too:
 										// TODO Remove this at some point
 										try {
