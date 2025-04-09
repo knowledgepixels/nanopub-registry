@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.Validate;
 import org.bson.Document;
@@ -763,10 +764,16 @@ public enum Task implements Serializable {
 				final String ph = a.getString("pubkey");
 				if (!ph.equals("$")) {
 					try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph)) {
+						long startTime = System.nanoTime();
+						AtomicLong loaded = new AtomicLong(0);
 						stream.forEach(m -> {
 							if (!m.isSuccess()) throw new RuntimeException("Failed to download nanopub; aborting task...");
 							loadNanopub(s, m.getNanopub(), ph, "$");
+							loaded.incrementAndGet();
 						});
+						double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
+						System.err.println("Loaded " + loaded.get() + " nanopubs in " + timeSeconds + "s, " +
+								String.format("%.2f", loaded.get() / timeSeconds) + " np/s");
 					}
 				}
 

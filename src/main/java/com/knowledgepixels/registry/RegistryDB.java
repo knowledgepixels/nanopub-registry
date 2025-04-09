@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 
+import com.mongodb.MongoWriteException;
+import com.mongodb.client.model.CountOptions;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
@@ -16,7 +18,6 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
-import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
@@ -162,8 +163,10 @@ public class RegistryDB {
 		return has(mongoSession, collection, new Document("_id", elementName));
 	}
 
+	private static final CountOptions hasCountOptions = new CountOptions().limit(1);
+
 	public static boolean has(ClientSession mongoSession, String collection, Bson find) {
-		return collection(collection).find(mongoSession, find).cursor().hasNext();
+		return collection(collection).countDocuments(mongoSession, find, hasCountOptions) > 0;
 	}
 
 	public static MongoCursor<Document> get(ClientSession mongoSession, String collection, Bson find) {
@@ -191,21 +194,30 @@ public class RegistryDB {
 	}
 
 	public static Object getMaxValue(ClientSession mongoSession, String collection, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find(mongoSession).sort(new Document(fieldName, -1)).cursor();
-		if (!cursor.hasNext()) return null;
-		return cursor.next().get(fieldName);
+		Document doc = collection(collection)
+				.find(mongoSession)
+				.projection(new Document(fieldName, 1))
+				.sort(new Document(fieldName, -1))
+				.first();
+		if (doc == null) return null;
+		return doc.get(fieldName);
 	}
 
 	public static Object getMaxValue(ClientSession mongoSession, String collection, Bson find, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).cursor();
-		if (!cursor.hasNext()) return null;
-		return cursor.next().get(fieldName);
+		Document doc = collection(collection)
+				.find(mongoSession, find)
+				.projection(new Document(fieldName, 1))
+				.sort(new Document(fieldName, -1))
+				.first();
+		if (doc == null) return null;
+		return doc.get(fieldName);
 	}
 
 	public static Document getMaxValueDocument(ClientSession mongoSession, String collection, Bson find, String fieldName) {
-		MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).cursor();
-		if (!cursor.hasNext()) return null;
-		return cursor.next();
+		return collection(collection)
+				.find(mongoSession, find)
+				.sort(new Document(fieldName, -1))
+				.first();
 	}
 
 	public static void set(ClientSession mongoSession, String collection, Document update) {
@@ -229,15 +241,19 @@ public class RegistryDB {
 	}
 
 	public static void recordHash(ClientSession mongoSession, String value) {
-		if (!has(mongoSession, "hashes", new Document("value", value))) {
+		try {
 			insert(mongoSession, "hashes", new Document("value", value).append("hash", Utils.getHash(value)));
+		} catch (MongoWriteException e) {
+			// Duplicate key error -- ignore it
+			if (e.getError().getCode() != 11000) throw e;
 		}
 	}
 
 	public static String unhash(String hash) {
-		var c = collection("hashes").find(new Document("hash", hash)).cursor();
-		if (c.hasNext()) return c.next().get("value").toString();
-		return null;
+		try (var c = collection("hashes").find(new Document("hash", hash)).cursor()) {
+			if (c.hasNext()) return c.next().get("value").toString();
+			return null;
+		}
 	}
 
 	/**
@@ -324,16 +340,19 @@ public class RegistryDB {
 			}
 		}
 
-		if (has(mongoSession, "invalidations", new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))) {
-
-			// Add the invalidating nanopubs also to the lists of this nanopub:
-			MongoCursor<Document> invalidations = collection("invalidations").find(mongoSession,
-					new Document("invalidatedNp", ac).append("invalidatingPubkey", ph)
-				).cursor();
+		// Add the invalidating nanopubs also to the lists of this nanopub:
+		try (MongoCursor<Document> invalidations = collection("invalidations")
+				.find(mongoSession, new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))
+				.cursor()
+		) {
 			while (invalidations.hasNext()) {
 				String iac = invalidations.next().getString("invalidatingNp");
 				try {
-					Nanopub inp = new NanopubImpl(collection("nanopubs").find(mongoSession, new Document("_id", iac)).first().getString("content"), RDFFormat.TRIG);
+					Document npDoc = collection("nanopubs")
+							.find(mongoSession, new Document("_id", iac))
+							.projection(new Document("jelly", 1))
+							.first();
+					Nanopub inp = JellyUtils.readFromDB(npDoc.get("jelly", Binary.class).getData());
 					for (IRI type : NanopubUtils.getTypes(inp)) {
 						addToList(mongoSession, inp, ph, Utils.getTypeHash(mongoSession, type));
 					}
@@ -356,8 +375,11 @@ public class RegistryDB {
 
 	private static void addToList(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String typeHash) {
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-		if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", typeHash))) {
-			insert(mongoSession, "lists", new Document().append("pubkey", pubkeyHash).append("type", typeHash));
+		try {
+			insert(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", typeHash));
+		} catch (MongoWriteException e) {
+			// Duplicate key error -- ignore it
+			if (e.getError().getCode() != 11000) throw e;
 		}
 
 		if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
