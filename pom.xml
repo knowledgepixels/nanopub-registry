@@ -102,7 +102,7 @@
     <dependency>
       <groupId>com.github.Nanopublication</groupId>
       <artifactId>nanopub-java</artifactId>
-      <version>40a757163ca02beeddc80b66b95eda8b93f19d08</version>
+      <version>14309e2081083c194e99982d161ef30690e284d1</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
