@@ -45,6 +45,9 @@ public class MainVerticle extends AbstractVerticle {
 		router.route(HttpMethod.GET, "/list*").handler(c -> {
 			ListPage.show(c);
 		});
+		router.route(HttpMethod.GET, "/np/").handler(c -> {
+			c.response().putHeader("Location", "/").setStatusCode(307).end();
+		});
 		router.route(HttpMethod.GET, "/np/*").handler(c -> {
 			NanopubPage.show(c);
 		});
