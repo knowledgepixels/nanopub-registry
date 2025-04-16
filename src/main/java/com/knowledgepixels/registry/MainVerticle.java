@@ -83,6 +83,10 @@ public class MainVerticle extends AbstractVerticle {
 								System.err.println("POST: new nanopub " + ac);
 
 								// TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
+
+								// Load to nanopub store:
+								RegistryDB.loadNanopub(s, np);
+								// Load to lists, if applicable:
 								NanopubLoader.simpleLoad(s, np);
 
 								if (!isSet(s, "serverInfo", "testInstance")) {
