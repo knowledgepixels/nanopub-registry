@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 import static com.knowledgepixels.registry.Utils.*;
 
 import java.io.IOException;
@@ -62,10 +63,15 @@ public class NanopubPage extends Page {
 			String ac = req.replaceFirst("/np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
 			Document npDoc = collection("nanopubs").find(new Document("_id", ac)).first();
 			if (npDoc == null) {
-				//getResp().sendError(404, "Not found: " + ac);
-				c.response().setStatusCode(307);
-				c.response().putHeader("Location", "https://np.knowledgepixels.com/" + ac);
-				return;
+				if (!isSet(mongoSession, "serverInfo", "testInstance")) {
+					//getResp().sendError(404, "Not found: " + ac);
+					c.response().setStatusCode(307);
+					c.response().putHeader("Location", "https://np.knowledgepixels.com/" + ac);
+					return;
+				} else {
+					c.response().setStatusCode(404).setStatusMessage("Not found: " + getFullRequest());
+					return;
+				}
 			}
 	//		String url = ServerConf.getInfo().getPublicUrl();
 			if (TYPE_TRIG.equals(format)) {
