@@ -264,6 +264,14 @@ public class RegistryDB {
 	}
 
 	public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
+		if (nanopub.getTripleCount() > 1200) {
+			System.err.println("Nanopub has too many triples (" + nanopub.getTripleCount() + "): " + nanopub.getUri());
+			return;
+		}
+		if (nanopub.getByteCount() > 1000000) {
+			System.err.println("Nanopub is to large (" + nanopub.getByteCount() + "): " + nanopub.getUri());
+			return;
+		}
 		String pubkey = getPubkey(nanopub);
 		if (pubkey == null) {
 			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
