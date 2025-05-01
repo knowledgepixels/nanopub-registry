@@ -9,7 +9,14 @@ import java.io.IOException;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.bson.Document;
 import org.bson.types.Binary;
+import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
+import org.nanopub.NanopubUtils;
 
+import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.mongodb.client.ClientSession;
 
 import eu.ostrzyciel.jelly.core.IoUtils$;
@@ -38,16 +45,13 @@ public class NanopubPage extends Page {
 
 	protected void show() throws IOException {
 		RoutingContext c = getContext();
-		String format;
 		String ext = getExtension();
+		String format = Utils.getType(ext);
 		final String req = getRequestString();
-		if ("trig".equals(ext)) {
-			format = TYPE_TRIG;
-		} else if ("jelly".equals(ext)) {
-			format = TYPE_JELLY;
-		} else if (ext == null || "html".equals(ext)) {
+		if (format == null) {
 			format = Utils.getMimeType(c, SUPPORTED_TYPES_NANOPUB);
-		} else {
+		}
+		if (format == null) {
 			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
 		}
@@ -93,6 +97,12 @@ public class NanopubPage extends Page {
 					);
 					c.response().write(outputStream.getBuffer());
 				}
+			} else if (format != null && format.equals(TYPE_NQUADS)) {
+				outputNanopub(npDoc, RDFFormat.NQUADS);
+			} else if (format != null && format.equals(TYPE_JSONLD)) {
+				outputNanopub(npDoc, RDFFormat.JSONLD);
+			} else if (format != null && format.equals(TYPE_TRIX)) {
+				outputNanopub(npDoc, RDFFormat.TRIX);
 			} else {
 				printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
 				println("<h1>Nanopublication</h1>");
@@ -105,7 +115,13 @@ public class NanopubPage extends Page {
 				println("<a href=\"/np/" + ac + ".trig\">.trig</a> |");
 				println("<a href=\"/np/" + ac + ".trig.txt\">.trig.txt</a> |");
 				println("<a href=\"/np/" + ac + ".jelly\">.jelly</a> |");
-				println("<a href=\"/np/" + ac + ".jelly.txt\">.jelly.txt</a>");
+				println("<a href=\"/np/" + ac + ".jelly.txt\">.jelly.txt</a> |");
+				println("<a href=\"/np/" + ac + ".jsonld\">.jsonld</a> |");
+				println("<a href=\"/np/" + ac + ".jsonld.txt\">.jsonld.txt</a> |");
+				println("<a href=\"/np/" + ac + ".nq\">.nq</a> |");
+				println("<a href=\"/np/" + ac + ".nq.txt\">.nq.txt</a> |");
+				println("<a href=\"/np/" + ac + ".xml\">.xml</a> |");
+				println("<a href=\"/np/" + ac + ".xml.txt\">.xml.txt</a>");
 				println("</p>");
 				println("<h3>Content</h3>");
 				println("<pre>");
@@ -116,6 +132,17 @@ public class NanopubPage extends Page {
 		} else {
 			c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
+		}
+	}
+
+	private void outputNanopub(Document npDoc, RDFFormat rdfFormat) {
+		RoutingContext c = getContext();
+		try {
+			Nanopub np = new NanopubImpl(npDoc.getString("content"), RDFFormat.TRIG);
+			c.response().write(NanopubUtils.writeToString(np, rdfFormat), Charsets.UTF_8.toString());
+		} catch (RDF4JException | MalformedNanopubException | IOException ex) {
+			c.response().setStatusCode(500).setStatusMessage("Failed transforming nanopub: " + getFullRequest());
+			ex.printStackTrace();
 		}
 	}
 

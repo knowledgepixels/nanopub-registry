@@ -3,8 +3,10 @@ package com.knowledgepixels.registry;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
@@ -121,10 +123,39 @@ public class Utils {
 	public static final String TYPE_JSON = "application/json";
 	public static final String TYPE_TRIG = "application/trig";
 	public static final String TYPE_JELLY = "application/x-jelly-rdf";
+	public static final String TYPE_JSONLD = "application/ld+json";
+	public static final String TYPE_NQUADS = "application/n-quads";
+	public static final String TYPE_TRIX = "application/trix";
 	public static final String TYPE_HTML = "text/html";
 
 	// Content types supported on a ListPage
 	public static final String SUPPORTED_TYPES_LIST = TYPE_JSON + "," + TYPE_JELLY + "," + TYPE_HTML;
 	// Content types supported on a NanopubPage
-	public static final String SUPPORTED_TYPES_NANOPUB = TYPE_JELLY + "," + TYPE_TRIG + "," + TYPE_HTML;
+	public static final String SUPPORTED_TYPES_NANOPUB =
+			TYPE_TRIG + "," +
+			TYPE_JELLY + "," +
+			TYPE_JSONLD + "," +
+			TYPE_NQUADS + "," +
+			TYPE_TRIX + "," +
+			TYPE_HTML;
+
+	private static Map<String,String> extensionTypeMap;
+
+	public static String getType(String extension) {
+		if (extension == null) {
+			return null;
+		}
+		if (extensionTypeMap == null) {
+			extensionTypeMap = new HashMap<>();
+			extensionTypeMap.put("trig", TYPE_TRIG);
+			extensionTypeMap.put("jelly", TYPE_JELLY);
+			extensionTypeMap.put("jsonld", TYPE_JSONLD);
+			extensionTypeMap.put("nq", TYPE_NQUADS);
+			extensionTypeMap.put("xml", TYPE_TRIX);
+			extensionTypeMap.put("html", TYPE_HTML);
+			extensionTypeMap.put("json", TYPE_JSON);
+		}
+		return extensionTypeMap.get(extension);
+	}
+
 }
