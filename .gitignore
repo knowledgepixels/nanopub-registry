@@ -8,6 +8,7 @@
 *.log
 /docker-compose.override.yml
 /bin/
+/*.tar.gz
 
 # IntelliJ
 /.idea
