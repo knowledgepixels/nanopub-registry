@@ -285,6 +285,11 @@ public class RegistryDB {
 		recordHash(mongoSession, pubkey);
 
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+		if (ac == null) {
+			// I don't think this ever happens, but checking here to be sure
+			System.err.println("ERROR. Unexpected Trusty URI: " + nanopub.getUri());
+			return;
+		}
 		if (has(mongoSession, "nanopubs", ac)) {
 			System.err.println("Already loaded: " + nanopub.getUri());
 		} else {
@@ -310,6 +315,7 @@ public class RegistryDB {
 
 			for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
 				String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+				if (invalidatedAc == null) continue;
 
 				// Add this nanopub also to all lists of invalidated nanopubs:
 				collection("invalidations").insertOne(mongoSession,
@@ -353,6 +359,16 @@ public class RegistryDB {
 				.find(mongoSession, new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))
 				.cursor()
 		) {
+			if (invalidations.hasNext()) {
+				collection("listEntries").updateMany(mongoSession,
+						new Document("np", ac).append("pubkey", ph),
+						new Document("$set", new Document("invalidated", true))
+					);
+				collection("trustEdges").updateMany(mongoSession,
+						new Document("source", ac),
+						new Document("$set", new Document("invalidated", true))
+					);
+			}
 			while (invalidations.hasNext()) {
 				String iac = invalidations.next().getString("invalidatingNp");
 				try {
@@ -369,14 +385,6 @@ public class RegistryDB {
 				}
 			}
 
-			collection("listEntries").updateMany(mongoSession,
-					new Document("np", ac).append("pubkey", ph),
-					new Document("$set", new Document("invalidated", true))
-				);
-			collection("trustEdges").updateMany(mongoSession,
-					new Document("source", ac),
-					new Document("$set", new Document("invalidated", true))
-				);
 		}
 
 	}
