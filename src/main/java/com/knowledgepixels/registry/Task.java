@@ -717,7 +717,7 @@ public enum Task implements Serializable {
 			}
 
 			// Run update after 1h:
-			schedule(s, UPDATE.withDelay(60 * 60 * 1000));
+			schedule(s, UPDATE.withDelay(60 * 1000));
 		}
 		
 	},
