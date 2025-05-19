@@ -717,7 +717,7 @@ public enum Task implements Serializable {
 			}
 
 			// Run update after 1h:
-			schedule(s, UPDATE.withDelay(60 * 1000));
+			schedule(s, UPDATE.withDelay(60 * 60 * 1000));
 		}
 		
 	},
@@ -727,7 +727,7 @@ public enum Task implements Serializable {
 		public void run(ClientSession s, Document taskDoc) {
 
 			ServerStatus status = getServerStatus(s);
-			if (status == ready) {
+			if (status == ready || status == coreReady) {
 				setServerStatus(s, updating);
 				schedule(s, INIT_COLLECTIONS);
 			} else {
