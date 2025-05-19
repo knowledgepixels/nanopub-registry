@@ -315,7 +315,7 @@ public class RegistryDB {
 
 			for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
 				String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
-				if (invalidatedAc == null) continue;
+				if (invalidatedAc == null) continue;  // This should never happen; checking here just to be sure
 
 				// Add this nanopub also to all lists of invalidated nanopubs:
 				collection("invalidations").insertOne(mongoSession,
