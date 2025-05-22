@@ -8,6 +8,9 @@ import java.io.InputStream;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
+import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.vertx.micrometer.PrometheusScrapingHandler;
+import io.vertx.micrometer.backends.BackendRegistries;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 import org.nanopub.MalformedNanopubException;
@@ -34,7 +37,6 @@ public class MainVerticle extends AbstractVerticle {
 		Router router = Router.router(vertx);
 		server.requestHandler(router);
 		server.listen(9292);
-
 		router.route(HttpMethod.GET, "/agent*").handler(c -> {
 			// /agent/... | /agents | /agentAccounts
 			ListPage.show(c);
@@ -57,6 +59,16 @@ public class MainVerticle extends AbstractVerticle {
 		router.route(HttpMethod.GET, "/style.css").handler(c -> {
 			ResourcePage.show(c, "style.css", "text/css");
 		});
+
+		// Metrics
+		final var metricsHttpServer = vertx.createHttpServer();
+		final var metricsRouter = Router.router(vertx);
+		metricsHttpServer.requestHandler(metricsRouter).listen(9293);
+
+		final var metricsRegistry = (PrometheusMeterRegistry) BackendRegistries.getDefaultNow();
+		final var collector = new MetricsCollector(metricsRegistry);
+		metricsRouter.route("/metrics").handler(PrometheusScrapingHandler.create(metricsRegistry));
+
 		router.route(HttpMethod.GET, "/*").handler(c -> {
 			MainPage.show(c);
 		});
@@ -125,6 +137,9 @@ public class MainVerticle extends AbstractVerticle {
 		}).onComplete(res -> {
 			System.err.println("DB initialization finished");
 		});
+
+		// Periodic metrics update
+		vertx.setPeriodic(1000, id -> collector.updateMetrics());
 
 		// SHUTDOWN
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
