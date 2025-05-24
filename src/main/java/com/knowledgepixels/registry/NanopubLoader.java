@@ -83,11 +83,9 @@ public class NanopubLoader {
 		}
 	}
 
-	private static final String[] peerUrls = new String[] {
-			"https://registry.petapico.org/",
-			"https://registry.knowledgepixels.com/",
-			"https://registry.np.trustyuri.net/"
-	};
+	// Check if the environment variable REGISTRY_PEER_URLS is set, otherwise use the default peer URLs.
+	private static String envPeerUrls = Utils.getEnv("REGISTRY_PEER_URLS", "");
+	private static final String[] peerUrls = (!envPeerUrls.isEmpty())? envPeerUrls.split(";"): Utils.DEFAULT_PEER_URLS;
 
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
 		// TODO Move the code of this method to nanopub-java library.
