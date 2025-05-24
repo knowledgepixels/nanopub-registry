@@ -82,12 +82,7 @@ public class NanopubLoader {
 			processFunction.accept(e);
 		}
 	}
-
-	private static final String[] peerUrls = new String[] {
-			"https://registry.petapico.org/",
-			"https://registry.knowledgepixels.com/",
-			"https://registry.np.trustyuri.net/"
-	};
+	private static final String[] peerUrls = Utils.getEnv("REGISTRY_PEER_URLS", Utils.DEFAULT_PEER_URLS).split(";");
 
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
 		// TODO Move the code of this method to nanopub-java library.
