@@ -139,7 +139,7 @@ public class Utils {
 			TYPE_TRIX + "," +
 			TYPE_HTML;
 
-	public static final String DEFAULT_PEER_URLS = "https://registry.petapico.org/;https://registry.knowledgepixels.com/;https://registry.np.trustyuri.net/";
+	public static final String[] DEFAULT_PEER_URLS = new String[]{"https://registry.petapico.org/", "https://registry.knowledgepixels.com/", "https://registry.np.trustyuri.net/"};
 
 	private static Map<String,String> extensionTypeMap;
 
