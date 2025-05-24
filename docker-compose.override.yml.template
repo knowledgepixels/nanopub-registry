@@ -5,6 +5,7 @@ services:
       - JPDA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
       - REGISTRY_COVERAGE_TYPES=all
       - REGISTRY_COVERAGE_AGENTS=viaSetting
+      - REGISTRY_PEER_URLS=https://registry.petapico.org/;https://registry.knowledgepixels.com/
 #     - REGISTRY_PERFORM_FULL_LOAD=false
 #     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
 #     - REGISTRY_SETTING_FILE=/data/registry.trig
