@@ -20,7 +20,6 @@ import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.mongodb.client.ClientSession;
 
 import eu.neverblink.jelly.core.utils.IoUtils;
-import eu.neverblink.jelly.core.proto.google.v1.RdfStreamFrame;
 import io.vertx.ext.web.RoutingContext;
 
 public class NanopubPage extends Page {
@@ -85,7 +84,8 @@ public class NanopubPage extends Page {
 					// Parse the Jelly frame and return it as Protobuf Text Format Language
 					// https://protobuf.dev/reference/protobuf/textformat-spec/
 					// It's better than bombarding the browser with a binary file.
-					var frame = RdfStreamFrame.parseFrom(((Binary) npDoc.get("jelly")).getData());
+					var frame = eu.neverblink.jelly.core.proto.google.v1.RdfStreamFrame
+						.parseFrom(((Binary) npDoc.get("jelly")).getData());
 					println(frame.toString());
 				} else {
 					// To return this correctly, we would need to prepend the delimiter byte before the Jelly frame
