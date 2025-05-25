@@ -1,6 +1,5 @@
 package com.knowledgepixels.registry;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,9 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.nanopub.extra.services.ApiResponse;
+import org.nanopub.extra.services.FailedApiCallException;
 import org.nanopub.extra.services.QueryAccess;
-
-import com.opencsv.exceptions.CsvValidationException;
 
 // TODO Code copied and adjusted (made synchronous) from Nanodash; should be moved to nanopub-java at some point
 public class ApiCache {
@@ -24,7 +22,7 @@ public class ApiCache {
 	private static ApiResponse get(String queryId, Map<String,String> params) {
 		try {
 			return QueryAccess.get(queryId, params);
-		} catch (CsvValidationException | IOException ex) {
+		} catch (FailedApiCallException ex) {
 			ex.printStackTrace();
 		}
 		return null;
