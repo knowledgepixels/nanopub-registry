@@ -106,7 +106,7 @@
     <dependency>
       <groupId>com.github.Nanopublication</groupId>
       <artifactId>nanopub-java</artifactId>
-      <version>14309e2081083c194e99982d161ef30690e284d1</version>
+      <version>e4e430b3b5f09caa1c852e67a15a86bfc7b5a986</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
@@ -134,9 +134,14 @@
       <version>1.82</version>
     </dependency>
     <dependency>
-      <groupId>eu.ostrzyciel.jelly</groupId>
-      <artifactId>jelly-rdf4j_3</artifactId>
-      <version>2.9.1</version>
+      <groupId>eu.neverblink.jelly</groupId>
+      <artifactId>jelly-rdf4j</artifactId>
+      <version>3.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>eu.neverblink.jelly</groupId>
+      <artifactId>jelly-core-protos-google</artifactId>
+      <version>3.1.0</version>
     </dependency>
     <dependency>
       <groupId>io.micrometer</groupId>
