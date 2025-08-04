@@ -87,6 +87,13 @@ public class NanopubLoader {
 	private static String envPeerUrls = Utils.getEnv("REGISTRY_PEER_URLS", "");
 	private static final String[] peerUrls = (!envPeerUrls.isEmpty())? envPeerUrls.split(";"): Utils.DEFAULT_PEER_URLS;
 
+	/**
+	 * Retrieve Nanopubs from the peers of this Nanopub Registry.
+	 *
+	 * @param typeHash The hash of the type of the Nanopub to retrieve.
+	 * @param pubkeyHash The hash of the pubkey of the Nanopub to retrieve.
+	 * @return A stream of MaybeNanopub objects, or an empty stream if no peer is available.
+	 */
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
 		// TODO Move the code of this method to nanopub-java library.
 
@@ -123,7 +130,7 @@ public class NanopubLoader {
 				ex.printStackTrace();
 			}
 		}
-		return null;
+		return Stream.empty();
 	}
 
 	public static Nanopub retrieveNanopub(ClientSession mongoSession, String nanopubId) {
