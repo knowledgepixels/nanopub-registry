@@ -1,16 +1,11 @@
 package com.knowledgepixels.registry;
 
-import static com.knowledgepixels.registry.RegistryDB.isSet;
 import static com.knowledgepixels.registry.RegistryDB.has;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
-import io.micrometer.prometheus.PrometheusMeterRegistry;
-import io.vertx.micrometer.PrometheusScrapingHandler;
-import io.vertx.micrometer.backends.BackendRegistries;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 import org.nanopub.MalformedNanopubException;
@@ -20,6 +15,7 @@ import org.nanopub.extra.server.PublishNanopub;
 
 import com.mongodb.client.ClientSession;
 
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
@@ -27,6 +23,8 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.micrometer.PrometheusScrapingHandler;
+import io.vertx.micrometer.backends.BackendRegistries;
 import net.trustyuri.TrustyUriUtils;
 
 public class MainVerticle extends AbstractVerticle {
@@ -45,6 +43,9 @@ public class MainVerticle extends AbstractVerticle {
 			ListPage.show(c);
 		});
 		router.route(HttpMethod.GET, "/list*").handler(c -> {
+			ListPage.show(c);
+		});
+		router.route(HttpMethod.GET, "/pubkeys*").handler(c -> {
 			ListPage.show(c);
 		});
 		router.route(HttpMethod.GET, "/np/").handler(c -> {
@@ -154,14 +155,6 @@ public class MainVerticle extends AbstractVerticle {
 			}
 		}));
 
-	}
-
-	public String getResourceAsString(String file) {
-		InputStream is = getClass().getClassLoader().getResourceAsStream("com/knowledgepixels/query/" + file);
-		try (Scanner s = new Scanner(is).useDelimiter("\\A")) {
-			String fileContent = s.hasNext() ? s.next() : "";
-			return fileContent;
-		}
 	}
 
 }

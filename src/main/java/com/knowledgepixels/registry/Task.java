@@ -1,6 +1,20 @@
 package com.knowledgepixels.registry;
 
-import static com.knowledgepixels.registry.EntryStatus.*;
+import static com.knowledgepixels.registry.EntryStatus.aggregated;
+import static com.knowledgepixels.registry.EntryStatus.approved;
+import static com.knowledgepixels.registry.EntryStatus.contested;
+import static com.knowledgepixels.registry.EntryStatus.discarded;
+import static com.knowledgepixels.registry.EntryStatus.encountered;
+import static com.knowledgepixels.registry.EntryStatus.expanded;
+import static com.knowledgepixels.registry.EntryStatus.loaded;
+import static com.knowledgepixels.registry.EntryStatus.loading;
+import static com.knowledgepixels.registry.EntryStatus.processed;
+import static com.knowledgepixels.registry.EntryStatus.retrieved;
+import static com.knowledgepixels.registry.EntryStatus.seen;
+import static com.knowledgepixels.registry.EntryStatus.skipped;
+import static com.knowledgepixels.registry.EntryStatus.toLoad;
+import static com.knowledgepixels.registry.EntryStatus.toRetrieve;
+import static com.knowledgepixels.registry.EntryStatus.visited;
 import static com.knowledgepixels.registry.NanopubLoader.ENDORSE_TYPE;
 import static com.knowledgepixels.registry.NanopubLoader.ENDORSE_TYPE_HASH;
 import static com.knowledgepixels.registry.NanopubLoader.INTRO_TYPE;
@@ -16,14 +30,16 @@ import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
 import static com.knowledgepixels.registry.RegistryDB.rename;
 import static com.knowledgepixels.registry.RegistryDB.set;
 import static com.knowledgepixels.registry.RegistryDB.setValue;
-import static com.knowledgepixels.registry.ServerStatus.*;
+import static com.knowledgepixels.registry.ServerStatus.coreLoading;
+import static com.knowledgepixels.registry.ServerStatus.coreReady;
+import static com.knowledgepixels.registry.ServerStatus.launching;
+import static com.knowledgepixels.registry.ServerStatus.ready;
+import static com.knowledgepixels.registry.ServerStatus.updating;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
 import static com.mongodb.client.model.Sorts.orderBy;
 
-import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -31,23 +47,17 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.Validate;
 import org.bson.Document;
-import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Statement;
-import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
-import org.nanopub.NanopubImpl;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
 import org.nanopub.extra.security.KeyDeclaration;
-import org.nanopub.extra.services.ApiResponse;
-import org.nanopub.extra.services.ApiResponseEntry;
 import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 
@@ -67,7 +77,7 @@ public enum Task implements Serializable {
 
 			increaseStateCounter(s);
 			if (RegistryDB.isInitialized(s)) throw new RuntimeException("DB already initialized");
-			setValue(s, "serverInfo", "setupId", Math.abs(new Random().nextLong()));
+			setValue(s, "serverInfo", "setupId", Math.abs(Utils.getRandom().nextLong()));
 			setValue(s, "serverInfo", "testInstance", "true".equals(System.getenv("REGISTRY_TEST_INSTANCE")));
 			schedule(s, LOAD_CONFIG);
 		}
@@ -99,7 +109,7 @@ public enum Task implements Serializable {
 				throw new RuntimeException("Illegal status for this task: " + getServerStatus(s));
 			}
 
-			NanopubSetting settingNp = getSetting();
+			NanopubSetting settingNp = Utils.getSetting();
 			String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
 			setValue(s, "setting", "original", settingId);
 			setValue(s, "setting", "current", settingId);
@@ -146,7 +156,7 @@ public enum Task implements Serializable {
 						.append("type", "extended")
 				);
 
-			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubLoader.retrieveNanopub(s, getSetting().getAgentIntroCollection().stringValue()));
+			NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubLoader.retrieveNanopub(s, Utils.getSetting().getAgentIntroCollection().stringValue()));
 			loadNanopub(s, agentIndex);
 			for (IRI el : agentIndex.getElements()) {
 				String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
@@ -796,14 +806,17 @@ public enum Task implements Serializable {
 	CHECK_MORE_PUBKEYS {
 
 		public void run(ClientSession s, Document taskDoc) {
-			ApiResponse resp = ApiCache.retrieveResponse("RAWpFps2f4rvpLhFQ-_KiAyphGuXO6YGJLqiW3QBxQQhM/get-all-pubkeys", null);
-			for (ApiResponseEntry e : resp.getData()) {
-				String pubkeyHash = e.get("pubkeyhash");
-				Validate.notNull(pubkeyHash);
-				Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
-				if (!has(s, "lists", d)) {
-					insert(s, "lists", d.append("status", encountered.getValue()));
+			try {
+				for (RegistryAccountInfo rai : RegistryAccountInfo.fromUrl(Utils.getRandomPeer() + "list.json")) {
+					String pubkeyHash = rai.getPubkey();
+					Validate.notNull(pubkeyHash);
+					Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
+					if (!has(s, "lists", d)) {
+						insert(s, "lists", d.append("status", encountered.getValue()));
+					}
 				}
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
 			}
 
 			schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
@@ -1003,17 +1016,6 @@ public enum Task implements Serializable {
 				}
 			}
 		}
-	}
-
-	private static final String SETTING_FILE_PATH =
-			Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
-	private static NanopubSetting settingNp;
-
-	private static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
-		if (settingNp == null) {
-			settingNp = new NanopubSetting(new NanopubImpl(new File(SETTING_FILE_PATH)));
-		}
-		return settingNp;
 	}
 
 	private static IntroNanopub getAgentIntro(ClientSession mongoSession, String nanopubId) {

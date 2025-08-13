@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
@@ -23,16 +22,23 @@ public class LegacyConnector {
 	private LegacyConnector() {}  // no instances allowed
 
 	private static final String[] serverUrls = { "https://np.knowledgepixels.com/", "https://server.np.trustyuri.net/", "http://server.np.dumontierlab.com/" };
-	private static final Random random = new Random();
 
 	// Just to make sure we don't need 1000+ DB requests each time we check for updates:
 	private static Map<String,Boolean> loadedCache = new HashMap<>();
 
 	public static void checkForNewNanopubs(ClientSession mongoSession) {
-		String baseUrl = serverUrls[random.nextInt(serverUrls.length)];
+		String baseUrl = serverUrls[Utils.getRandom().nextInt(serverUrls.length)];
 		String prev = checkUrl(mongoSession, baseUrl + "nanopubs");
-		if (prev != null) {
-			checkUrl(mongoSession, baseUrl + prev);
+		try {
+			int page = Integer.parseInt(prev.replaceFirst("^.*?([0-9]+)$", "$1"));
+			int count = 0;
+			while (page > 0 && count < 100) {
+				checkUrl(mongoSession, baseUrl + "nanopubs.txt?page=" + page);
+				page--;
+				count++;
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
 	}
 

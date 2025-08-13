@@ -5,35 +5,35 @@ import static com.knowledgepixels.registry.RegistryDB.has;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.apache.http.Header;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
 import org.bson.Document;
 import org.bson.types.Binary;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.server.GetNanopub;
-import org.nanopub.extra.services.ApiResponse;
-import org.nanopub.extra.services.ApiResponseEntry;
 import org.nanopub.jelly.JellyUtils;
 import org.nanopub.jelly.MaybeNanopub;
 import org.nanopub.jelly.NanopubStream;
+import org.nanopub.trusty.TrustyNanopubUtils;
 
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
+import net.trustyuri.rdf.RdfModule;
 
 public class NanopubLoader {
 
@@ -68,25 +68,6 @@ public class NanopubLoader {
 		}
 	}
 
-	public static void retrieveNanopubs(String type, String pubkeyHash, Consumer<ApiResponseEntry> processFunction) {
-		Map<String,String> params = new HashMap<>();
-		params.put("pubkeyhash", pubkeyHash);
-		ApiResponse resp;
-		if (type != null) {
-			params.put("type", type);
-			resp = ApiCache.retrieveResponse("RAcX8PxM-XGE_T5EvGdSv0ByA6hFLGL8faeqS3sBWNeIY/get-nanopubs-for-pubkey-and-type", params);
-		} else {
-			resp = ApiCache.retrieveResponse("RAdxUS1loH_wZRz_K4dGiRY63weCJRQijMK55LOO12yZQ/get-nanopubs-for-pubkey", params);
-		}
-		for (ApiResponseEntry e : resp.getData()) {
-			processFunction.accept(e);
-		}
-	}
-
-	// Check if the environment variable REGISTRY_PEER_URLS is set, otherwise use the default peer URLs.
-	private static String envPeerUrls = Utils.getEnv("REGISTRY_PEER_URLS", "");
-	private static final String[] peerUrls = (!envPeerUrls.isEmpty())? envPeerUrls.split(";"): Utils.DEFAULT_PEER_URLS;
-
 	/**
 	 * Retrieve Nanopubs from the peers of this Nanopub Registry.
 	 *
@@ -97,12 +78,10 @@ public class NanopubLoader {
 	public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
 		// TODO Move the code of this method to nanopub-java library.
 
-		String thisServiceUrl = System.getenv("REGISTRY_SERVICE_URL");
-		List<String> peerUrlsToTry = new ArrayList<>(Arrays.asList(peerUrls));
+		List<String> peerUrlsToTry = new ArrayList<>(Utils.getPeerUrls());
 		Collections.shuffle(peerUrlsToTry);
 		while (!peerUrlsToTry.isEmpty()) {
 			String peerUrl = peerUrlsToTry.remove(0);
-			if (peerUrl.equals(thisServiceUrl)) continue;
 	
 			String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
 			System.err.println("Request: " + requestUrl);
@@ -149,7 +128,7 @@ public class NanopubLoader {
 			System.err.println("Loading " + nanopubId);
 
 			// TODO Reach out to other Nanopub Registries here:
-			np = GetNanopub.get(nanopubId);
+			np = getNanopub(nanopubId);
 			if (np != null) {
 				RegistryDB.loadNanopub(mongoSession, np);
 			} else {
@@ -170,6 +149,67 @@ public class NanopubLoader {
 			ex.printStackTrace();
 			return null;
 		}
+	}
+
+	// TODO Provide this method in nanopub-java (GetNanopub)
+	private static Nanopub getNanopub(String uriOrArtifactCode) {
+		List<String> peerUrls = new ArrayList<>(Utils.getPeerUrls());
+		Collections.shuffle(peerUrls);
+		String ac = GetNanopub.getArtifactCode(uriOrArtifactCode);
+		if (!ac.startsWith(RdfModule.MODULE_ID)) {
+			throw new IllegalArgumentException("Not a trusty URI of type RA");
+		}
+		while (!peerUrls.isEmpty()) {
+			String peerUrl = peerUrls.remove(0);
+			try {
+				Nanopub np = get(ac, peerUrl, NanopubUtils.getHttpClient());
+				if (np != null) {
+					return np;
+				}
+			} catch (IOException ex) {
+				// ignore
+			} catch (RDF4JException ex) {
+				// ignore
+			} catch (MalformedNanopubException ex) {
+				// ignore
+			}
+		}
+		return null;
+	}
+
+	// TODO Provide this method in nanopub-java (GetNanopub)
+	private static Nanopub get(String artifactCode, String registryUrl, HttpClient httpClient)
+			throws IOException, RDF4JException, MalformedNanopubException {
+		HttpGet get = null;
+		// TODO Get in Jelly format:
+		String getUrl = registryUrl + "np/" + artifactCode;
+		try {
+			get = new HttpGet(getUrl);
+		} catch (IllegalArgumentException ex) {
+			throw new IOException("invalid URL: " + getUrl);
+		}
+		get.setHeader("Accept", "application/trig");
+		InputStream in = null;
+		try {
+			HttpResponse resp = httpClient.execute(get);
+			if (!wasSuccessful(resp)) {
+				EntityUtils.consumeQuietly(resp.getEntity());
+				throw new IOException(resp.getStatusLine().toString());
+			}
+			in = resp.getEntity().getContent();
+			Nanopub nanopub = new NanopubImpl(in, RDFFormat.TRIG);
+			if (!TrustyNanopubUtils.isValidTrustyNanopub(nanopub)) {
+				throw new MalformedNanopubException("Nanopub is not trusty");
+			}
+			return nanopub;
+		} finally {
+			if (in != null) in.close();
+		}
+	}
+
+	private static boolean wasSuccessful(HttpResponse resp) {
+		int c = resp.getStatusLine().getStatusCode();
+		return c >= 200 && c < 300;
 	}
 
 }

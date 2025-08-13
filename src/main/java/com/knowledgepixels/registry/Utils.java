@@ -1,23 +1,31 @@
 package com.knowledgepixels.registry;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 import org.commonjava.mimeparse.MIMEParse;
+import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
+import org.nanopub.extra.setting.NanopubSetting;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
@@ -139,12 +147,6 @@ public class Utils {
 			TYPE_TRIX + "," +
 			TYPE_HTML;
 
-	public static final String[] DEFAULT_PEER_URLS = new String[] {
-		"https://registry.petapico.org/",
-		"https://registry.knowledgepixels.com/",
-		"https://registry.np.trustyuri.net/"
-	};
-
 	private static Map<String,String> extensionTypeMap;
 
 	public static String getType(String extension) {
@@ -162,6 +164,58 @@ public class Utils {
 			extensionTypeMap.put("json", TYPE_JSON);
 		}
 		return extensionTypeMap.get(extension);
+	}
+
+	private static List<String> peerUrls;
+
+	public static List<String> getPeerUrls() {
+		if (peerUrls == null) {
+			String envPeerUrls = getEnv("REGISTRY_PEER_URLS", "");
+			String thisRegistryUrl = getEnv("REGISTRY_SERVICE_URL", "");
+			if (!envPeerUrls.isEmpty()) {
+				peerUrls = new ArrayList<>();
+				for (String peerUrl : envPeerUrls.split(";")) {
+					if (thisRegistryUrl.equals(peerUrl)) continue;
+					peerUrls.add(peerUrl);
+				}
+			} else {
+				NanopubSetting setting;
+				try {
+					setting = getSetting();
+				} catch (Exception ex) {
+					throw new RuntimeException(ex);
+				}
+				peerUrls = new ArrayList<>();
+				for (IRI iri : setting.getBootstrapServices()) {
+					String peerUrl = iri.stringValue();
+					if (thisRegistryUrl.equals(peerUrl)) continue;
+					peerUrls.add(peerUrl);
+				}
+			}
+		}
+		return peerUrls;
+	}
+
+	private static final String SETTING_FILE_PATH =
+			Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
+	private static NanopubSetting settingNp;
+
+	public static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
+		if (settingNp == null) {
+			settingNp = new NanopubSetting(new NanopubImpl(new File(SETTING_FILE_PATH)));
+		}
+		return settingNp;
+	}
+
+	public static String getRandomPeer() throws RDF4JException, MalformedNanopubException, IOException {
+		List<String> peerUrls = getPeerUrls();
+		return peerUrls.get(random.nextInt(peerUrls.size()));
+	}
+
+	private static Random random = new Random();
+
+	public static Random getRandom() {
+		return random;
 	}
 
 }

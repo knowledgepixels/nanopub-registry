@@ -1,5 +1,5 @@
-@prefix this: <https://w3id.org/np/RA8DQemv3WwH2K_YON_fnyyVvWVnxaTFFU4YAFW6gFyc4> .
-@prefix sub: <https://w3id.org/np/RA8DQemv3WwH2K_YON_fnyyVvWVnxaTFFU4YAFW6gFyc4#> .
+@prefix this: <https://w3id.org/np/RAwUp0SmZZwQNOY1zbSPhR21aQoImiUyQrDlyXj5QYXmQ> .
+@prefix sub: <https://w3id.org/np/RAwUp0SmZZwQNOY1zbSPhR21aQoImiUyQrDlyXj5QYXmQ/> .
 @prefix np: <http://www.nanopub.org/nschema#> .
 @prefix dct: <http://purl.org/dc/terms/> .
 @prefix nt: <https://w3id.org/np/o/ntemplate/> .
@@ -8,6 +8,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix orcid: <https://orcid.org/> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix ns1: <http://purl.org/np/> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .
 
 sub:Head {
@@ -18,14 +19,15 @@ sub:Head {
 }
 
 sub:assertion {
-  sub:setting npx:hasAgents <https://w3id.org/np/RA87n-fHjNmYTYRYBE7xER4HzsA_S7nf2qnQC4irqxxhY>;
-    npx:hasBootstrapService <http://130.60.24.146:7880/>, <http://server.np.dumontierlab.com/>,
-      <https://np.knowledgepixels.com/>, <https://server.np.trustyuri.net/>;
-    npx:hasServices <http://purl.org/np/RA6H6eWp93TQHxpPEiSO2WsVBJCXTQSyjaD68JMz5OVtY>;
+  <https://w3id.org/np/RAqzx-R_CV5VqJ2Ib_lRnhW0wTILBhSH8cg0xmZwCi-Ag#setting> npx:hasAgents
+      <https://w3id.org/np/RA87n-fHjNmYTYRYBE7xER4HzsA_S7nf2qnQC4irqxxhY>;
+    npx:hasBootstrapService <https://registry.knowledgepixels.com/>, <https://registry.np.trustyuri.net/>,
+      <https://registry.petapico.org/>;
+    npx:hasServices <https://w3id.org/np/RAIt2xVuawgwkncW9oOZfmYmH2b2V6OCYOdoVYNQef060>;
     npx:hasTrustRangeAlgorithm npx:TransitiveTrust;
     npx:hasUpdateStrategy npx:UpdatesByCreator;
     a npx:NanopubSetting;
-    rdfs:label "first nanopublication setting" .
+    rdfs:label "nanopublication setting for 2nd generation services" .
 }
 
 sub:provenance {
@@ -35,21 +37,21 @@ sub:provenance {
 sub:pubinfo {
   orcid:0000-0002-1267-0234 foaf:name "Tobias Kuhn" .
   
-  sub:sig npx:hasAlgorithm "RSA";
-    npx:hasPublicKey "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD4Wj537OijfOWVtsHMznuXKISqBhtGDQZfdO6pbb4hg9EHMcUFGTLbWaPrP783PHv8HMAAPjvEkHLaOHMIknqhaIa5236lfBO3r+ljVdYBElBcLvROmwG+ZGtmPNZf7lMhI15xf5TfoaSa84AFRd5J2EXekK6PhaFQhRm1IpSYtwIDAQAB";
-    npx:hasSignature "tSQW/v3RNPXSGp6fCefGhTlkJbdLjQFLbi9083DuWMRudTh+yq9ppvyCa7O03gt9mvzZsAJ1Cl7m/xcrToA5/Afle20Y33IvGtrxpm5ULH5ajJW7K5mScKjz6iBXCxqqnVGtC6qr/b2vVOO7gl5JElfT9i8/nYm/q28xnKC3oZE=";
-    npx:hasSignatureTarget this:;
-    npx:signedBy orcid:0000-0002-1267-0234 .
-  
-  this: dct:created "2024-06-04T07:59:44.344Z"^^xsd:dateTime;
+  this: dct:created "2025-08-12T10:38:01.927Z"^^xsd:dateTime;
     dct:creator orcid:0000-0002-1267-0234;
     dct:license <https://creativecommons.org/licenses/by/4.0/>;
-    npx:introduces sub:setting;
+    npx:introduces <https://w3id.org/np/RAqzx-R_CV5VqJ2Ib_lRnhW0wTILBhSH8cg0xmZwCi-Ag#setting>;
+    npx:supersedes <https://w3id.org/np/RAqzx-R_CV5VqJ2Ib_lRnhW0wTILBhSH8cg0xmZwCi-Ag>;
     npx:wasCreatedAt <https://nanodash.knowledgepixels.com/>;
-    rdfs:label "Nanopublication setting: first nanopublication setting";
-    prov:wasDerivedFrom <https://w3id.org/np/RApvJxJO7tJFbhu0sqfO09XVOxxH9_-IO5EzztJqHMitk>;
-    nt:wasCreatedFromProvenanceTemplate <http://purl.org/np/RANwQa4ICWS5SOjw7gp99nBpXBasapwtZF1fIM3H2gYTM>;
-    nt:wasCreatedFromPubinfoTemplate <http://purl.org/np/RAA2MfqdBCzmz9yVWjKLXNbyfBNcwsMmOqcNUxkk1maIM>,
-      <http://purl.org/np/RABngHbKpoJ3U9Nebc8mX_KUdv_vXw28EejqAyQya5zVA>, <http://purl.org/np/RAh1gm83JiG5M6kDxXhaYT1l49nCzyrckMvTzcPn-iv90>;
-    nt:wasCreatedFromTemplate <http://purl.org/np/RA-nvwU310EzeV5EGDaTQAAD6pNgxpa9htP-ImbXBrXO4> .
+    rdfs:label "Nanopublication setting: nanopublication setting for 2nd generation services";
+    nt:wasCreatedFromProvenanceTemplate ns1:RANwQa4ICWS5SOjw7gp99nBpXBasapwtZF1fIM3H2gYTM;
+    nt:wasCreatedFromPubinfoTemplate <https://w3id.org/np/RA0J4vUn_dekg-U1kK3AOEt02p9mT2WO03uGxLDec1jLw>,
+      <https://w3id.org/np/RAoTD7udB2KtUuOuAe74tJi1t3VzK0DyWS7rYVAq1GRvw>, <https://w3id.org/np/RAukAcWHRDlkqxk7H2XNSegc1WnHI569INvNr-xdptDGI>;
+    nt:wasCreatedFromTemplate ns1:RA-nvwU310EzeV5EGDaTQAAD6pNgxpa9htP-ImbXBrXO4 .
+  
+  sub:sig npx:hasAlgorithm "RSA";
+    npx:hasPublicKey "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD4Wj537OijfOWVtsHMznuXKISqBhtGDQZfdO6pbb4hg9EHMcUFGTLbWaPrP783PHv8HMAAPjvEkHLaOHMIknqhaIa5236lfBO3r+ljVdYBElBcLvROmwG+ZGtmPNZf7lMhI15xf5TfoaSa84AFRd5J2EXekK6PhaFQhRm1IpSYtwIDAQAB";
+    npx:hasSignature "ZQfrurd8lBnug2YPTipptyLOj9c9dyPefaUAfACXf4BbDfN8ieWhp/YsAIifWDpTyLmQT5ciYAouidL8yXrEH81yXvtFaio/58GUSoZBLUwNZBg3ZugnKGLI78THAGEh8cIDLgB1xdkvvIkSvtnTuTpjBbfgcXvVuOhfUQ2g9vQ=";
+    npx:hasSignatureTarget this:;
+    npx:signedBy orcid:0000-0002-1267-0234 .
 }

@@ -378,6 +378,41 @@ public class ListPage extends Page {
 					printHtmlFooter();
 				}
 			}
+		} else if (req.equals("/pubkeys")) {
+			try (var c = collection("lists")
+					.distinct(mongoSession, "pubkey", String.class)
+					.cursor()
+			) {
+				if (TYPE_JSON.equals(format)) {
+					println("[");
+					while (c.hasNext()) {
+						print(gson.toJson(c.next()));
+						println(c.hasNext() ? "," : "");
+					}
+					println("]");
+				} else {
+					printHtmlHeader("Pubkey List - Nanopub Registry");
+					println("<h1>Pubkey List</h1>");
+					println("<p><a href=\"/\">&lt; Home</a></p>");
+					println("<h3>Formats</h3>");
+					println("<p>");
+					println("<a href=\"pubkeys.json\">.json</a> |");
+					println("<a href=\"pubkeys.json.txt\">.json.txt</a>");
+					println("</p>");
+					println("<h3>Pubkeys</h3>");
+					println("<ol>");
+					while (c.hasNext()) {
+						String pubkey = c.next();
+						if (!pubkey.equals("$")) {
+							println("<li>");
+							println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
+							println("</li>");
+						}
+					}
+					println("</ol>");
+					printHtmlFooter();
+				}
+			}
 		} else {
 			context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
 			return;
