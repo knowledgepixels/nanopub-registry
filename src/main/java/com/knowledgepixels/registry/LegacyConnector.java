@@ -29,16 +29,8 @@ public class LegacyConnector {
 	public static void checkForNewNanopubs(ClientSession mongoSession) {
 		String baseUrl = serverUrls[Utils.getRandom().nextInt(serverUrls.length)];
 		String prev = checkUrl(mongoSession, baseUrl + "nanopubs");
-		try {
-			int page = Integer.parseInt(prev.replaceFirst("^.*?([0-9]+)$", "$1"));
-			int count = 0;
-			while (page > 0 && count < 100) {
-				checkUrl(mongoSession, baseUrl + "nanopubs.txt?page=" + page);
-				page--;
-				count++;
-			}
-		} catch (Exception ex) {
-			ex.printStackTrace();
+		if (prev != null) {
+			checkUrl(mongoSession, baseUrl + prev);
 		}
 	}
 
