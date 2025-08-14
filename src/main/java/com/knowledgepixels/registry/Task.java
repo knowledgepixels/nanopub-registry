@@ -807,8 +807,7 @@ public enum Task implements Serializable {
 
 		public void run(ClientSession s, Document taskDoc) {
 			try {
-				for (RegistryAccountInfo rai : RegistryAccountInfo.fromUrl(Utils.getRandomPeer() + "list.json")) {
-					String pubkeyHash = rai.getPubkey();
+				for (String pubkeyHash : Utils.retrieveListFromJsonUrl(Utils.getRandomPeer() + "pubkeys.json")) {
 					Validate.notNull(pubkeyHash);
 					Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
 					if (!has(s, "lists", d)) {

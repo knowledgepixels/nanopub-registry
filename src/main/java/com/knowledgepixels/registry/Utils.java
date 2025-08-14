@@ -2,7 +2,11 @@ package com.knowledgepixels.registry;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Type;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +32,11 @@ import org.nanopub.NanopubUtils;
 import org.nanopub.extra.setting.NanopubSetting;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
+import com.github.jsonldjava.shaded.com.google.common.reflect.TypeToken;
 import com.google.common.hash.Hashing;
+import com.google.gson.Gson;
+import com.google.gson.JsonIOException;
+import com.google.gson.JsonSyntaxException;
 import com.mongodb.client.ClientSession;
 
 import io.vertx.ext.web.RoutingContext;
@@ -216,6 +224,13 @@ public class Utils {
 
 	public static Random getRandom() {
 		return random;
+	}
+
+	private static Gson g = new Gson();
+	private static Type listType = new TypeToken<List<String>>() {}.getType();
+
+	public static List<String> retrieveListFromJsonUrl(String url) throws JsonIOException, JsonSyntaxException, MalformedURLException, IOException {
+		return g.fromJson(new InputStreamReader(new URL(url).openStream()), listType);
 	}
 
 }
