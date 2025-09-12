@@ -67,6 +67,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public enum Task implements Serializable {
 
@@ -179,7 +181,7 @@ public enum Task implements Serializable {
 						.append("depth", 0)
 				);
 
-			System.err.println("Starting iteration at depth 0");
+			log.info("Starting iteration at depth 0");
 			schedule(s, LOAD_DECLARATIONS.with("depth", 1));
 		}
 
@@ -526,13 +528,13 @@ public enum Task implements Serializable {
 			int loadCount = taskDoc.getInteger("load-count");
 
 			if (loadCount == 0) {
-				System.err.println("No new cores loaded; finishing iteration");
+				log.info("No new cores loaded; finishing iteration");
 				schedule(s, CALCULATE_TRUST_SCORES);
 			} else if (depth == MAX_TRUST_PATH_DEPTH) {
-				System.err.println("Maximum depth reached: " + depth);
+				log.info("Maximum depth reached: {}", depth);
 				schedule(s, CALCULATE_TRUST_SCORES);
 			} else {
-				System.err.println("Progressing iteration at depth " + (depth + 1));
+				log.info("Progressing iteration at depth {}", depth + 1);
 				schedule(s, LOAD_DECLARATIONS.with("depth", depth + 1));
 			}
 			
@@ -741,7 +743,7 @@ public enum Task implements Serializable {
 				setServerStatus(s, updating);
 				schedule(s, INIT_COLLECTIONS);
 			} else {
-				System.err.println("Postponing update; currently in status " + status);
+				log.info("Postponing update; currently in status {}", status);
 				schedule(s, UPDATE.withDelay(10 * 60 * 1000));
 			}
 			
@@ -756,19 +758,19 @@ public enum Task implements Serializable {
 
 			ServerStatus status = getServerStatus(s);
 			if (status != coreReady && status != ready) {
-				System.err.println("Server currently not ready; checking again later");
+				log.info("Server currently not ready; checking again later");
 				schedule(s, LOAD_FULL.withDelay(60 * 1000));
 				return;
 			}
 
 			Document a = getOne(s, "accounts", new DbEntryWrapper(toLoad).getDocument());
 			if (a == null) {
-				System.err.println("Nothing to load");
+				log.info("Nothing to load");
 				if (status == coreReady) {
-					System.err.println("Full load finished");
+					log.info("Full load finished");
 					setServerStatus(s, ready);
 				}
-				System.err.println("Scheduling optional loading checks");
+				log.info("Scheduling optional loading checks");
 				schedule(s, CHECK_MORE_PUBKEYS.withDelay(100));
 			} else {
 				final String ph = a.getString("pubkey");
@@ -782,8 +784,8 @@ public enum Task implements Serializable {
 							loaded.incrementAndGet();
 						});
 						double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-						System.err.println("Loaded " + loaded.get() + " nanopubs in " + timeSeconds + "s, " +
-								String.format("%.2f", loaded.get() / timeSeconds) + " np/s");
+						log.info("Loaded {} nanopubs in {}s, {} np/s",
+								loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
 					}
 				}
 
@@ -830,7 +832,7 @@ public enum Task implements Serializable {
 			if (di != null) {
 				final String pubkeyHash = di.getString("pubkey");
 				Validate.notNull(pubkeyHash);
-				System.err.println("Optional core loading: " + pubkeyHash);
+				log.info("Optional core loading: {}", pubkeyHash);
 
 				try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
 					stream.forEach(m -> {
@@ -864,7 +866,7 @@ public enum Task implements Serializable {
 			Document df = getOne(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
 			if (df != null) {
 				final String pubkeyHash = df.getString("pubkey");
-				System.err.println("Optional full loading: " + pubkeyHash);
+				log.info("Optional full loading: {}", pubkeyHash);
 
 				try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash)) {
 					stream.forEach(m -> {
@@ -892,6 +894,8 @@ public enum Task implements Serializable {
 		}
 
 	};
+
+	private static final Logger log = LoggerFactory.getLogger(Task.class);
 
 	public abstract void run(ClientSession s, Document taskDoc) throws Exception;
 
@@ -938,19 +942,18 @@ public enum Task implements Serializable {
 				long sleepTime = 10;
 				if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
 					Task task = valueOf(taskDoc.getString("action"));
-					System.err.println("Running task: " + task.name());
+					log.info("Running task: {}", task.name());
 					if (task.runAsTransaction()) {
 						try {
 							s.startTransaction();
-							System.err.println("Transaction started");
+							log.info("Transaction started");
 							runTask(task, taskDoc);
 							s.commitTransaction();
-							System.err.println("Transaction committed");
+							log.info("Transaction committed");
 						} catch (Exception ex) {
-							System.err.println("Aborting transaction");
-							ex.printStackTrace();
+							log.info("Aborting transaction", ex);
 							abortTransaction(s, ex.getMessage());
-							System.err.println("Transaction aborted");
+							log.info("Transaction aborted");
 							sleepTime = 1000;
 						} finally {
 							cleanTransactionWithRetry(s);
@@ -959,14 +962,14 @@ public enum Task implements Serializable {
 						try {
 							runTask(task, taskDoc);
 						} catch (Exception ex) {
-							ex.printStackTrace();
+							log.info("Transaction failed", ex);
 						}
 					}
 				}
 				try {
 					Thread.sleep(sleepTime);
 				} catch (InterruptedException ex) {
-					ex.printStackTrace();
+					// ignore
 				}
 			}
 		}
@@ -988,11 +991,11 @@ public enum Task implements Serializable {
 				}
 				successful = true;
 			} catch (Exception ex) {
-				ex.printStackTrace();
+				log.info("Aborting transaction failed. ", ex);
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException iex) {
-					iex.printStackTrace();
+					// ignore
 				}
 			}
 		}
@@ -1007,11 +1010,11 @@ public enum Task implements Serializable {
 				}
 				successful = true;
 			} catch (Exception ex) {
-				ex.printStackTrace();
+				log.info("Cleaning transaction failed. ", ex);
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException iex) {
-					iex.printStackTrace();
+					// ignore
 				}
 			}
 		}
@@ -1041,7 +1044,7 @@ public enum Task implements Serializable {
 	}
 
 	private static void schedule(ClientSession mongoSession, Document taskDoc) {
-		System.err.println("Scheduling task: " + taskDoc.get("action"));
+		log.info("Scheduling task: {}",  taskDoc.get("action"));
 		tasks.insertOne(mongoSession, taskDoc);
 	}
 

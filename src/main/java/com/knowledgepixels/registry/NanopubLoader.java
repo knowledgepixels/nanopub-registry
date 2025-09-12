@@ -34,6 +34,8 @@ import com.mongodb.client.MongoCursor;
 
 import net.trustyuri.TrustyUriUtils;
 import net.trustyuri.rdf.RdfModule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class NanopubLoader {
 
@@ -43,6 +45,7 @@ public class NanopubLoader {
 	public final static String INTRO_TYPE_HASH = Utils.getHash(INTRO_TYPE);
 	public final static String ENDORSE_TYPE = Utils.APPROVAL_TYPE.stringValue();
 	public final static String ENDORSE_TYPE_HASH = Utils.getHash(ENDORSE_TYPE);
+	private static final Logger log = LoggerFactory.getLogger(NanopubLoader.class);
 
 	// TODO Distinguish and support these cases:
 	//      1. Simple load: load to all core lists if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"
@@ -56,7 +59,7 @@ public class NanopubLoader {
 	public static void simpleLoad(ClientSession mongoSession, Nanopub np) {
 		String pubkey = RegistryDB.getPubkey(np);
 		if (pubkey == null) {
-			System.err.println("Ignore (not signed): " + np.getUri());
+			log.info("Ignore (not signed): {}", np.getUri());
 			return;
 		}
 		String pubkeyHash = Utils.getHash(pubkey);
@@ -84,29 +87,29 @@ public class NanopubLoader {
 			String peerUrl = peerUrlsToTry.remove(0);
 	
 			String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
-			System.err.println("Request: " + requestUrl);
+			log.info("Request: {}", requestUrl);
 			try {
 				CloseableHttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
 				int httpStatus = resp.getStatusLine().getStatusCode();
 				if (httpStatus < 200 || httpStatus >= 300) {
-					System.err.println("Request failed: " + peerUrl + " " + httpStatus);
+					log.info("Request failed: {} {}", peerUrl, httpStatus);
 					EntityUtils.consumeQuietly(resp.getEntity());
 					continue;
 				}
 				Header nrStatus = resp.getFirstHeader("Nanopub-Registry-Status");
 				if (nrStatus == null) {
-					System.err.println("Nanopub-Registry-Status header not found at: " + peerUrl);
+					log.info("Nanopub-Registry-Status header not found at: {}", peerUrl);
 					EntityUtils.consumeQuietly(resp.getEntity());
 					continue;
 				} else if (!nrStatus.getValue().equals("ready") && !nrStatus.getValue().equals("updating")) {
-					System.err.println("Peer in non-ready state: " + peerUrl + " " + nrStatus.getValue());
+					log.info("Peer in non-ready state: {} {}", peerUrl, nrStatus.getValue());
 					EntityUtils.consumeQuietly(resp.getEntity());
 					continue;
 				}
 				InputStream is = resp.getEntity().getContent();
 				return NanopubStream.fromByteStream(is).getAsNanopubs();
 			} catch (UnsupportedOperationException | IOException ex) {
-				ex.printStackTrace();
+				log.info("Request failed: ", ex);
 			}
 		}
 		return Stream.empty();
@@ -122,10 +125,10 @@ public class NanopubLoader {
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException ex) {
-					ex.printStackTrace();
+					log.info("Thread was interrupted", ex);
 				}
 			}
-			System.err.println("Loading " + nanopubId);
+			log.info("Loading {}", nanopubId);
 
 			// TODO Reach out to other Nanopub Registries here:
 			np = getNanopub(nanopubId);
@@ -146,7 +149,7 @@ public class NanopubLoader {
 			// Parse from Jelly, not TriG (it's faster)
 			return JellyUtils.readFromDB(((Binary) cursor.next().get("jelly")).getData());
 		} catch (RDF4JException | MalformedNanopubException ex) {
-			ex.printStackTrace();
+			log.info("Exception reading Jelly", ex);
 			return null;
 		}
 	}

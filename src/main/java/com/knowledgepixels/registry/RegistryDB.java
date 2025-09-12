@@ -35,6 +35,8 @@ import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.UpdateOptions;
 
 import net.trustyuri.TrustyUriUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RegistryDB {
 
@@ -42,6 +44,8 @@ public class RegistryDB {
 
 	private static final String REGISTRY_DB_NAME = Utils.getEnv("REGISTRY_DB_NAME", "nanopubRegistry");
 	private static final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
+
+	private static final Logger log = LoggerFactory.getLogger(RegistryDB.class);
 
 	private static MongoClient mongoClient;
 	private static MongoDatabase mongoDB;
@@ -265,21 +269,21 @@ public class RegistryDB {
 
 	public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
 		if (nanopub.getTripleCount() > 1200) {
-			System.err.println("Nanopub has too many triples (" + nanopub.getTripleCount() + "): " + nanopub.getUri());
+			log.info("Nanopub has too many triples ({}): {}", nanopub.getTripleCount(), nanopub.getUri());
 			return;
 		}
 		if (nanopub.getByteCount() > 1000000) {
-			System.err.println("Nanopub is to large (" + nanopub.getByteCount() + "): " + nanopub.getUri());
+			log.info("Nanopub is to large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
 			return;
 		}
 		String pubkey = getPubkey(nanopub);
 		if (pubkey == null) {
-			System.err.println("Ignoring invalid nanopub: " + nanopub.getUri());
+			log.info("Ignoring invalid nanopub: {}", nanopub.getUri());
 			return;
 		}
 		String ph = Utils.getHash(pubkey);
 		if (pubkeyHash != null && !pubkeyHash.equals(ph)) {
-			System.err.println("Ignoring nanopub with non-matching pubkey: " + nanopub.getUri());
+			log.info("Ignoring nanopub with non-matching pubkey: {}", nanopub.getUri());
 			return;
 		}
 		recordHash(mongoSession, pubkey);
@@ -287,11 +291,11 @@ public class RegistryDB {
 		String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
 		if (ac == null) {
 			// I don't think this ever happens, but checking here to be sure
-			System.err.println("ERROR. Unexpected Trusty URI: " + nanopub.getUri());
+			log.info("ERROR. Unexpected Trusty URI: {}", nanopub.getUri());
 			return;
 		}
 		if (has(mongoSession, "nanopubs", ac)) {
-			System.err.println("Already loaded: " + nanopub.getUri());
+			log.info("Already loaded: {}", nanopub.getUri());
 		} else {
 			Long counter = (Long) getMaxValue(mongoSession, "nanopubs", "counter");
 			if (counter == null) counter = 0l;
@@ -399,7 +403,7 @@ public class RegistryDB {
 		}
 
 		if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
-			System.err.println("Already listed: " + nanopub.getUri());
+			log.info("Already listed: {}", nanopub.getUri());
 		} else {
 			
 			Document doc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
@@ -435,7 +439,7 @@ public class RegistryDB {
 				return el.getPublicKeyString();
 			}
 		} catch (GeneralSecurityException ex) {
-			System.err.println("Error for signature element " + el.getUri());
+			log.info("Error for signature element {}", el.getUri());
 			ex.printStackTrace();
 		}
 		return null;

@@ -14,6 +14,8 @@ import org.nanopub.NanopubUtils;
 
 import com.google.common.base.Charsets;
 import com.mongodb.client.ClientSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // This class is used to connect to the 1st-generation publishing services in the form of nanopub-server.
 // This code can be removed once the transition to Nanopub Registry is completed.
@@ -22,6 +24,8 @@ public class LegacyConnector {
 	private LegacyConnector() {}  // no instances allowed
 
 	private static final String[] serverUrls = { "https://np.knowledgepixels.com/", "https://server.np.trustyuri.net/", "http://server.np.dumontierlab.com/" };
+
+	private static final Logger log = LoggerFactory.getLogger(LegacyConnector.class);
 
 	// Just to make sure we don't need 1000+ DB requests each time we check for updates:
 	private static Map<String,Boolean> loadedCache = new HashMap<>();
@@ -35,7 +39,7 @@ public class LegacyConnector {
 	}
 
 	private static String checkUrl(ClientSession mongoSession, String url) {
-		System.err.println("Checking legacy URL " + url);
+		log.info("Checking legacy URL {}", url);
 		HttpGet get = new HttpGet(url);
 		get.setHeader("Accept", "text/plain");
 		HttpResponse resp = null;
@@ -58,8 +62,7 @@ public class LegacyConnector {
 			}
 		} catch (IOException ex) {
 			if (resp != null) EntityUtils.consumeQuietly(resp.getEntity());
-			ex.printStackTrace();
-			System.err.println("Request to " + url + " was not successful: " + ex.getMessage());
+			log.info("Request to {} was not successful: ", url,  ex);
 		}
 		return prev;
 	}
