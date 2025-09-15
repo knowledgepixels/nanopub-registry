@@ -5,51 +5,81 @@ import org.bson.codecs.pojo.annotations.BsonProperty;
 /**
  * The status field of several Documents, especially:
  * endorsements-loading, intro-lists, and accounts-loading.
- *
+ * <p>
  * The states of the different Document Types are not dependant of each other.
- *
+ * <p>
  * We decided to break with Java Conventions and have lowercase Enum Values,
  * which directly represent the string in the MongoDB for aesthetic reasons.
  */
 public enum EntryStatus {
 
-    /** endorsements_loading, */
+    /**
+     * endorsements_loading,
+     */
     toRetrieve, // WARNING: Breaking Change! it was "to-retrieve" before
     // We may avoid the change by adding an annotation
     // @BsonProperty(value = "to-retrieve") or having a custom toString()
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     seen,
-    /** endorsements_loading, */
+    /**
+     * endorsements_loading,
+     */
     discarded,
-    /** endorsements_loading, */
+    /**
+     * endorsements_loading,
+     */
     retrieved,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     visited,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     expanded,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     skipped,
-    /** Pub-key, intro_type_hash,  */
+    /**
+     * Pub-key, intro_type_hash,
+     */
     encountered,
-    /** intro-list, endorse-list */
+    /**
+     * intro-list, endorse-list
+     */
     loading,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     toLoad,
-    /** accountId, account-loading, intro-list, endorse-list */
+    /**
+     * accountId, account-loading, intro-list, endorse-list
+     */
     loaded,
-    /** accounts-loading, agent,  */
+    /**
+     * accounts-loading, agent,
+     */
     processed,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     aggregated,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     approved,
-    /** accounts-loading */
+    /**
+     * accounts-loading
+     */
     contested;
 
     // The code is inspired by: https://www.mongodb.com/community/forums/t/cannot-store-java-enum-values-in-mongodb/99719/3
     // It's not really necessary right now, since we call getValue by hand,
     // we may also just call toString()...
-    @BsonProperty(value="status")
+    @BsonProperty(value = "status")
     final String status;
 
     EntryStatus() {

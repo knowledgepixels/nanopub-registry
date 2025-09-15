@@ -4,9 +4,9 @@ services:
     image: nanopub/registry
     restart: unless-stopped
     ports:
-      - 9292:9292
+      - "9292:9292"
       # :9293 is only accessible from localhost as it is used for the /metrics endpoint
-      - "127.0.0.1:9293:9293" 
+      - "127.0.0.1:9293:9293"
     volumes:
       - ./setting.trig:/data/setting.trig
     logging:

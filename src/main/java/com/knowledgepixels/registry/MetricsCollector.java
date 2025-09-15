@@ -32,9 +32,9 @@ public final class MetricsCollector {
             AtomicInteger stateGauge = new AtomicInteger(0);
             statusStates.put(status, stateGauge);
             Gauge.builder("registry.server.status", stateGauge, AtomicInteger::get)
-                .description("Server status (1 if current)")
-                .tag("status", status.name())
-                .register(meterRegistry);
+                    .description("Server status (1 if current)")
+                    .tag("status", status.name())
+                    .register(meterRegistry);
         }
     }
 
@@ -42,18 +42,18 @@ public final class MetricsCollector {
         try (final var session = RegistryDB.getClient().startSession()) {
             // Update numeric metrics
             extractMaximalIntegerValueFromField(session, "nanopubs", "counter")
-                .ifPresent(loadCounter::set);
+                    .ifPresent(loadCounter::set);
 
             extractIntegerValueFromField(session, "serverInfo", "trustStateCounter")
-                .ifPresent(trustStateCounter::set);
+                    .ifPresent(trustStateCounter::set);
 
             agentCount.set(countDocumentsInCollection(session, "agents"));
             accountCount.set(countDocumentsInCollection(session, "accounts"));
 
             // Update status gauge
             final var currentStatus = extractStringValueFromField(session, "serverInfo", "status")
-                .map(ServerStatus::valueOf)
-                .orElse(null);
+                    .map(ServerStatus::valueOf)
+                    .orElse(null);
             for (final var status : ServerStatus.values()) {
                 statusStates.get(status).set(status.equals(currentStatus) ? 1 : 0);
             }
@@ -63,38 +63,38 @@ public final class MetricsCollector {
     }
 
     private Optional<Integer> extractMaximalIntegerValueFromField(
-        ClientSession session,
-        String collectionName,
-        String fieldName
+            ClientSession session,
+            String collectionName,
+            String fieldName
     ) {
         return Optional
-            .ofNullable(getMaxValue(session, collectionName, fieldName))
-            .filter(Number.class::isInstance)
-            .map(Number.class::cast)
-            .map(Number::intValue);
+                .ofNullable(getMaxValue(session, collectionName, fieldName))
+                .filter(Number.class::isInstance)
+                .map(Number.class::cast)
+                .map(Number::intValue);
     }
 
     private Optional<Integer> extractIntegerValueFromField(
-        ClientSession session,
-        String collectionName,
-        String fieldName
+            ClientSession session,
+            String collectionName,
+            String fieldName
     ) {
         return Optional
-            .ofNullable(getValue(session, collectionName, fieldName))
-            .filter(Number.class::isInstance)
-            .map(Number.class::cast)
-            .map(Number::intValue);
+                .ofNullable(getValue(session, collectionName, fieldName))
+                .filter(Number.class::isInstance)
+                .map(Number.class::cast)
+                .map(Number::intValue);
     }
 
     private Optional<String> extractStringValueFromField(
-        ClientSession session,
-        String collectionName,
-        String fieldName
+            ClientSession session,
+            String collectionName,
+            String fieldName
     ) {
         return Optional
-            .ofNullable(getValue(session, collectionName, fieldName))
-            .filter(String.class::isInstance)
-            .map(String.class::cast);
+                .ofNullable(getValue(session, collectionName, fieldName))
+                .filter(String.class::isInstance)
+                .map(String.class::cast);
     }
 
     private int countDocumentsInCollection(ClientSession session, String collectionName) {

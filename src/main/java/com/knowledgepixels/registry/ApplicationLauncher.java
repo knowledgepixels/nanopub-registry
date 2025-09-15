@@ -14,11 +14,11 @@ public class ApplicationLauncher extends Launcher {
     @Override
     public void beforeStartingVertx(VertxOptions options) {
         options.setMetricsOptions(
-            // Enable Micrometer metrics
-            new MicrometerMetricsOptions()
-                .setPrometheusOptions(new VertxPrometheusOptions().setEnabled(true))
-                .setJvmMetricsEnabled(true)
-                .setEnabled(true)
+                // Enable Micrometer metrics
+                new MicrometerMetricsOptions()
+                        .setPrometheusOptions(new VertxPrometheusOptions().setEnabled(true))
+                        .setJvmMetricsEnabled(true)
+                        .setEnabled(true)
         );
     }
 }

@@ -1,7 +1,5 @@
 package com.knowledgepixels.registry;
 
-import org.bson.codecs.pojo.annotations.BsonProperty;
-
 /**
  * Represents the status of a Task in the DB.
  */
