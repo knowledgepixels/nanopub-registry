@@ -12,6 +12,7 @@
 
 # IntelliJ
 /.idea
+*.iml
 
 # Maven shade plugin
 dependency-reduced-pom.xml
