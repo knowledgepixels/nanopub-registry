@@ -9,6 +9,7 @@
 /docker-compose.override.yml
 /bin/
 /*.tar.gz
+.settings/
 
 # IntelliJ
 /.idea
