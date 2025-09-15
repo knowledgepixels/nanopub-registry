@@ -23,7 +23,7 @@ public class LegacyConnector {
     private LegacyConnector() {
     }  // no instances allowed
 
-    private static final String[] serverUrls = {"https://np.knowledgepixels.com/", "https://server.np.trustyuri.net/", "http://server.np.dumontierlab.com/"};
+    private static final String[] serverUrls = {"https://np.knowledgepixels.com/", "http://server.np.dumontierlab.com/"};
 
     private static final Logger log = LoggerFactory.getLogger(LegacyConnector.class);
 
