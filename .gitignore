@@ -1,6 +1,7 @@
 .project
 .classpath
 /data
+/data.bak
 /target
 /scratch
 /load
