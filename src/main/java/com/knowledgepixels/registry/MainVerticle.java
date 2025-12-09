@@ -1,6 +1,19 @@
 package com.knowledgepixels.registry;
 
+import static com.knowledgepixels.registry.RegistryDB.has;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
+
+import java.util.concurrent.TimeUnit;
+
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.Rio;
+import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
+import org.nanopub.extra.server.PublishNanopub;
+
 import com.mongodb.client.ClientSession;
+
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Handler;
@@ -12,18 +25,6 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.micrometer.PrometheusScrapingHandler;
 import io.vertx.micrometer.backends.BackendRegistries;
 import net.trustyuri.TrustyUriUtils;
-import org.eclipse.rdf4j.rio.RDFFormat;
-import org.eclipse.rdf4j.rio.Rio;
-import org.nanopub.MalformedNanopubException;
-import org.nanopub.Nanopub;
-import org.nanopub.NanopubImpl;
-import org.nanopub.extra.server.PublishNanopub;
-
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-
-import static com.knowledgepixels.registry.RegistryDB.has;
-import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 public class MainVerticle extends AbstractVerticle {
 
@@ -96,7 +97,8 @@ public class MainVerticle extends AbstractVerticle {
                                 // TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
 
                                 // Load to nanopub store:
-                                RegistryDB.loadNanopub(s, np);
+                                boolean success = RegistryDB.loadNanopub(s, np);
+                                if (!success) throw new RuntimeException("Nanopublication not supported: " + np.getUri());
                                 // Load to lists, if applicable:
                                 NanopubLoader.simpleLoad(s, np);
 
@@ -105,7 +107,7 @@ public class MainVerticle extends AbstractVerticle {
                                     // TODO Remove this at some point
                                     try {
                                         new PublishNanopub().publishNanopub(np, "https://np.knowledgepixels.com/");
-                                    } catch (IOException ex) {
+                                    } catch (Exception ex) {
                                         ex.printStackTrace();
                                     }
                                 }
