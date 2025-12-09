@@ -260,28 +260,28 @@ public class RegistryDB {
     /**
      * Insert nanopub to the DB.
      */
-    public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub) {
-        loadNanopub(mongoSession, nanopub, null);
+    public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub) {
+        return loadNanopub(mongoSession, nanopub, null);
     }
 
-    public static void loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
+    public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
         if (nanopub.getTripleCount() > 1200) {
             log.info("Nanopub has too many triples ({}): {}", nanopub.getTripleCount(), nanopub.getUri());
-            return;
+            return false;
         }
         if (nanopub.getByteCount() > 1000000) {
             log.info("Nanopub is to large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
-            return;
+            return false;
         }
         String pubkey = getPubkey(nanopub);
         if (pubkey == null) {
             log.info("Ignoring invalid nanopub: {}", nanopub.getUri());
-            return;
+            return false;
         }
         String ph = Utils.getHash(pubkey);
         if (pubkeyHash != null && !pubkeyHash.equals(ph)) {
             log.info("Ignoring nanopub with non-matching pubkey: {}", nanopub.getUri());
-            return;
+            return false;
         }
         recordHash(mongoSession, pubkey);
 
@@ -289,7 +289,7 @@ public class RegistryDB {
         if (ac == null) {
             // I don't think this ever happens, but checking here to be sure
             log.info("ERROR. Unexpected Trusty URI: {}", nanopub.getUri());
-            return;
+            return false;
         }
         if (has(mongoSession, "nanopubs", ac)) {
             log.info("Already loaded: {}", nanopub.getUri());
@@ -388,6 +388,7 @@ public class RegistryDB {
 
         }
 
+        return true;
     }
 
     private static void addToList(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String typeHash) {
