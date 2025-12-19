@@ -1,7 +1,7 @@
 services:
   registry:
     build: .
-    image: nanopub/registry
+    image: nanopub/registry:latest
     restart: unless-stopped
     ports:
       - "9292:9292"
