@@ -19,6 +19,7 @@
     <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
+    <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
     <jib-maven-plugin.version>3.5.1</jib-maven-plugin.version>
 
     <vertx.version>4.5.11</vertx.version>
@@ -166,6 +167,25 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>${maven-compiler-plugin.version}</version>
