@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/github/knowledgepixels/nanopub-registry/badge.svg?branch=main)](https://coveralls.io/github/knowledgepixels/nanopub-registry?branch=main)
+
 # Nanopub Registry
 
 The Nanopub Registry implements a publication/lookup service as envisaged by
