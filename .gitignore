@@ -18,3 +18,4 @@
 
 # Maven shade plugin
 dependency-reduced-pom.xml
+node_modules/
