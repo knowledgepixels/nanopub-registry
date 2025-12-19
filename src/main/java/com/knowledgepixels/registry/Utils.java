@@ -92,8 +92,13 @@ public class Utils {
     }
 
     public static String getAgentLabel(String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            throw new IllegalArgumentException("Agent ID cannot be null or blank");
+        }
         agentId = agentId.replaceFirst("^https://orcid\\.org/", "orcid:");
-        if (agentId.length() > 55) return agentId.substring(0, 50) + "...";
+        if (agentId.length() > 55) {
+            return agentId.substring(0, 50) + "...";
+        }
         return agentId;
     }
 
@@ -140,13 +145,7 @@ public class Utils {
     // Content types supported on a ListPage
     public static final String SUPPORTED_TYPES_LIST = TYPE_JSON + "," + TYPE_JELLY + "," + TYPE_HTML;
     // Content types supported on a NanopubPage
-    public static final String SUPPORTED_TYPES_NANOPUB =
-            TYPE_TRIG + "," +
-            TYPE_JELLY + "," +
-            TYPE_JSONLD + "," +
-            TYPE_NQUADS + "," +
-            TYPE_TRIX + "," +
-            TYPE_HTML;
+    public static final String SUPPORTED_TYPES_NANOPUB = TYPE_TRIG + "," + TYPE_JELLY + "," + TYPE_JSONLD + "," + TYPE_NQUADS + "," + TYPE_TRIX + "," + TYPE_HTML;
 
     private static Map<String, String> extensionTypeMap;
 
@@ -197,8 +196,7 @@ public class Utils {
         return peerUrls;
     }
 
-    private static final String SETTING_FILE_PATH =
-            Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
+    private static final String SETTING_FILE_PATH = Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
     private static NanopubSetting settingNp;
 
     public static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
