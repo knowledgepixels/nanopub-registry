@@ -101,16 +101,10 @@
       <artifactId>rdf4j-rio-jsonld</artifactId>
       <version>${rdf4j.version}</version>
     </dependency>
-    <!--    <dependency>-->
-    <!--      <groupId>org.nanopub</groupId>-->
-    <!--      <artifactId>nanopub</artifactId>-->
-    <!--      <version>1.70-snapshot</version>-->
-    <!--    </dependency>-->
-    <!-- Temporary: dependency on Jitpack for snapshot builds -->
     <dependency>
-      <groupId>com.github.Nanopublication</groupId>
-      <artifactId>nanopub-java</artifactId>
-      <version>e4e430b3b5f09caa1c852e67a15a86bfc7b5a986</version>
+      <groupId>org.nanopub</groupId>
+      <artifactId>nanopub</artifactId>
+      <version>1.85</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
