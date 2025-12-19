@@ -22,6 +22,7 @@ import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.setting.NanopubSetting;
+import org.nanopub.vocabulary.NPX;
 
 import java.io.File;
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class Utils {
             if (!(st.getObject() instanceof IRI)) continue;
             Resource s = st.getSubject();
             IRI p = st.getPredicate();
-            if ((p.equals(RETRACTS) || p.equals(INVALIDATES)) || (p.equals(SUPERSEDES) && s.equals(np.getUri()))) {
+            if ((p.equals(NPX.RETRACTS) || p.equals(NPX.INVALIDATES)) || (p.equals(NPX.SUPERSEDES) && s.equals(np.getUri()))) {
                 if (TrustyUriUtils.isPotentialTrustyUri(st.getObject().stringValue())) {
                     l.add((IRI) st.getObject());
                 }
@@ -126,12 +127,8 @@ public class Utils {
     }
 
     private static ValueFactory vf = SimpleValueFactory.getInstance();
-    public static final IRI SUPERSEDES = vf.createIRI("http://purl.org/nanopub/x/supersedes");
-    public static final IRI RETRACTS = vf.createIRI("http://purl.org/nanopub/x/retracts");
-    public static final IRI INVALIDATES = vf.createIRI("http://purl.org/nanopub/x/invalidates");
     public static final IRI APPROVES_OF = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
 
-    public static final IRI INTRO_TYPE = vf.createIRI("http://purl.org/nanopub/x/declaredBy");
     public static final IRI APPROVAL_TYPE = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
 
     public static final String TYPE_JSON = "application/json";

@@ -23,6 +23,7 @@ import org.nanopub.jelly.JellyUtils;
 import org.nanopub.jelly.MaybeNanopub;
 import org.nanopub.jelly.NanopubStream;
 import org.nanopub.trusty.TrustyNanopubUtils;
+import org.nanopub.vocabulary.NPX;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,7 @@ public class NanopubLoader {
     private NanopubLoader() {
     }
 
-    public final static String INTRO_TYPE = Utils.INTRO_TYPE.stringValue();
+    public final static String INTRO_TYPE = NPX.DECLARED_BY.stringValue();
     public final static String INTRO_TYPE_HASH = Utils.getHash(INTRO_TYPE);
     public final static String ENDORSE_TYPE = Utils.APPROVAL_TYPE.stringValue();
     public final static String ENDORSE_TYPE_HASH = Utils.getHash(ENDORSE_TYPE);
