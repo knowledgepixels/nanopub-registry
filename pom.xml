@@ -145,7 +145,7 @@
     <dependency>
       <groupId>eu.neverblink.jelly</groupId>
       <artifactId>jelly-core-protos-google</artifactId>
-      <version>3.1.0</version>
+      <version>3.6.2</version>
     </dependency>
     <dependency>
       <groupId>io.micrometer</groupId>
