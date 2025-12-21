@@ -1,19 +1,6 @@
 package com.knowledgepixels.registry;
 
-import static com.knowledgepixels.registry.RegistryDB.has;
-import static com.knowledgepixels.registry.RegistryDB.isSet;
-
-import java.util.concurrent.TimeUnit;
-
-import org.eclipse.rdf4j.rio.RDFFormat;
-import org.eclipse.rdf4j.rio.Rio;
-import org.nanopub.MalformedNanopubException;
-import org.nanopub.Nanopub;
-import org.nanopub.NanopubImpl;
-import org.nanopub.extra.server.PublishNanopub;
-
 import com.mongodb.client.ClientSession;
-
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Handler;
@@ -25,11 +12,22 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.micrometer.PrometheusScrapingHandler;
 import io.vertx.micrometer.backends.BackendRegistries;
 import net.trustyuri.TrustyUriUtils;
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.Rio;
+import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
+import org.nanopub.extra.server.PublishNanopub;
+
+import java.util.concurrent.TimeUnit;
+
+import static com.knowledgepixels.registry.RegistryDB.has;
+import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 public class MainVerticle extends AbstractVerticle {
 
     @Override
-    public void start(Promise<Void> startPromise) throws Exception {
+    public void start(Promise<Void> startPromise) {
         HttpServer server = vertx.createHttpServer();
         Router router = Router.router(vertx);
         server.requestHandler(router);
@@ -98,7 +96,8 @@ public class MainVerticle extends AbstractVerticle {
 
                                 // Load to nanopub store:
                                 boolean success = RegistryDB.loadNanopub(s, np);
-                                if (!success) throw new RuntimeException("Nanopublication not supported: " + np.getUri());
+                                if (!success)
+                                    throw new RuntimeException("Nanopublication not supported: " + np.getUri());
                                 // Load to lists, if applicable:
                                 NanopubLoader.simpleLoad(s, np);
 

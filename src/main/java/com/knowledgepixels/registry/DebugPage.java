@@ -57,7 +57,6 @@ public class DebugPage extends Page {
             }
         } else {
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
-            return;
         }
     }
 

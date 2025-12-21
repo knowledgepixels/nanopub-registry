@@ -60,11 +60,11 @@ public abstract class Page {
         return context;
     }
 
-    public void println(String s) throws IOException {
+    public void println(String s) {
         print(s + "\n");
     }
 
-    public void print(String s) throws IOException {
+    public void print(String s) {
         if (context.request().method() == HttpMethod.HEAD) return;
         context.response().write(s);
     }

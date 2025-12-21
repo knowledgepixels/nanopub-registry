@@ -43,7 +43,7 @@ public class NanopubLoader {
 
     public final static String INTRO_TYPE = NPX.DECLARED_BY.stringValue();
     public final static String INTRO_TYPE_HASH = Utils.getHash(INTRO_TYPE);
-    public final static String ENDORSE_TYPE = Utils.APPROVAL_TYPE.stringValue();
+    public final static String ENDORSE_TYPE = Utils.APPROVES_OF.stringValue();
     public final static String ENDORSE_TYPE_HASH = Utils.getHash(ENDORSE_TYPE);
     private static final Logger log = LoggerFactory.getLogger(NanopubLoader.class);
 
@@ -84,7 +84,7 @@ public class NanopubLoader {
         List<String> peerUrlsToTry = new ArrayList<>(Utils.getPeerUrls());
         Collections.shuffle(peerUrlsToTry);
         while (!peerUrlsToTry.isEmpty()) {
-            String peerUrl = peerUrlsToTry.remove(0);
+            String peerUrl = peerUrlsToTry.removeFirst();
 
             String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
             log.info("Request: {}", requestUrl);
@@ -163,17 +163,13 @@ public class NanopubLoader {
             throw new IllegalArgumentException("Not a trusty URI of type RA");
         }
         while (!peerUrls.isEmpty()) {
-            String peerUrl = peerUrls.remove(0);
+            String peerUrl = peerUrls.removeFirst();
             try {
                 Nanopub np = get(ac, peerUrl, NanopubUtils.getHttpClient());
                 if (np != null) {
                     return np;
                 }
-            } catch (IOException ex) {
-                // ignore
-            } catch (RDF4JException ex) {
-                // ignore
-            } catch (MalformedNanopubException ex) {
+            } catch (IOException | RDF4JException | MalformedNanopubException ex) {
                 // ignore
             }
         }

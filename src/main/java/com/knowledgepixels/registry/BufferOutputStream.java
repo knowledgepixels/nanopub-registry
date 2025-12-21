@@ -2,7 +2,6 @@ package com.knowledgepixels.registry;
 
 import io.vertx.core.buffer.Buffer;
 
-import java.io.IOException;
 import java.io.OutputStream;
 
 public class BufferOutputStream extends OutputStream {
@@ -18,17 +17,17 @@ public class BufferOutputStream extends OutputStream {
     }
 
     @Override
-    public void write(int b) throws IOException {
+    public void write(int b) {
         buffer.appendByte((byte) (b & 0xFF));
     }
 
     @Override
-    public void write(byte[] bytes) throws IOException {
+    public void write(byte[] bytes) {
         buffer.appendBytes(bytes);
     }
 
     @Override
-    public void write(byte[] bytes, int offset, int len) throws IOException {
+    public void write(byte[] bytes, int offset, int len) {
         buffer.appendBytes(bytes, offset, len);
     }
 

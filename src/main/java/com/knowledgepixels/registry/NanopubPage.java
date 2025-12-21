@@ -129,7 +129,6 @@ public class NanopubPage extends Page {
             }
         } else {
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
-            return;
         }
     }
 

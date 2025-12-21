@@ -27,11 +27,11 @@ import org.nanopub.vocabulary.NPX;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class Utils {
@@ -41,7 +41,7 @@ public class Utils {
 
     public static String getMimeType(RoutingContext context, String supported) {
         List<String> supportedList = Arrays.asList(StringUtils.split(supported, ','));
-        String mimeType = supportedList.get(0);
+        String mimeType = supportedList.getFirst();
         try {
             mimeType = MIMEParse.bestMatch(supportedList, context.request().getHeader("Accept"));
         } catch (Exception ex) {
@@ -50,11 +50,7 @@ public class Utils {
     }
 
     public static String urlEncode(Object o) {
-        try {
-            return URLEncoder.encode((o == null ? "" : o.toString()), "UTF-8");
-        } catch (UnsupportedEncodingException ex) {
-            throw new RuntimeException(ex);
-        }
+        return URLEncoder.encode((o == null ? "" : o.toString()), StandardCharsets.UTF_8);
     }
 
     public static String getHash(String s) {
@@ -129,8 +125,6 @@ public class Utils {
     private static ValueFactory vf = SimpleValueFactory.getInstance();
     public static final IRI APPROVES_OF = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
 
-    public static final IRI APPROVAL_TYPE = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
-
     public static final String TYPE_JSON = "application/json";
     public static final String TYPE_TRIG = "application/trig";
     public static final String TYPE_JELLY = "application/x-jelly-rdf";
@@ -203,7 +197,7 @@ public class Utils {
         return settingNp;
     }
 
-    public static String getRandomPeer() throws RDF4JException, MalformedNanopubException, IOException {
+    public static String getRandomPeer() throws RDF4JException {
         List<String> peerUrls = getPeerUrls();
         return peerUrls.get(random.nextInt(peerUrls.size()));
     }
@@ -218,8 +212,8 @@ public class Utils {
     private static Type listType = new TypeToken<List<String>>() {
     }.getType();
 
-    public static List<String> retrieveListFromJsonUrl(String url) throws JsonIOException, JsonSyntaxException, MalformedURLException, IOException {
-        return g.fromJson(new InputStreamReader(new URL(url).openStream()), listType);
+    public static List<String> retrieveListFromJsonUrl(String url) throws JsonIOException, JsonSyntaxException, IOException, URISyntaxException {
+        return g.fromJson(new InputStreamReader(new URI(url).toURL().openStream()), listType);
     }
 
 }

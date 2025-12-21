@@ -72,13 +72,8 @@ public class ListPage extends Page {
 
             if (TYPE_JELLY.equals(format)) {
                 // Return all nanopubs in the list as a single Jelly stream
-                List<Bson> pipeline = List.of(
-                        match(new Document("pubkey", pubkey).append("type", type)),
-                        sort(ascending("position")), // TODO: is this needed?
-                        lookup("nanopubs", "np", "_id", "nanopub"),
-                        project(new Document("jelly", "$nanopub.jelly")),
-                        unwind("$jelly")
-                );
+                List<Bson> pipeline = List.of(match(new Document("pubkey", pubkey).append("type", type)), sort(ascending("position")), // TODO: is this needed?
+                        lookup("nanopubs", "np", "_id", "nanopub"), project(new Document("jelly", "$nanopub.jelly")), unwind("$jelly"));
                 // TODO: try with resource should be used for all DB access, really, like here
                 try (var result = collection("listEntries").aggregate(mongoSession, pipeline).cursor()) {
                     NanopubStream npStream = NanopubStream.fromMongoCursor(result);
@@ -87,11 +82,7 @@ public class ListPage extends Page {
                     context.response().write(outputStream.getBuffer());
                 }
             } else {
-                MongoCursor<Document> c = collection("listEntries")
-                        .find(mongoSession, new Document("pubkey", pubkey).append("type", type))
-                        .projection(exclude("_id"))
-                        .sort(ascending("position"))
-                        .cursor();
+                MongoCursor<Document> c = collection("listEntries").find(mongoSession, new Document("pubkey", pubkey).append("type", type)).projection(exclude("_id")).sort(ascending("position")).cursor();
 
                 if (TYPE_JSON.equals(format)) {
                     println("[");
@@ -166,12 +157,7 @@ public class ListPage extends Page {
                 printHtmlFooter();
             }
         } else if (req.equals("/list")) {
-            try (var c = collection("accounts")
-                    .find(mongoSession)
-                    .sort(ascending("pubkey"))
-                    .projection(exclude("_id"))
-                    .cursor()
-            ) {
+            try (var c = collection("accounts").find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor()) {
                 if (TYPE_JSON.equals(format)) {
                     println("[");
                     while (c.hasNext()) {
@@ -270,11 +256,7 @@ public class ListPage extends Page {
                     //				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
                     //				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
                     //				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
-                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a> (" + d.get("status") + "), " +
-                            "quota " + d.get("quota") + ", " +
-                            "ratio " + df8.format(d.get("ratio")) + ", " +
-                            "path count " + d.get("pathCount") +
-                            "</li>");
+                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a> (" + d.get("status") + "), " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
                 }
                 println("</ul>");
                 printHtmlFooter();
@@ -304,11 +286,7 @@ public class ListPage extends Page {
                     if (d.get("agent").equals("$")) continue;
                     String a = d.getString("agent");
                     int accountCount = d.getInteger("accountCount");
-                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " +
-                            accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " +
-                            "ratio " + df8.format(d.get("totalRatio")) + ", " +
-                            "avg. path count " + df1.format(d.get("avgPathCount")) +
-                            "</li>");
+                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
                 }
                 println("</ol>");
                 printHtmlFooter();
@@ -320,17 +298,12 @@ public class ListPage extends Page {
                 try {
                     afterCounter = Long.parseLong(getParam("afterCounter", "-1"));
                 } catch (NumberFormatException ex) {
-                    context.response().setStatusCode(400).setStatusMessage(
-                            "Invalid afterCounter parameter."
-                    );
+                    context.response().setStatusCode(400).setStatusMessage("Invalid afterCounter parameter.");
                     return;
                 }
                 // TODO: something is aborting the Mongo transaction here after a while,
                 //  find out what exactly.
-                var pipeline = collection("nanopubs")
-                        .find(mongoSession)
-                        .filter(gt("counter", afterCounter))
-                        .sort(ascending("counter"))
+                var pipeline = collection("nanopubs").find(mongoSession).filter(gt("counter", afterCounter)).sort(ascending("counter"))
                         // Only include the needed fields to save bandwidth to the DB
                         .projection(include("jelly", "counter"));
 
@@ -373,10 +346,7 @@ public class ListPage extends Page {
                 }
             }
         } else if (req.equals("/pubkeys")) {
-            try (var c = collection("lists")
-                    .distinct(mongoSession, "pubkey", String.class)
-                    .cursor()
-            ) {
+            try (var c = collection("lists").distinct(mongoSession, "pubkey", String.class).cursor()) {
                 if (TYPE_JSON.equals(format)) {
                     println("[");
                     while (c.hasNext()) {
@@ -409,7 +379,6 @@ public class ListPage extends Page {
             }
         } else {
             context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
-            return;
         }
     }
 
