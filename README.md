@@ -1,4 +1,5 @@
 [![Coverage Status](https://coveralls.io/repos/github/knowledgepixels/nanopub-registry/badge.svg?branch=main)](https://coveralls.io/github/knowledgepixels/nanopub-registry?branch=main)
+[![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 
 # Nanopub Registry
 
