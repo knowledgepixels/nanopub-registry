@@ -16,7 +16,7 @@ public class AgentInfo implements Serializable {
     private Double avgPathCount;
     private Double totalRatio;
 
-    private static Gson gson = new Gson();
+    private static final Gson gson = new Gson();
 
     public static AgentInfo get(ClientSession mongoSession, String agentId) {
         AgentInfo ri = new AgentInfo();
