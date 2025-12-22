@@ -92,7 +92,7 @@ public enum EntryStatus {
                 return e;
             }
         }
-        throw new RuntimeException("Unsupported EntryStatus Value" + value);
+        throw new UnsupportedEntryStatusValueException("Unsupported EntryStatus Value" + value);
     }
 
     public String getValue() {

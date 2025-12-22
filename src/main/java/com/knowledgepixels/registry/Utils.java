@@ -23,6 +23,8 @@ import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.setting.NanopubSetting;
 import org.nanopub.vocabulary.NPX;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +37,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class Utils {
+
+    private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
     private Utils() {
     }  // no instances allowed
@@ -173,7 +177,8 @@ public class Utils {
                 NanopubSetting setting;
                 try {
                     setting = getSetting();
-                } catch (Exception ex) {
+                } catch (MalformedNanopubException | IOException ex) {
+                    logger.error("Error loading registry setting", ex);
                     throw new RuntimeException(ex);
                 }
                 peerUrls = new ArrayList<>();
