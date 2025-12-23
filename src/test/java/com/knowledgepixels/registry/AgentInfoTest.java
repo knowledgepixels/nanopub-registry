@@ -23,7 +23,7 @@ class AgentInfoTest {
                 .append("avgPathCount", AVG_PATH_COUNT)
                 .append("totalRatio", TOTAL_RATIO);
         try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
-            registry.when(() -> RegistryDB.getOne(mockSession, "agents", new Document("agent", AGENT_ID)))
+            registry.when(() -> RegistryDB.getOne(mockSession, Collection.AGENTS.toString(), new Document("agent", AGENT_ID)))
                     .thenReturn(mockDocument);
 
             AgentInfo agentInfo = AgentInfo.get(mockSession, AGENT_ID);
@@ -39,7 +39,7 @@ class AgentInfoTest {
                 .append("avgPathCount", AVG_PATH_COUNT)
                 .append("totalRatio", TOTAL_RATIO);
         try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
-            registry.when(() -> RegistryDB.getOne(mockSession, "agents", new Document("agent", AGENT_ID)))
+            registry.when(() -> RegistryDB.getOne(mockSession, Collection.AGENTS.toString(), new Document("agent", AGENT_ID)))
                     .thenReturn(mockDocument);
 
             AgentInfo agentInfo = AgentInfo.get(mockSession, AGENT_ID);
