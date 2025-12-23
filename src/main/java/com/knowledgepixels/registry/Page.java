@@ -76,7 +76,7 @@ public abstract class Page {
 
     protected abstract void show() throws IOException;
 
-    public void printHtmlHeader(String title) throws IOException {
+    public void printHtmlHeader(String title) {
         println("<!DOCTYPE HTML>");
         println("<html><head>");
         println("<title>" + title + "</title>");
@@ -86,7 +86,7 @@ public abstract class Page {
         println("</head><body>");
     }
 
-    public void printHtmlFooter() throws IOException {
+    public void printHtmlFooter() {
         println("</body></html>");
     }
 

@@ -49,6 +49,7 @@ public class Utils {
         try {
             mimeType = MIMEParse.bestMatch(supportedList, context.request().getHeader("Accept"));
         } catch (Exception ex) {
+            logger.error("Error parsing Accept header.", ex);
         }
         return mimeType;
     }

@@ -21,7 +21,7 @@ public class AgentInfo implements Serializable {
     public static AgentInfo get(ClientSession mongoSession, String agentId) {
         AgentInfo ri = new AgentInfo();
         ri.agentId = agentId;
-        Document d = RegistryDB.getOne(mongoSession, "agents", new Document("agent", agentId));
+        Document d = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
         ri.accountCount = (Integer) d.get("accountCount");
         ri.avgPathCount = (Double) d.get("avgPathCount");
         ri.totalRatio = (Double) d.get("totalRatio");

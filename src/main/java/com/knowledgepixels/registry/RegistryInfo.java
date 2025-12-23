@@ -27,24 +27,24 @@ public class RegistryInfo implements Serializable {
     private Long loadCounter;
     private Boolean isTestInstance;
 
-    private static Gson gson = new Gson();
+    private static final Gson gson = new Gson();
 
     public static RegistryInfo getLocal(ClientSession mongoSession) {
         RegistryInfo ri = new RegistryInfo();
-        ri.setupId = (Long) getValue(mongoSession, "serverInfo", "setupId");
-        ri.trustStateCounter = (Long) getValue(mongoSession, "serverInfo", "trustStateCounter");
-        ri.lastTrustStateUpdate = (String) getValue(mongoSession, "serverInfo", "lastTrustStateUpdate");
-        ri.trustStateHash = (String) getValue(mongoSession, "serverInfo", "trustStateHash");
-        ri.loadCounter = (Long) getMaxValue(mongoSession, "nanopubs", "counter");
-        ri.status = (String) getValue(mongoSession, "serverInfo", "status");
-        ri.coverageTypes = (String) getValue(mongoSession, "serverInfo", "coverageTypes");
-        ri.coverateAgents = (String) getValue(mongoSession, "serverInfo", "coverageAgents");
-        ri.currentSetting = (String) getValue(mongoSession, "setting", "current");
-        ri.originalSetting = (String) getValue(mongoSession, "setting", "original");
-        ri.agentCount = collection("agents").countDocuments(mongoSession);
-        ri.accountCount = collection("accounts").countDocuments(mongoSession);
-        ri.nanopubCount = collection("nanopubs").countDocuments(mongoSession);
-        ri.isTestInstance = isSet(mongoSession, "serverInfo", "testInstance");
+        ri.setupId = (Long) getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId");
+        ri.trustStateCounter = (Long) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter");
+        ri.lastTrustStateUpdate = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
+        ri.trustStateHash = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash");
+        ri.loadCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
+        ri.status = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
+        ri.coverageTypes = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes");
+        ri.coverateAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");
+        ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");
+        ri.originalSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "original");
+        ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
+        ri.accountCount = collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession);
+        ri.nanopubCount = collection(Collection.NANOPUBS.toString()).countDocuments(mongoSession);
+        ri.isTestInstance = isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance");
         return ri;
     }
 
