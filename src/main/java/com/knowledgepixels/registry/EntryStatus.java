@@ -86,13 +86,13 @@ public enum EntryStatus {
         this.status = this.toString();
     }
 
-    public static EntryStatus fromValue(String value) {
+    public static EntryStatus fromValue(String value) throws UnsupportedEntryStatusValueException {
         for (EntryStatus e : EntryStatus.values()) {
             if (e.toString().equals(value)) {
                 return e;
             }
         }
-        throw new UnsupportedEntryStatusValueException("Unsupported EntryStatus Value" + value);
+        throw new UnsupportedEntryStatusValueException("Unsupported EntryStatus Value: " + value);
     }
 
     public String getValue() {
