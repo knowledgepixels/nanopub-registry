@@ -105,26 +105,23 @@ public class Utils {
     }
 
     public static boolean isUnloadedStatus(String status) {
-        if (status.equals("seen")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("skipped")) return true;
-        return false;
+        if (status.equals(EntryStatus.seen.getValue())) return true;  // only exists in "accounts_loading"?
+        return status.equals(EntryStatus.skipped.getValue());
     }
 
     public static boolean isCoreLoadedStatus(String status) {
-        if (status.equals("visited")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("expanded")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("processed")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("aggregated")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("approved")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("contested")) return true;
-        if (status.equals("toLoad")) return true;  // only exists in "accounts_loading"?
-        if (status.equals("loaded")) return true;
-        return false;
+        if (status.equals(EntryStatus.visited.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.expanded.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.processed.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.aggregated.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.approved.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.contested.getValue())) return true;
+        if (status.equals(EntryStatus.toLoad.getValue())) return true;  // only exists in "accounts_loading"?
+        return status.equals(EntryStatus.loaded.getValue());
     }
 
     public static boolean isFullyLoadedStatus(String status) {
-        if (status.equals("loaded")) return true;
-        return false;
+        return status.equals(EntryStatus.loaded.getValue());
     }
 
     private static ValueFactory vf = SimpleValueFactory.getInstance();
@@ -208,7 +205,7 @@ public class Utils {
         return peerUrls.get(random.nextInt(peerUrls.size()));
     }
 
-    private static Random random = new Random();
+    private static final Random random = new Random();
 
     public static Random getRandom() {
         return random;
