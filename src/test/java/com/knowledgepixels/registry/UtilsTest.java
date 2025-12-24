@@ -5,16 +5,21 @@ import com.google.common.hash.Hashing;
 import com.mongodb.client.ClientSession;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.stubbing.Answer;
 import org.nanopub.MalformedNanopubException;
+import org.nanopub.extra.setting.NanopubSetting;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +29,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 class UtilsTest {
+
+    @BeforeEach
+    void setUp() throws NoSuchFieldException, IllegalAccessException {
+        Field settingNp = Utils.class.getDeclaredField("settingNp");
+        settingNp.setAccessible(true);
+        settingNp.set(null, null);
+    }
 
     @AfterEach
     void tearDown() throws IOException {
@@ -160,6 +172,7 @@ class UtilsTest {
 
     @Test
     void getSettingWithoutSettingsFile() {
+
         assertThrows(FileNotFoundException.class, Utils::getSetting);
     }
 
@@ -168,8 +181,20 @@ class UtilsTest {
         Path dataDir = Path.of("data");
         Files.createDirectory(dataDir);
         Files.copy(Path.of("setting.trig"), dataDir.resolve("setting.trig"));
-        //NanopubSetting settingValue = Utils.getSetting();
-        // TODO fix this test since the path to the setting file is using an absolute path that points to the "/" directory
+
+        Map<String, String> fakeEnv = new HashMap<>();
+        fakeEnv.put("REGISTRY_SETTING_FILE", "./data/setting.trig");
+        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
+        Utils.setEnvReader(reader);
+        NanopubSetting settingValue = Utils.getSetting();
+        assertNotNull(settingValue);
+
+        assertSame(settingValue, Utils.getSetting());
+    }
+
+    @Test
+    void getPeerUrlsWithoutSettingFile() {
+        assertThrows(RuntimeException.class, Utils::getPeerUrls);
     }
 
 }
