@@ -77,8 +77,14 @@ public class Utils {
         return l;
     }
 
+    private static ReadsEnvironment ENV_READER = new ReadsEnvironment(System::getenv);
+
+    static void setEnvReader(ReadsEnvironment reader) {
+        ENV_READER = reader;
+    }
+
     public static String getEnv(String name, String defaultValue) {
-        String value = System.getenv(name);
+        String value = ENV_READER.getEnv(name);
         if (value == null) value = defaultValue;
         return value;
     }
@@ -176,7 +182,7 @@ public class Utils {
                 try {
                     setting = getSetting();
                 } catch (MalformedNanopubException | IOException ex) {
-                    logger.error("Error loading registry setting", ex);
+                    logger.error("Error loading registry setting: {}", ex.getMessage());
                     throw new RuntimeException(ex);
                 }
                 peerUrls = new ArrayList<>();
@@ -190,12 +196,17 @@ public class Utils {
         return peerUrls;
     }
 
-    private static final String SETTING_FILE_PATH = Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
+    //private static final String SETTING_FILE_PATH = Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
     private static NanopubSetting settingNp;
 
     public static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
         if (settingNp == null) {
-            settingNp = new NanopubSetting(new NanopubImpl(new File(SETTING_FILE_PATH)));
+            synchronized (Utils.class) {
+                if (settingNp == null) {
+                    String settingPath = getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
+                    settingNp = new NanopubSetting(new NanopubImpl(new File(settingPath)));
+                }
+            }
         }
         return settingNp;
     }
