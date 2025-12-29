@@ -38,8 +38,8 @@ public enum Task implements Serializable {
 
             increaseStateCounter(s);
             if (RegistryDB.isInitialized(s)) throw new RuntimeException("DB already initialized");
-            setValue(s, "serverInfo", "setupId", Math.abs(Utils.getRandom().nextLong()));
-            setValue(s, "serverInfo", "testInstance", "true".equals(System.getenv("REGISTRY_TEST_INSTANCE")));
+            setValue(s, Collection.SERVER_INFO.toString(), "setupId", Math.abs(Utils.getRandom().nextLong()));
+            setValue(s, Collection.SERVER_INFO.toString(), "testInstance", "true".equals(System.getenv("REGISTRY_TEST_INSTANCE")));
             schedule(s, LOAD_CONFIG);
         }
 
@@ -52,10 +52,10 @@ public enum Task implements Serializable {
             }
 
             if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
-                setValue(s, "serverInfo", "coverageTypes", System.getenv("REGISTRY_COVERAGE_TYPES"));
+                setValue(s, Collection.SERVER_INFO.toString(), "coverageTypes", System.getenv("REGISTRY_COVERAGE_TYPES"));
             }
             if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
-                setValue(s, "serverInfo", "coverageAgents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
+                setValue(s, Collection.SERVER_INFO.toString(), "coverageAgents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
             }
             schedule(s, LOAD_SETTING);
         }
@@ -70,15 +70,15 @@ public enum Task implements Serializable {
 
             NanopubSetting settingNp = Utils.getSetting();
             String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
-            setValue(s, "setting", "original", settingId);
-            setValue(s, "setting", "current", settingId);
+            setValue(s, Collection.SETTING.toString(), "original", settingId);
+            setValue(s, Collection.SETTING.toString(), "current", settingId);
             loadNanopub(s, settingNp.getNanopub());
             List<Document> bootstrapServices = new ArrayList<>();
             for (IRI i : settingNp.getBootstrapServices()) {
                 bootstrapServices.add(new Document("_id", i.stringValue()));
             }
             // potentially currently hardcoded in the nanopub lib
-            setValue(s, "setting", "bootstrap-services", bootstrapServices);
+            setValue(s, Collection.SETTING.toString(), "bootstrap-services", bootstrapServices);
 
             if (!"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
                 schedule(s, LOAD_FULL.withDelay(60 * 1000));
@@ -125,7 +125,7 @@ public enum Task implements Serializable {
                         new Document("agent", "$")
                                 .append("pubkey", "$")
                                 .append("endorsedNanopub", declarationAc)
-                                .append("source", getValue(s, "setting", "current").toString())
+                                .append("source", getValue(s, Collection.SETTING.toString(), "current").toString())
                                 .append("status", toRetrieve.getValue())
 
                 );
@@ -277,7 +277,7 @@ public enum Task implements Serializable {
 
                     Map<String, Document> newPaths = new HashMap<>();
                     Map<String, Set<String>> pubkeySets = new HashMap<>();
-                    String currentSetting = getValue(s, "setting", "current").toString();
+                    String currentSetting = getValue(s, Collection.SETTING.toString(), "current").toString();
 
                     MongoCursor<Document> edgeCursor = get(s, "trustEdges",
                             new Document("fromAgent", agentId)
@@ -404,7 +404,8 @@ public enum Task implements Serializable {
 
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
                     stream.forEach(m -> {
-                        if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
+                        if (!m.isSuccess())
+                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                         loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
                     });
                 }
@@ -422,7 +423,8 @@ public enum Task implements Serializable {
 
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
                     stream.forEach(m -> {
-                        if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
+                        if (!m.isSuccess())
+                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                         Nanopub nanopub = m.getNanopub();
                         loadNanopub(s, nanopub, pubkeyHash, ENDORSE_TYPE);
                         String sourceNpId = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
@@ -627,7 +629,7 @@ public enum Task implements Serializable {
                     new DbEntryWrapper(approved).getDocument())) {
                 // TODO Consider quota too:
                 Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString());
-                if (collection("accounts") == null || !has(s, "accounts",
+                if (collection(Collection.ACCOUNTS.toString()) == null || !has(s, Collection.ACCOUNTS.toString(),
                         accountId.append("status", loaded.getValue()))) {
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
                 } else {
@@ -645,8 +647,8 @@ public enum Task implements Serializable {
         // properly re-run (as some renaming outside of transactions will have taken place).
         public void run(ClientSession s, Document taskDoc) {
             String newTrustStateHash = RegistryDB.calculateTrustStateHash(s);
-            String previousTrustStateHash = (String) getValue(s, "serverInfo", "trustStateHash");  // may be null
-            setValue(s, "serverInfo", "lastTrustStateUpdate", ZonedDateTime.now().toString());
+            String previousTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");  // may be null
+            setValue(s, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate", ZonedDateTime.now().toString());
 
             schedule(s, RELEASE_DATA.with("newTrustStateHash", newTrustStateHash).append("previousTrustStateHash", previousTrustStateHash));
         }
@@ -661,18 +663,18 @@ public enum Task implements Serializable {
             String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
 
             // Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
-            rename("accounts_loading", "accounts");
+            rename("accounts_loading", Collection.ACCOUNTS.toString());
             rename("trustPaths_loading", "trustPaths");
-            rename("agents_loading", "agents");
+            rename("agents_loading", Collection.AGENTS.toString());
             rename("endorsements_loading", "endorsements");
 
             if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
                 increaseStateCounter(s);
-                setValue(s, "serverInfo", "trustStateHash", newTrustStateHash);
+                setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
                 insert(s, "debug_trustPaths", new Document()
                         .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
                         .append("trustStateHash", newTrustStateHash)
-                        .append("trustStateCounter", getValue(s, "serverInfo", "trustStateCounter"))
+                        .append("trustStateCounter", getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter"))
                 );
             }
 
@@ -715,7 +717,7 @@ public enum Task implements Serializable {
                 return;
             }
 
-            Document a = getOne(s, "accounts", new DbEntryWrapper(toLoad).getDocument());
+            Document a = getOne(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument());
             if (a == null) {
                 log.info("Nothing to load");
                 if (status == coreReady) {
@@ -744,7 +746,7 @@ public enum Task implements Serializable {
 
                 Document l = getOne(s, "lists", new Document().append("pubkey", ph).append("type", "$"));
                 if (l != null) set(s, "lists", l.append("status", loaded.getValue()));
-                set(s, "accounts", a.append("status", loaded.getValue()));
+                set(s, Collection.ACCOUNTS.toString(), a.append("status", loaded.getValue()));
 
                 schedule(s, LOAD_FULL.withDelay(100));
             }
@@ -787,7 +789,8 @@ public enum Task implements Serializable {
 
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
                     stream.forEach(m -> {
-                        if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
+                        if (!m.isSuccess())
+                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                         loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
                     });
                 }
@@ -795,7 +798,8 @@ public enum Task implements Serializable {
 
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
                     stream.forEach(m -> {
-                        if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
+                        if (!m.isSuccess())
+                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                         loadNanopub(s, m.getNanopub(), pubkeyHash, ENDORSE_TYPE);
                     });
                 }
@@ -821,7 +825,8 @@ public enum Task implements Serializable {
 
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash)) {
                     stream.forEach(m -> {
-                        if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
+                        if (!m.isSuccess())
+                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                         loadNanopub(s, m.getNanopub(), pubkeyHash, "$");
                     });
                 }
@@ -978,11 +983,11 @@ public enum Task implements Serializable {
     }
 
     private static void setServerStatus(ClientSession mongoSession, ServerStatus status) {
-        setValue(mongoSession, "serverInfo", "status", status.toString());
+        setValue(mongoSession, Collection.SERVER_INFO.toString(), "status", status.toString());
     }
 
     private static ServerStatus getServerStatus(ClientSession mongoSession) {
-        Object status = getValue(mongoSession, "serverInfo", "status");
+        Object status = getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
         if (status == null) {
             throw new RuntimeException("Illegal DB state: serverInfo status unavailable");
         }

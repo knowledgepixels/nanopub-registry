@@ -157,7 +157,7 @@ public class ListPage extends Page {
                 printHtmlFooter();
             }
         } else if (req.equals("/list")) {
-            try (var c = collection("accounts").find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor()) {
+            try (var c = collection(Collection.ACCOUNTS.toString()).find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor()) {
                 if (TYPE_JSON.equals(format)) {
                     println("[");
                     while (c.hasNext()) {
@@ -208,7 +208,7 @@ public class ListPage extends Page {
             if (TYPE_JSON.equals(format)) {
                 print(AgentInfo.get(mongoSession, agentId).asJson());
             } else {
-                Document agentDoc = RegistryDB.getOne(mongoSession, "agents", new Document("agent", agentId));
+                Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
                 printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
                 println("<h1>Agent " + Utils.getAgentLabel(agentId) + "</h1>");
                 println("<p><a href=\"/agents\">&lt; Agent List</a></p>");
@@ -231,7 +231,7 @@ public class ListPage extends Page {
             }
         } else if (req.equals("/agentAccounts") && context.request().getParam("id") != null) {
             String agentId = context.request().getParam("id");
-            MongoCursor<Document> c = collection("accounts").find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
+            MongoCursor<Document> c = collection(Collection.ACCOUNTS.toString()).find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
             if (TYPE_JSON.equals(format)) {
                 println("[");
                 while (c.hasNext()) {
@@ -262,7 +262,7 @@ public class ListPage extends Page {
                 printHtmlFooter();
             }
         } else if (req.equals("/agents")) {
-            MongoCursor<Document> c = collection("agents").find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
+            MongoCursor<Document> c = collection(Collection.AGENTS.toString()).find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
             if (TYPE_JSON.equals(format)) {
                 println("[");
                 while (c.hasNext()) {
@@ -303,7 +303,7 @@ public class ListPage extends Page {
                 }
                 // TODO: something is aborting the Mongo transaction here after a while,
                 //  find out what exactly.
-                var pipeline = collection("nanopubs").find(mongoSession).filter(gt("counter", afterCounter)).sort(ascending("counter"))
+                var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("counter", afterCounter)).sort(ascending("counter"))
                         // Only include the needed fields to save bandwidth to the DB
                         .projection(include("jelly", "counter"));
 
@@ -316,7 +316,7 @@ public class ListPage extends Page {
             } else {
                 // Return latest nanopubs
 
-                MongoCursor<Document> c = collection("nanopubs").find(mongoSession).sort(descending("counter")).limit(1000).cursor();
+                MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession).sort(descending("counter")).limit(1000).cursor();
                 if (TYPE_JSON.equals(format)) {
                     println("[");
                     while (c.hasNext()) {

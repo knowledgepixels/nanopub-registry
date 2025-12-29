@@ -87,7 +87,7 @@ public class MainVerticle extends AbstractVerticle {
                     if (np != null) {
                         try (ClientSession s = RegistryDB.getClient().startSession()) {
                             String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
-                            if (has(s, "nanopubs", ac)) {
+                            if (has(s, Collection.NANOPUBS.toString(), ac)) {
                                 System.err.println("POST: known nanopub " + ac);
                             } else {
                                 System.err.println("POST: new nanopub " + ac);
@@ -101,7 +101,7 @@ public class MainVerticle extends AbstractVerticle {
                                 // Load to lists, if applicable:
                                 NanopubLoader.simpleLoad(s, np);
 
-                                if (!isSet(s, "serverInfo", "testInstance")) {
+                                if (!isSet(s, Collection.SERVER_INFO.toString(), "testInstance")) {
                                     // Here we publish it also to the first-generation services, so they know about it too:
                                     // TODO Remove this at some point
                                     try {

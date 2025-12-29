@@ -62,9 +62,9 @@ public class NanopubPage extends Page {
 
         if (req.matches("/np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
             String ac = req.replaceFirst("/np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
-            Document npDoc = collection("nanopubs").find(new Document("_id", ac)).first();
+            Document npDoc = collection(Collection.NANOPUBS.toString()).find(new Document("_id", ac)).first();
             if (npDoc == null) {
-                if (!isSet(mongoSession, "serverInfo", "testInstance")) {
+                if (!isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")) {
                     //getResp().sendError(404, "Not found: " + ac);
                     c.response().setStatusCode(307);
                     c.response().putHeader("Location", "https://np.knowledgepixels.com/" + ac);

@@ -73,9 +73,9 @@ public class RegistryDB {
 
             collection("tasks").createIndex(mongoSession, Indexes.descending("not-before"));
 
-            collection("nanopubs").createIndex(mongoSession, ascending("fullId"), unique);
-            collection("nanopubs").createIndex(mongoSession, descending("counter"), unique);
-            collection("nanopubs").createIndex(mongoSession, ascending("pubkey"));
+            collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("fullId"), unique);
+            collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, descending("counter"), unique);
+            collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("pubkey"));
 
             collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
             collection("lists").createIndex(mongoSession, ascending("status"));
@@ -133,7 +133,7 @@ public class RegistryDB {
     }
 
     public static boolean isInitialized(ClientSession mongoSession) {
-        return getValue(mongoSession, "serverInfo", "setupId") != null;
+        return getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") != null;
     }
 
     public static void rename(String oldCollectionName, String newCollectionName) {
@@ -151,12 +151,12 @@ public class RegistryDB {
     }
 
     public static void increaseStateCounter(ClientSession mongoSession) {
-        MongoCursor<Document> cursor = collection("serverInfo").find(mongoSession, new Document("_id", "trustStateCounter")).cursor();
+        MongoCursor<Document> cursor = collection(Collection.SERVER_INFO.toString()).find(mongoSession, new Document("_id", "trustStateCounter")).cursor();
         if (cursor.hasNext()) {
             long counter = cursor.next().getLong("value");
-            collection("serverInfo").updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
+            collection(Collection.SERVER_INFO.toString()).updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
         } else {
-            collection("serverInfo").insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0l));
+            collection(Collection.SERVER_INFO.toString()).insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0l));
         }
     }
 
@@ -291,10 +291,10 @@ public class RegistryDB {
             log.info("ERROR. Unexpected Trusty URI: {}", nanopub.getUri());
             return false;
         }
-        if (has(mongoSession, "nanopubs", ac)) {
+        if (has(mongoSession, Collection.NANOPUBS.toString(), ac)) {
             log.info("Already loaded: {}", nanopub.getUri());
         } else {
-            Long counter = (Long) getMaxValue(mongoSession, "nanopubs", "counter");
+            Long counter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
             if (counter == null) counter = 0l;
             String nanopubString;
             byte[] jellyContent;
@@ -305,7 +305,7 @@ public class RegistryDB {
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
-            collection("nanopubs").insertOne(mongoSession,
+            collection(Collection.NANOPUBS.toString()).insertOne(mongoSession,
                     new Document("_id", ac)
                             .append("fullId", nanopub.getUri().stringValue())
                             .append("counter", counter + 1)
@@ -373,7 +373,7 @@ public class RegistryDB {
             while (invalidations.hasNext()) {
                 String iac = invalidations.next().getString("invalidatingNp");
                 try {
-                    Document npDoc = collection("nanopubs")
+                    Document npDoc = collection(Collection.NANOPUBS.toString())
                             .find(mongoSession, new Document("_id", iac))
                             .projection(new Document("jelly", 1))
                             .first();

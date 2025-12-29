@@ -143,7 +143,7 @@ public class NanopubLoader {
 
     public static Nanopub retrieveLocalNanopub(ClientSession mongoSession, String nanopubId) {
         String ac = TrustyUriUtils.getArtifactCode(nanopubId);
-        MongoCursor<Document> cursor = RegistryDB.get(mongoSession, "nanopubs", new Document("_id", ac));
+        MongoCursor<Document> cursor = RegistryDB.get(mongoSession, Collection.NANOPUBS.toString(), new Document("_id", ac));
         if (!cursor.hasNext()) return null;
         try {
             // Parse from Jelly, not TriG (it's faster)

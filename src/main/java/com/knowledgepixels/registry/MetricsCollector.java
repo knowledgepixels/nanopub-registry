@@ -41,17 +41,17 @@ public final class MetricsCollector {
     public void updateMetrics() {
         try (final var session = RegistryDB.getClient().startSession()) {
             // Update numeric metrics
-            extractMaximalIntegerValueFromField(session, "nanopubs", "counter")
+            extractMaximalIntegerValueFromField(session, Collection.NANOPUBS.toString(), "counter")
                     .ifPresent(loadCounter::set);
 
-            extractIntegerValueFromField(session, "serverInfo", "trustStateCounter")
+            extractIntegerValueFromField(session, Collection.SERVER_INFO.toString(), "trustStateCounter")
                     .ifPresent(trustStateCounter::set);
 
-            agentCount.set(countDocumentsInCollection(session, "agents"));
-            accountCount.set(countDocumentsInCollection(session, "accounts"));
+            agentCount.set(countDocumentsInCollection(session, Collection.AGENTS.toString()));
+            accountCount.set(countDocumentsInCollection(session, Collection.ACCOUNTS.toString()));
 
             // Update status gauge
-            final var currentStatus = extractStringValueFromField(session, "serverInfo", "status")
+            final var currentStatus = extractStringValueFromField(session, Collection.SERVER_INFO.toString(), "status")
                     .map(ServerStatus::valueOf)
                     .orElse(null);
             for (final var status : ServerStatus.values()) {

@@ -50,10 +50,10 @@ public class MainPage extends Page {
         if ("application/json".equals(format)) {
             println(RegistryInfo.getLocal(mongoSession).asJson());
         } else {
-            String status = getValue(mongoSession, "serverInfo", "status").toString();
+            String status = getValue(mongoSession, Collection.SERVER_INFO.toString(), "status").toString();
             printHtmlHeader("Nanopub Registry");
             println("<h1>Nanopub Registry</h1>");
-            if (isSet(mongoSession, "serverInfo", "testInstance")) {
+            if (isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")) {
                 println("<p style=\"color: red\">This is a test instance.</p>");
             }
             println("<h3>Formats</h3>");
@@ -63,24 +63,24 @@ public class MainPage extends Page {
             println("</p>");
             println("<h3>Server</h3>");
             println("<ul>");
-            println("<li><em>setupId:</em> " + getValue(mongoSession, "serverInfo", "setupId") + "</li>");
-            println("<li><em>coverageTypes:</em> " + getValue(mongoSession, "serverInfo", "coverageTypes") + "</li>");
-            println("<li><em>coverageAgents:</em> " + getValue(mongoSession, "serverInfo", "coverageAgents") + "</li>");
+            println("<li><em>setupId:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") + "</li>");
+            println("<li><em>coverageTypes:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes") + "</li>");
+            println("<li><em>coverageAgents:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents") + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
-            println("<li><em>loadCounter:</em> " + getMaxValue(mongoSession, "nanopubs", "counter") + "</li>");
-            println("<li><em>trustStateCounter:</em> " + getValue(mongoSession, "serverInfo", "trustStateCounter") + "</li>");
-            Object lastTimeUpdate = getValue(mongoSession, "serverInfo", "lastTrustStateUpdate");
+            println("<li><em>loadCounter:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</li>");
+            println("<li><em>trustStateCounter:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter") + "</li>");
+            Object lastTimeUpdate = getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
             if (lastTimeUpdate != null) {
                 println("<li><em>lastTrustStateUpdate:</em> " + lastTimeUpdate.toString().replaceFirst("\\.[^.]*$", "") + "</li>");
             } else {
                 println("<li><em>lastTrustStateUpdate:</em> null</li>");
             }
-            Object trustStateHash = getValue(mongoSession, "serverInfo", "trustStateHash");
+            Object trustStateHash = getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash");
             if (trustStateHash != null) trustStateHash = trustStateHash.toString().substring(0, 10);
             println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");
-            String oSetting = getValue(mongoSession, "setting", "original").toString();
+            String oSetting = getValue(mongoSession, Collection.SETTING.toString(), "original").toString();
             println("<li><em>originalSetting:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");
-            String cSetting = getValue(mongoSession, "setting", "current").toString();
+            String cSetting = getValue(mongoSession, Collection.SETTING.toString(), "current").toString();
             println("<li><em>currentSetting:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
             println("</ul>");
 
@@ -88,7 +88,7 @@ public class MainPage extends Page {
             if (status.equals("launching") || status.equals("coreLoading")) {
                 println("<p><em>(loading...)</em></p>");
             } else {
-                println("<p>Count: " + collection("agents").countDocuments(mongoSession) + "</p>");
+                println("<p>Count: " + collection(Collection.AGENTS.toString()).countDocuments(mongoSession) + "</p>");
                 println("<p><a href=\"/agents\">&gt; agents</a></pi>");
             }
 
@@ -96,12 +96,12 @@ public class MainPage extends Page {
             if (status.equals("launching") || status.equals("coreLoading")) {
                 println("<p><em>(loading...)</em></p>");
             } else {
-                println("<p>Count: " + collection("accounts").countDocuments(mongoSession) + "</p>");
+                println("<p>Count: " + collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession) + "</p>");
                 println("<p><a href=\"/list\">&gt; accounts</a></pi>");
             }
 
             println("<h3>Nanopubs</h3>");
-            println("<p>Count: " + getMaxValue(mongoSession, "nanopubs", "counter") + "</p>");
+            println("<p>Count: " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</p>");
             println("<p><a href=\"/nanopubs\">&gt; nanopubs</a></pi>");
             printHtmlFooter();
         }
