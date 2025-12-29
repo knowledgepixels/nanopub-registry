@@ -197,7 +197,7 @@ public class Utils {
     }
 
     //private static final String SETTING_FILE_PATH = Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
-    private static NanopubSetting settingNp;
+    private static volatile NanopubSetting settingNp;
 
     public static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
         if (settingNp == null) {
