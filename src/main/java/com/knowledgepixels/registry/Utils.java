@@ -169,12 +169,14 @@ public class Utils {
 
     public static List<String> getPeerUrls() {
         if (peerUrls == null) {
+            peerUrls = new ArrayList<>();
             String envPeerUrls = getEnv("REGISTRY_PEER_URLS", "");
             String thisRegistryUrl = getEnv("REGISTRY_SERVICE_URL", "");
             if (!envPeerUrls.isEmpty()) {
-                peerUrls = new ArrayList<>();
                 for (String peerUrl : envPeerUrls.split(";")) {
-                    if (thisRegistryUrl.equals(peerUrl)) continue;
+                    if (thisRegistryUrl.equals(peerUrl)) {
+                        continue;
+                    }
                     peerUrls.add(peerUrl);
                 }
             } else {
@@ -185,10 +187,11 @@ public class Utils {
                     logger.error("Error loading registry setting: {}", ex.getMessage());
                     throw new RuntimeException(ex);
                 }
-                peerUrls = new ArrayList<>();
                 for (IRI iri : setting.getBootstrapServices()) {
                     String peerUrl = iri.stringValue();
-                    if (thisRegistryUrl.equals(peerUrl)) continue;
+                    if (thisRegistryUrl.equals(peerUrl)) {
+                        continue;
+                    }
                     peerUrls.add(peerUrl);
                 }
             }
@@ -222,7 +225,7 @@ public class Utils {
         return random;
     }
 
-    private static Gson g = new Gson();
+    private static final Gson g = new Gson();
     private static Type listType = new TypeToken<List<String>>() {
     }.getType();
 

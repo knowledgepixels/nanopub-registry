@@ -19,6 +19,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -35,6 +36,14 @@ class UtilsTest {
         Field settingNp = Utils.class.getDeclaredField("settingNp");
         settingNp.setAccessible(true);
         settingNp.set(null, null);
+
+        Field peerUrls = Utils.class.getDeclaredField("peerUrls");
+        peerUrls.setAccessible(true);
+        peerUrls.set(null, null);
+
+        Field reader = Utils.class.getDeclaredField("ENV_READER");
+        reader.setAccessible(true);
+        reader.set(null, new ReadsEnvironment(System::getenv));
     }
 
     @AfterEach
@@ -144,9 +153,7 @@ class UtilsTest {
     void getTypeHash() {
         ClientSession mockSession = mock(ClientSession.class);
         try (MockedStatic<RegistryDB> mockedRegistryDB = mockStatic(RegistryDB.class)) {
-            mockedRegistryDB
-                    .when(() -> RegistryDB.recordHash(any(), anyString()))
-                    .thenAnswer((Answer<Void>) invocation -> null);
+            mockedRegistryDB.when(() -> RegistryDB.recordHash(any(), anyString())).thenAnswer((Answer<Void>) invocation -> null);
 
             String type = "exampleType";
             String expectedHash = Utils.getHash(type);
@@ -195,6 +202,45 @@ class UtilsTest {
     @Test
     void getPeerUrlsWithoutSettingFile() {
         assertThrows(RuntimeException.class, Utils::getPeerUrls);
+    }
+
+    @Test
+    void getPeerUrlsWithSettingFile() {
+        Map<String, String> fakeEnv = new HashMap<>();
+        fakeEnv.put("REGISTRY_PEER_URLS", "");
+        fakeEnv.put("REGISTRY_SERVICE_URL", "");
+        fakeEnv.put("REGISTRY_SETTING_FILE", "setting.trig");
+        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
+        Utils.setEnvReader(reader);
+        List<String> expectedPeerUrls = List.of("https://registry.petapico.org/", "https://registry.nanodash.net/", "https://registry.knowledgepixels.com/");
+        assertEquals(expectedPeerUrls, Utils.getPeerUrls());
+
+        // 2nd call to verify caching
+        assertEquals(expectedPeerUrls, Utils.getPeerUrls());
+    }
+
+    @Test
+    void getPeerUrlsWithNotEmptyPeerUrlsVariable() {
+        Map<String, String> fakeEnv = new HashMap<>();
+        fakeEnv.put("REGISTRY_PEER_URLS", "https://registry.nanodash.net/;https://registry.knowledgepixels.com/");
+        fakeEnv.put("REGISTRY_SERVICE_URL", "https://registry.petapico.org/");
+        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
+        Utils.setEnvReader(reader);
+        List<String> expectedPeerUrls = List.of("https://registry.nanodash.net/", "https://registry.knowledgepixels.com/");
+        assertEquals(expectedPeerUrls, Utils.getPeerUrls());
+    }
+
+    @Test
+    void getRandomPeer() {
+        Map<String, String> fakeEnv = new HashMap<>();
+        fakeEnv.put("REGISTRY_PEER_URLS", "");
+        fakeEnv.put("REGISTRY_SERVICE_URL", "");
+        fakeEnv.put("REGISTRY_SETTING_FILE", "setting.trig");
+        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
+        Utils.setEnvReader(reader);
+        List<String> peerUrls = Utils.getPeerUrls();
+        String randomPeer = Utils.getRandomPeer();
+        assertTrue(peerUrls.contains(randomPeer));
     }
 
 }
