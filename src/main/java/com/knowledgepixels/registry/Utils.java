@@ -84,8 +84,12 @@ public class Utils {
     }
 
     public static String getEnv(String name, String defaultValue) {
+        logger.info("Retrieving environment variable: {}", name);
         String value = ENV_READER.getEnv(name);
-        if (value == null) value = defaultValue;
+        if (value == null) {
+            value = defaultValue;
+            logger.info("The variable: {} is not set. Using default value: {}", name, defaultValue);
+        }
         return value;
     }
 
@@ -199,7 +203,6 @@ public class Utils {
         return peerUrls;
     }
 
-    //private static final String SETTING_FILE_PATH = Utils.getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
     private static volatile NanopubSetting settingNp;
 
     public static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
