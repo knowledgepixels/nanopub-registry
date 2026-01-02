@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoNamespace;
 import com.mongodb.MongoWriteException;
+import com.mongodb.ServerAddress;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -41,6 +42,7 @@ public class RegistryDB {
 
     private static final String REGISTRY_DB_NAME = Utils.getEnv("REGISTRY_DB_NAME", "nanopubRegistry");
     private static final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
+    private static final int REGISTRY_DB_PORT = Integer.parseInt(Utils.getEnv("REGISTRY_DB_PORT", String.valueOf(ServerAddress.defaultPort())));
 
     private static final Logger log = LoggerFactory.getLogger(RegistryDB.class);
 
@@ -62,12 +64,16 @@ public class RegistryDB {
     private final static IndexOptions unique = new IndexOptions().unique(true);
 
     public static void init() {
-        if (mongoClient != null) return;
-        mongoClient = new MongoClient(REGISTRY_DB_HOST);
+        if (mongoClient != null) {
+            return;
+        }
+        mongoClient = new MongoClient(REGISTRY_DB_HOST, REGISTRY_DB_PORT);
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
         try (ClientSession mongoSession = mongoClient.startSession()) {
-            if (isInitialized(mongoSession)) return;
+            if (isInitialized(mongoSession)) {
+                return;
+            }
 
             final IndexOptions unique = new IndexOptions().unique(true);
 
