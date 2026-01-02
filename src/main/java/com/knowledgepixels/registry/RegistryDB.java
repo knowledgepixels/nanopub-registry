@@ -41,8 +41,6 @@ public class RegistryDB {
     }
 
     private static final String REGISTRY_DB_NAME = Utils.getEnv("REGISTRY_DB_NAME", "nanopubRegistry");
-    private static final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
-    private static final int REGISTRY_DB_PORT = Integer.parseInt(Utils.getEnv("REGISTRY_DB_PORT", String.valueOf(ServerAddress.defaultPort())));
 
     private static final Logger log = LoggerFactory.getLogger(RegistryDB.class);
 
@@ -67,6 +65,8 @@ public class RegistryDB {
         if (mongoClient != null) {
             return;
         }
+        final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
+        final int REGISTRY_DB_PORT = Integer.parseInt(Utils.getEnv("REGISTRY_DB_PORT", String.valueOf(ServerAddress.defaultPort())));
         mongoClient = new MongoClient(REGISTRY_DB_HOST, REGISTRY_DB_PORT);
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
@@ -201,30 +201,19 @@ public class RegistryDB {
     }
 
     public static Object getMaxValue(ClientSession mongoSession, String collection, String fieldName) {
-        Document doc = collection(collection)
-                .find(mongoSession)
-                .projection(new Document(fieldName, 1))
-                .sort(new Document(fieldName, -1))
-                .first();
+        Document doc = collection(collection).find(mongoSession).projection(new Document(fieldName, 1)).sort(new Document(fieldName, -1)).first();
         if (doc == null) return null;
         return doc.get(fieldName);
     }
 
     public static Object getMaxValue(ClientSession mongoSession, String collection, Bson find, String fieldName) {
-        Document doc = collection(collection)
-                .find(mongoSession, find)
-                .projection(new Document(fieldName, 1))
-                .sort(new Document(fieldName, -1))
-                .first();
+        Document doc = collection(collection).find(mongoSession, find).projection(new Document(fieldName, 1)).sort(new Document(fieldName, -1)).first();
         if (doc == null) return null;
         return doc.get(fieldName);
     }
 
     public static Document getMaxValueDocument(ClientSession mongoSession, String collection, Bson find, String fieldName) {
-        return collection(collection)
-                .find(mongoSession, find)
-                .sort(new Document(fieldName, -1))
-                .first();
+        return collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).first();
     }
 
     public static void set(ClientSession mongoSession, String collection, Document update) {
@@ -240,11 +229,7 @@ public class RegistryDB {
     }
 
     public static void setValue(ClientSession mongoSession, String collection, String elementId, Object value) {
-        collection(collection).updateOne(mongoSession,
-                new Document("_id", elementId),
-                new Document("$set", new Document("value", value)),
-                new UpdateOptions().upsert(true)
-        );
+        collection(collection).updateOne(mongoSession, new Document("_id", elementId), new Document("$set", new Document("value", value)), new UpdateOptions().upsert(true));
     }
 
     public static void recordHash(ClientSession mongoSession, String value) {
@@ -311,41 +296,22 @@ public class RegistryDB {
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
-            collection(Collection.NANOPUBS.toString()).insertOne(mongoSession,
-                    new Document("_id", ac)
-                            .append("fullId", nanopub.getUri().stringValue())
-                            .append("counter", counter + 1)
-                            .append("pubkey", ph)
-                            .append("content", nanopubString)
-                            .append("jelly", new Binary(jellyContent))
-            );
+            collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("counter", counter + 1).append("pubkey", ph).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
 
             for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
                 String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
                 if (invalidatedAc == null) continue;  // This should never happen; checking here just to be sure
 
                 // Add this nanopub also to all lists of invalidated nanopubs:
-                collection("invalidations").insertOne(mongoSession,
-                        new Document("invalidatingNp", ac)
-                                .append("invalidatingPubkey", ph)
-                                .append("invalidatedNp", invalidatedAc)
-                );
-                MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession,
-                        new Document("np", invalidatedAc).append("pubkey", ph)
-                ).cursor();
+                collection("invalidations").insertOne(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc));
+                MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph)).cursor();
                 while (invalidatedEntries.hasNext()) {
                     Document invalidatedEntry = invalidatedEntries.next();
                     addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"));
                 }
 
-                collection("listEntries").updateMany(mongoSession,
-                        new Document("np", invalidatedAc).append("pubkey", ph),
-                        new Document("$set", new Document("invalidated", true))
-                );
-                collection("trustEdges").updateMany(mongoSession,
-                        new Document("source", invalidatedAc),
-                        new Document("$set", new Document("invalidated", true))
-                );
+                collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
+                collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
             }
         }
 
@@ -362,27 +328,15 @@ public class RegistryDB {
         }
 
         // Add the invalidating nanopubs also to the lists of this nanopub:
-        try (MongoCursor<Document> invalidations = collection("invalidations")
-                .find(mongoSession, new Document("invalidatedNp", ac).append("invalidatingPubkey", ph))
-                .cursor()
-        ) {
+        try (MongoCursor<Document> invalidations = collection("invalidations").find(mongoSession, new Document("invalidatedNp", ac).append("invalidatingPubkey", ph)).cursor()) {
             if (invalidations.hasNext()) {
-                collection("listEntries").updateMany(mongoSession,
-                        new Document("np", ac).append("pubkey", ph),
-                        new Document("$set", new Document("invalidated", true))
-                );
-                collection("trustEdges").updateMany(mongoSession,
-                        new Document("source", ac),
-                        new Document("$set", new Document("invalidated", true))
-                );
+                collection("listEntries").updateMany(mongoSession, new Document("np", ac).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
+                collection("trustEdges").updateMany(mongoSession, new Document("source", ac), new Document("$set", new Document("invalidated", true)));
             }
             while (invalidations.hasNext()) {
                 String iac = invalidations.next().getString("invalidatingNp");
                 try {
-                    Document npDoc = collection(Collection.NANOPUBS.toString())
-                            .find(mongoSession, new Document("_id", iac))
-                            .projection(new Document("jelly", 1))
-                            .first();
+                    Document npDoc = collection(Collection.NANOPUBS.toString()).find(mongoSession, new Document("_id", iac)).projection(new Document("jelly", 1)).first();
                     Nanopub inp = JellyUtils.readFromDB(npDoc.get("jelly", Binary.class).getData());
                     for (IRI type : NanopubUtils.getTypes(inp)) {
                         addToList(mongoSession, inp, ph, Utils.getTypeHash(mongoSession, type));
@@ -420,14 +374,7 @@ public class RegistryDB {
                 position = doc.getLong("position") + 1;
                 checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
             }
-            collection("listEntries").insertOne(mongoSession,
-                    new Document("pubkey", pubkeyHash)
-                            .append("type", typeHash)
-                            .append("position", position)
-                            .append("np", ac)
-                            .append("checksum", checksum)
-                            .append("invalidated", false)
-            );
+            collection("listEntries").insertOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("position", position).append("np", ac).append("checksum", checksum).append("invalidated", false));
         }
     }
 
