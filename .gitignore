@@ -11,6 +11,7 @@
 /bin/
 /*.tar.gz
 .settings/
+*.bak
 
 # IntelliJ
 /.idea
