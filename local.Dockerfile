@@ -4,9 +4,9 @@ ENV APP_DIR /app
 
 WORKDIR $APP_DIR
 
-COPY . .
+COPY target target
 
-RUN mv target/nanopub-registry-*-fat.jar $APP_DIR/nanopub-registry.jar
+RUN mv target/nanopub-registry-*-fat.jar nanopub-registry.jar
 
 EXPOSE 9292
 
