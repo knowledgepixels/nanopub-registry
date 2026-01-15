@@ -5,10 +5,15 @@ import com.mongodb.client.MongoDatabase;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
@@ -75,6 +80,23 @@ class RegistryDBTest {
         MongoClient firstClient = RegistryDB.getClient();
         RegistryDB.init();
         assertSame(firstClient, RegistryDB.getClient());
+    }
+
+    @Test
+    void getPubkey() throws MalformedNanopubException, IOException {
+        File file = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/simple1.trig").getFile());
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        assertNotNull(pubkey);
+        assertEquals("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyh/JXpQoR8t9THhrBraTIvPVnlky+1p/Cr1J3VpUtaslV/6j9qgHhGc92g1BZ93DnUmiB+peSAwmva/OWZXsKxuYOTeIGFqwtBv9V91WSoXGRK4SJGVbj6kVK15CPH2qjls29ZWzTwskyIm9u7Gpscm28TR81v+qCzDMTIWB2zQzn6DDcyFJ3zaCrwAc3DhbLtbteZaC56gHfKTPu/ko+gXbzXVvgOkgvUwa3HB7EBdDaxDiM9LpYidV72AUhIgIpFCkrZMWklSTDCKK9Gp6VnDe1Lzr7JZyFR1liA0C6DntX4ZtZOzL7XMTZIM+yseJ6MrdIwiaunBV1Nr3C08SFwIDAQAB", pubkey);
+    }
+
+    @Test
+    void getPubkeyWithInvalidNanopub() throws MalformedNanopubException, IOException {
+        File file = new File(this.getClass().getClassLoader().getResource("testsuite/invalid/signed/simple1-invalid-rsa.trig").getFile());
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        assertNull(pubkey);
     }
 
 }
