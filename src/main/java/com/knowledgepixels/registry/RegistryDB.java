@@ -261,7 +261,7 @@ public class RegistryDB {
             return false;
         }
         if (nanopub.getByteCount() > 1000000) {
-            log.info("Nanopub is to large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
+            log.info("Nanopub is too large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
             return false;
         }
         String pubkey = getPubkey(nanopub);
@@ -378,20 +378,22 @@ public class RegistryDB {
         }
     }
 
+    /**
+     * Returns the public key string of the Nanopub's signature, or null if not available or invalid.
+     *
+     * @param nanopub the nanopub to extract the public key from
+     * @return The public key string, or null if not available or invalid.
+     */
     public static String getPubkey(Nanopub nanopub) {
-        NanopubSignatureElement el = null;
+        // TODO shouldn't this be moved to a utility class in nanopub-java? there is a similar method in NanopubElement class of nanodash
+        NanopubSignatureElement el;
         try {
             el = SignatureUtils.getSignatureElement(nanopub);
-        } catch (MalformedCryptoElementException ex) {
-            ex.printStackTrace();
-        }
-        try {
             if (el != null && SignatureUtils.hasValidSignature(el) && el.getPublicKeyString() != null) {
                 return el.getPublicKeyString();
             }
-        } catch (GeneralSecurityException ex) {
-            log.info("Error for signature element {}", el.getUri());
-            ex.printStackTrace();
+        } catch (MalformedCryptoElementException | GeneralSecurityException ex) {
+            log.error("Error in checking the signature of the nanopub {}", nanopub.getUri());
         }
         return null;
     }
