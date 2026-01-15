@@ -27,7 +27,7 @@ class DbEntryWrapperTest {
     @Test
     void getDocument() {
         DbEntryWrapper dbEntryWrapper = new DbEntryWrapper(EntryStatus.toRetrieve);
-        Document document = new Document("status", EntryStatus.toRetrieve.getValue());
+        Document document = new Document(DbEntryWrapper.statusField, EntryStatus.toRetrieve.getValue());
         assertEquals(dbEntryWrapper.getDocument(), document);
     }
 
@@ -35,7 +35,7 @@ class DbEntryWrapperTest {
     void setStatus() {
         DbEntryWrapper dbEntryWrapper = new DbEntryWrapper(EntryStatus.toRetrieve);
         dbEntryWrapper.setStatus(EntryStatus.retrieved);
-        Document document = new Document("status", EntryStatus.retrieved.getValue());
+        Document document = new Document(DbEntryWrapper.statusField, EntryStatus.retrieved.getValue());
         assertEquals(dbEntryWrapper.getDocument(), document);
     }
 
