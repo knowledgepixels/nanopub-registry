@@ -22,6 +22,12 @@ public abstract class Page {
     private String extension;
     private String requestString;
 
+    /**
+     * Constructor for the Page class.
+     *
+     * @param mongoSession The MongoDB client session.
+     * @param context      The routing context.
+     */
     public Page(ClientSession mongoSession, RoutingContext context) {
         this.mongoSession = mongoSession;
         this.context = context;
@@ -29,12 +35,12 @@ public abstract class Page {
 
         // TODO See whether we can cache these better on our side. Not sure how efficient the MongoDB caching is for these
         //      kinds of DB queries...
-        context.response().putHeader("Nanopub-Registry-Status", getValue(mongoSession, Collection.SERVER_INFO.toString(), "status").toString());
-        context.response().putHeader("Nanopub-Registry-Setup-Id", getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId").toString());
-        context.response().putHeader("Nanopub-Registry-Trust-State-Counter", getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter").toString());
+        context.response().putHeader("Nanopub-Registry-Status", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "status"));
+        context.response().putHeader("Nanopub-Registry-Setup-Id", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId"));
+        context.response().putHeader("Nanopub-Registry-Trust-State-Counter", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter"));
         context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate"));
         context.response().putHeader("Nanopub-Registry-Trust-State-Hash", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash"));
-        context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter").toString());
+        context.response().putHeader("Nanopub-Registry-Load-Counter", (String) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter"));
         context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")));
 
         String r = context.request().path().substring(1);
@@ -56,26 +62,60 @@ public abstract class Page {
         }
     }
 
+    /**
+     * Get the routing context.
+     *
+     * @return The routing context.
+     */
     public RoutingContext getContext() {
         return context;
     }
 
+    /**
+     * Print a line to the response.
+     *
+     * @param s The string to print.
+     */
     public void println(String s) {
         print(s + "\n");
     }
 
+    /**
+     * Print a string to the response.
+     *
+     * @param s The string to print.
+     */
     public void print(String s) {
-        if (context.request().method() == HttpMethod.HEAD) return;
+        if (context.request().method() == HttpMethod.HEAD) {
+            return;
+        }
         context.response().write(s);
     }
 
+    /**
+     * Set the response content type.
+     *
+     * @param contentType The content type.
+     */
     public void setRespContentType(String contentType) {
-        if (context.request().method() == HttpMethod.HEAD) return;
+        if (context.request().method() == HttpMethod.HEAD) {
+            return;
+        }
         context.response().putHeader("Content-Type", contentType);
     }
 
+    /**
+     * Show the page.
+     *
+     * @throws IOException
+     */
     protected abstract void show() throws IOException;
 
+    /**
+     * Print the HTML header.
+     *
+     * @param title The title of the page.
+     */
     public void printHtmlHeader(String title) {
         println("<!DOCTYPE HTML>");
         println("<html><head>");
@@ -86,30 +126,64 @@ public abstract class Page {
         println("</head><body>");
     }
 
+    /**
+     * Print the HTML footer.
+     */
     public void printHtmlFooter() {
         println("</body></html>");
     }
 
+    /**
+     * Escape HTML special characters in a string.
+     *
+     * @param text The text to escape.
+     * @return The escaped text.
+     */
     public String escapeHtml(String text) {
         return StringEscapeUtils.escapeHtml(text);
     }
 
+    /**
+     * Set the canonical link for this page.
+     *
+     * @param url The canonical URL.
+     */
     public void setCanonicalLink(String url) {
         context.response().putHeader("Link", "<" + url + ">; rel=\"canonical\"");
     }
 
+    /**
+     * Get the presentation format requested, if any.
+     *
+     * @return The presentation format.
+     */
     public String getPresentationFormat() {
         return presentationFormat;
     }
 
+    /**
+     * Get the extension requested, if any.
+     *
+     * @return The extension.
+     */
     public String getExtension() {
         return extension;
     }
 
+    /**
+     * Get the request string with the leading slash and without extension.
+     *
+     * @return The request string.
+     */
     public String getRequestString() {
         return "/" + requestString;
     }
 
+    /**
+     * Get the full request path.
+     *
+     * @return The full request path.
+     */
     public String getFullRequest() {
         return context.request().path();
     }
@@ -127,16 +201,33 @@ public abstract class Page {
         return value;
     }
 
+    /**
+     * Check whether the request is empty.
+     *
+     * @return True if the request is empty, false otherwise.
+     */
     public boolean isEmpty() {
         return requestString.isEmpty();
     }
 
+    /**
+     * Check whether the request contains an artifact code.
+     *
+     * @return True if the request contains an artifact code, false otherwise.
+     */
     public boolean hasArtifactCode() {
         return requestString.matches("RA[A-Za-z0-9\\-_]{43}");
     }
 
+    /**
+     * Get the artifact code from the request, if present.
+     *
+     * @return The artifact code, or null if not present.
+     */
     public String getArtifactCode() {
-        if (hasArtifactCode()) return requestString;
+        if (hasArtifactCode()) {
+            return requestString;
+        }
         return null;
     }
 
