@@ -236,13 +236,34 @@
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <version>${exec-maven-plugin.version}</version>
-        <configuration>
-          <mainClass>${launcher.class}</mainClass>
-          <arguments>
-            <argument>run</argument>
-            <argument>${main.verticle}</argument>
-          </arguments>
-        </configuration>
+        <executions>
+          <execution>
+            <id>default</id>
+            <configuration>
+              <mainClass>${launcher.class}</mainClass>
+              <arguments>
+                <argument>run</argument>
+                <argument>${main.verticle}</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <phase>initialize</phase>
+            <id>invoke build</id>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>git</executable>
+              <arguments>
+                <argument>submodule</argument>
+                <argument>update</argument>
+                <argument>--init</argument>
+                <argument>--recursive</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>com.google.cloud.tools</groupId>
