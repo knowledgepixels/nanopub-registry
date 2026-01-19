@@ -1,8 +1,11 @@
 package com.knowledgepixels.registry;
 
 import com.mongodb.MongoClient;
+import com.mongodb.client.ClientSession;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-import org.junit.jupiter.api.BeforeAll;
+import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nanopub.MalformedNanopubException;
@@ -15,6 +18,7 @@ import org.testcontainers.mongodb.MongoDBContainer;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,23 +28,24 @@ import static org.junit.jupiter.api.Assertions.*;
 class RegistryDBTest {
 
     @Container
-    private static final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0");
+    private final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0");
 
-    @BeforeAll
-    static void beforeAll() {
+    @BeforeEach
+    void setUp() throws NoSuchFieldException, IllegalAccessException {
         Map<String, String> fakeEnv = new HashMap<>();
         fakeEnv.put("REGISTRY_DB_NAME", "nanopubRegistry");
         fakeEnv.put("REGISTRY_DB_HOST", mongoDBContainer.getHost());
         fakeEnv.put("REGISTRY_DB_PORT", String.valueOf(mongoDBContainer.getFirstMappedPort()));
         ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
         Utils.setEnvReader(reader);
-    }
 
-    @BeforeEach
-    void setUp() throws NoSuchFieldException, IllegalAccessException {
-        Field field = RegistryDB.class.getDeclaredField("mongoClient");
-        field.setAccessible(true);
-        field.set(null, null);
+        Field mongoClientField = RegistryDB.class.getDeclaredField("mongoClient");
+        mongoClientField.setAccessible(true);
+        mongoClientField.set(null, null);
+
+        Field mongoDBField = RegistryDB.class.getDeclaredField("mongoDB");
+        mongoDBField.setAccessible(true);
+        mongoDBField.set(null, null);
     }
 
     @Test
@@ -72,6 +77,13 @@ class RegistryDBTest {
     void init() {
         RegistryDB.init();
         assertNotNull(RegistryDB.getClient());
+        assertEquals(2, getNumberOfIndexes("tasks"));
+        assertEquals(4, getNumberOfIndexes(Collection.NANOPUBS.toString()));
+        assertEquals(3, getNumberOfIndexes("lists"));
+        assertEquals(6, getNumberOfIndexes("listEntries"));
+        assertEquals(5, getNumberOfIndexes("invalidations"));
+        assertEquals(8, getNumberOfIndexes("trustEdges"));
+        assertEquals(3, getNumberOfIndexes("hashes"));
     }
 
     @Test
@@ -97,6 +109,190 @@ class RegistryDBTest {
         Nanopub nanopub = new NanopubImpl(file);
         String pubkey = RegistryDB.getPubkey(nanopub);
         assertNull(pubkey);
+    }
+
+    @Test
+    void increaseStateCounter() {
+        RegistryDB.init();
+        MongoClient client = RegistryDB.getClient();
+        ClientSession session = client.startSession();
+        long counterValue = 0L;
+
+        assertNull(RegistryDB.getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter"));
+
+        RegistryDB.increaseStateCounter(session);
+        Object retrievedCounterValue = RegistryDB.getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter");
+        assertEquals(counterValue, retrievedCounterValue);
+
+        counterValue++;
+        RegistryDB.increaseStateCounter(session);
+
+        retrievedCounterValue = RegistryDB.getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter");
+        assertEquals(counterValue, retrievedCounterValue);
+    }
+
+    @Test
+    void initLoadingCollections() {
+        RegistryDB.init();
+        MongoClient client = RegistryDB.getClient();
+        ClientSession session = client.startSession();
+        RegistryDB.initLoadingCollections(session);
+        assertEquals(6, getNumberOfIndexes("endorsements_loading"));
+        assertEquals(5, getNumberOfIndexes("agents_loading"));
+        assertEquals(8, getNumberOfIndexes("accounts_loading"));
+        assertEquals(4, getNumberOfIndexes("trustPaths_loading"));
+    }
+
+    @Test
+    void hasWithElementName() {
+        RegistryDB.init();
+        MongoClient client = RegistryDB.getClient();
+        ClientSession session = client.startSession();
+        String collectionName = "testCollection";
+
+        assertFalse(RegistryDB.has(session, collectionName, "testKey"));
+
+        RegistryDB.insert(session, collectionName, new Document("_id", "testKey"));
+        assertTrue(RegistryDB.has(session, collectionName, "testKey"));
+    }
+
+    @Test
+    void hasWithDocument() {
+        RegistryDB.init();
+        MongoClient client = RegistryDB.getClient();
+        ClientSession session = client.startSession();
+        String collectionName = "testCollection";
+
+        Document doc = new Document("_id", "testKey");
+        assertFalse(RegistryDB.has(session, collectionName, doc));
+
+        RegistryDB.insert(session, collectionName, doc);
+        assertTrue(RegistryDB.has(session, collectionName, doc));
+    }
+
+    @Test
+    void hasCollection() {
+        RegistryDB.init();
+        assertTrue(RegistryDB.hasCollection(Collection.NANOPUBS.toString()));
+        assertFalse(RegistryDB.hasCollection("nonExistingCollection"));
+    }
+
+    @Test
+    void get() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        Document doc = new Document("_id", "testKey");
+        MongoCursor<Document> cursor = RegistryDB.get(session, collectionName, doc);
+        assertFalse(cursor.hasNext());
+
+        RegistryDB.insert(session, collectionName, doc);
+        cursor = RegistryDB.get(session, collectionName, doc);
+        assertTrue(cursor.hasNext());
+        assertEquals(doc, cursor.next());
+    }
+
+    @Test
+    void getValue() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        MongoCollection<Document> collection = RegistryDB.collection(collectionName);
+        Object value = RegistryDB.getValue(session, collectionName, "testKey");
+        assertNull(value);
+
+        collection.insertOne(new Document("_id", "testKey").append("value", "testValue"));
+        value = RegistryDB.getValue(session, collectionName, "testKey");
+        assertEquals("testValue", value);
+    }
+
+    @Test
+    void setValue() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        MongoCollection<Document> collection = RegistryDB.collection(collectionName);
+        collection.insertOne(new Document("_id", "testKey").append("value", "testValue"));
+        Object value = RegistryDB.getValue(session, collectionName, "testKey");
+        assertEquals("testValue", value);
+
+        RegistryDB.setValue(session, collectionName, "testKey", "newValue");
+        value = RegistryDB.getValue(session, collectionName, "testKey");
+        assertEquals("newValue", value);
+    }
+
+    @Test
+    void insert() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        Object value = RegistryDB.getValue(session, collectionName, "testKey");
+        assertNull(value);
+
+        Document doc = new Document("_id", "testKey").append("value", "testValue");
+        RegistryDB.insert(session, collectionName, doc);
+        assertTrue(RegistryDB.hasCollection(collectionName));
+        value = RegistryDB.getValue(session, collectionName, "testKey");
+        assertEquals("testValue", value);
+    }
+
+    @Test
+    void set() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        Document doc = new Document("_id", "testKey").append("value", "testValue");
+        RegistryDB.insert(session, collectionName, doc);
+        assertEquals("testValue", RegistryDB.getValue(session, collectionName, "testKey"));
+
+        RegistryDB.set(session, collectionName, new Document("_id", "testKey").append("value", "newValue"));
+        assertEquals("newValue", RegistryDB.getValue(session, collectionName, "testKey"));
+    }
+
+    @Test
+    void isSet() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        assertFalse(RegistryDB.isSet(session, collectionName, "testKey"));
+
+        Document doc = new Document("_id", "testKey").append("value", true);
+        RegistryDB.insert(session, collectionName, doc);
+        assertTrue(RegistryDB.isSet(session, collectionName, "testKey"));
+    }
+
+    @Test
+    void getOne() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        Document doc = new Document("_id", "testKey")
+                .append("value", "testValue")
+                .append("value", "anotherValue");
+        RegistryDB.insert(session, collectionName, doc);
+
+        Document retrieved = RegistryDB.getOne(session, collectionName, doc);
+        assertNotNull(retrieved);
+        assertTrue(retrieved.getString("value").equals("testValue") || retrieved.getString("value").equals("anotherValue"));
+    }
+
+    /**
+     * Helper method to get the number of indexes in a collection. Keep in mind that MongoDB creates a default index on the _id field.
+     * So if you call createIndex once, the total number of indexes will be 2. And so on.
+     *
+     * @param collectionName the name of the collection
+     * @return the number of indexes
+     */
+    private int getNumberOfIndexes(String collectionName) {
+        MongoCollection<Document> collection = RegistryDB.collection(collectionName);
+        return collection.listIndexes().into(new ArrayList<>()).size();
     }
 
 }
