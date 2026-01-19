@@ -15,8 +15,7 @@ import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.ValueFactory;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.eclipse.rdf4j.model.util.Values;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
@@ -36,6 +35,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+/**
+ * Utility class for the Nanopub Registry.
+ */
 public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
@@ -62,27 +64,45 @@ public class Utils {
         return Hashing.sha256().hashString(s, Charsets.UTF_8).toString();
     }
 
+    /**
+     * Get the IDs of nanopublications invalidated by the given nanopublication.
+     *
+     * @param np the nanopublication to check
+     * @return a set of IRI IDs of invalidated nanopublications
+     */
     public static Set<IRI> getInvalidatedNanopubIds(Nanopub np) {
-        Set<IRI> l = new HashSet<IRI>();
+        Set<IRI> invalidatedNanopubs = new HashSet<>();
         for (Statement st : NanopubUtils.getStatements(np)) {
             if (!(st.getObject() instanceof IRI)) continue;
-            Resource s = st.getSubject();
-            IRI p = st.getPredicate();
-            if ((p.equals(NPX.RETRACTS) || p.equals(NPX.INVALIDATES)) || (p.equals(NPX.SUPERSEDES) && s.equals(np.getUri()))) {
+            Resource subject = st.getSubject();
+            IRI predicate = st.getPredicate();
+            if ((predicate.equals(NPX.RETRACTS) || predicate.equals(NPX.INVALIDATES)) || (predicate.equals(NPX.SUPERSEDES) && subject.equals(np.getUri()))) {
                 if (TrustyUriUtils.isPotentialTrustyUri(st.getObject().stringValue())) {
-                    l.add((IRI) st.getObject());
+                    invalidatedNanopubs.add((IRI) st.getObject());
                 }
             }
         }
-        return l;
+        return invalidatedNanopubs;
     }
 
     private static ReadsEnvironment ENV_READER = new ReadsEnvironment(System::getenv);
 
+    /**
+     * Set the environment reader (used for testing purposes).
+     *
+     * @param reader the environment reader to set
+     */
     static void setEnvReader(ReadsEnvironment reader) {
         ENV_READER = reader;
     }
 
+    /**
+     * Get an environment variable, returning a default value if not set.
+     *
+     * @param name         the name of the environment variable
+     * @param defaultValue the default value to return if the variable is not set
+     * @return the value of the environment variable, or the default value if not set
+     */
     public static String getEnv(String name, String defaultValue) {
         logger.info("Retrieving environment variable: {}", name);
         String value = ENV_READER.getEnv(name);
@@ -93,6 +113,13 @@ public class Utils {
         return value;
     }
 
+    /**
+     * Get the type hash for a given type, recording it in the database if necessary.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param type         the type to get the hash for
+     * @return the type hash
+     */
     public static String getTypeHash(ClientSession mongoSession, Object type) {
         String typeHash = Utils.getHash(type.toString());
         if (type.toString().equals("$")) {
@@ -103,6 +130,12 @@ public class Utils {
         return typeHash;
     }
 
+    /**
+     * Get a label for an agent ID, truncating if necessary.
+     *
+     * @param agentId the agent ID
+     * @return the agent label
+     */
     public static String getAgentLabel(String agentId) {
         if (agentId == null || agentId.isBlank()) {
             throw new IllegalArgumentException("Agent ID cannot be null or blank");
@@ -114,11 +147,23 @@ public class Utils {
         return agentId;
     }
 
+    /**
+     * Check if the given status indicates an unloaded entry.
+     *
+     * @param status the status to check
+     * @return true if the status indicates an unloaded entry, false otherwise
+     */
     public static boolean isUnloadedStatus(String status) {
         if (status.equals(EntryStatus.seen.getValue())) return true;  // only exists in "accounts_loading"?
         return status.equals(EntryStatus.skipped.getValue());
     }
 
+    /**
+     * Check if the given status indicates a core loaded entry.
+     *
+     * @param status the status to check
+     * @return true if the status indicates a core loaded entry, false otherwise
+     */
     public static boolean isCoreLoadedStatus(String status) {
         if (status.equals(EntryStatus.visited.getValue())) return true;  // only exists in "accounts_loading"?
         if (status.equals(EntryStatus.expanded.getValue())) return true;  // only exists in "accounts_loading"?
@@ -130,12 +175,17 @@ public class Utils {
         return status.equals(EntryStatus.loaded.getValue());
     }
 
+    /**
+     * Check if the given status indicates a fully loaded entry.
+     *
+     * @param status the status to check
+     * @return true if the status indicates a fully loaded entry, false otherwise
+     */
     public static boolean isFullyLoadedStatus(String status) {
         return status.equals(EntryStatus.loaded.getValue());
     }
 
-    private static ValueFactory vf = SimpleValueFactory.getInstance();
-    public static final IRI APPROVES_OF = vf.createIRI("http://purl.org/nanopub/x/approvesOf");
+    public static final IRI APPROVES_OF = Values.iri("http://purl.org/nanopub/x/approvesOf");
 
     public static final String TYPE_JSON = "application/json";
     public static final String TYPE_TRIG = "application/trig";
@@ -152,6 +202,12 @@ public class Utils {
 
     private static Map<String, String> extensionTypeMap;
 
+    /**
+     * Get the type corresponding to a given file extension.
+     *
+     * @param extension the file extension
+     * @return the corresponding MIME type, or null if not found
+     */
     public static String getType(String extension) {
         if (extension == null) {
             return null;
@@ -171,6 +227,11 @@ public class Utils {
 
     private static List<String> peerUrls;
 
+    /**
+     * Get the list of peer registry URLs.
+     *
+     * @return the list of peer registry URLs
+     */
     public static List<String> getPeerUrls() {
         if (peerUrls == null) {
             peerUrls = new ArrayList<>();
@@ -205,6 +266,14 @@ public class Utils {
 
     private static volatile NanopubSetting settingNp;
 
+    /**
+     * Get the nanopublication setting.
+     *
+     * @return the nanopublication setting
+     * @throws RDF4JException            if there is an error retrieving the setting
+     * @throws MalformedNanopubException if the setting nanopublication is malformed
+     * @throws IOException               if there is an I/O error
+     */
     public static NanopubSetting getSetting() throws RDF4JException, MalformedNanopubException, IOException {
         if (settingNp == null) {
             synchronized (Utils.class) {
@@ -217,6 +286,12 @@ public class Utils {
         return settingNp;
     }
 
+    /**
+     * Get a random peer registry URL.
+     *
+     * @return a random peer registry URL
+     * @throws RDF4JException if there is an error retrieving the peer URLs
+     */
     public static String getRandomPeer() throws RDF4JException {
         List<String> peerUrls = getPeerUrls();
         return peerUrls.get(random.nextInt(peerUrls.size()));
@@ -224,6 +299,11 @@ public class Utils {
 
     private static final Random random = new Random();
 
+    /**
+     * Get the random number generator.
+     *
+     * @return the random number generator
+     */
     public static Random getRandom() {
         return random;
     }
@@ -232,6 +312,16 @@ public class Utils {
     private static Type listType = new TypeToken<List<String>>() {
     }.getType();
 
+    /**
+     * Retrieve a list of strings from a JSON URL.
+     *
+     * @param url the URL to retrieve the JSON from
+     * @return the list of strings
+     * @throws JsonIOException     if there is an error reading the JSON
+     * @throws JsonSyntaxException if the JSON syntax is invalid
+     * @throws IOException         if there is an I/O error
+     * @throws URISyntaxException  if the URL syntax is invalid
+     */
     public static List<String> retrieveListFromJsonUrl(String url) throws JsonIOException, JsonSyntaxException, IOException, URISyntaxException {
         return g.fromJson(new InputStreamReader(new URI(url).toURL().openStream()), listType);
     }
