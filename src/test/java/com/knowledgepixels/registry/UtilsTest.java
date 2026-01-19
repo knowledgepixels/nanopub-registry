@@ -4,12 +4,16 @@ import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
 import com.mongodb.client.ClientSession;
 import org.apache.commons.io.FileUtils;
+import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.util.Values;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.stubbing.Answer;
 import org.nanopub.MalformedNanopubException;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
 import org.nanopub.extra.setting.NanopubSetting;
 
 import java.io.File;
@@ -18,10 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -241,6 +242,15 @@ class UtilsTest {
         List<String> peerUrls = Utils.getPeerUrls();
         String randomPeer = Utils.getRandomPeer();
         assertTrue(peerUrls.contains(randomPeer));
+    }
+
+    @Test
+    void getInvalidatedNanopubIds() throws MalformedNanopubException, IOException {
+        File nanopubExample = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/example5.trig").getFile());
+        Nanopub nanopub = new NanopubImpl(nanopubExample);
+        Set<IRI> invalidatedIds = Utils.getInvalidatedNanopubIds(nanopub);
+        assertEquals(1, invalidatedIds.size());
+        assertTrue(invalidatedIds.contains(Values.iri("http://purl.org/np/RARv1-bZWsdvQs88TDH2trcwNoGF1g5AawE2sPKeh5K_0")));
     }
 
 }
