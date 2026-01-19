@@ -42,15 +42,25 @@ public class RegistryDB {
 
     private static final String REGISTRY_DB_NAME = Utils.getEnv("REGISTRY_DB_NAME", "nanopubRegistry");
 
-    private static final Logger log = LoggerFactory.getLogger(RegistryDB.class);
+    private static final Logger logger = LoggerFactory.getLogger(RegistryDB.class);
 
     private static MongoClient mongoClient;
     private static MongoDatabase mongoDB;
 
+    /**
+     * Returns the MongoDB database instance.
+     *
+     * @return the MongoDatabase instance
+     */
     public static MongoDatabase getDB() {
         return mongoDB;
     }
 
+    /**
+     * Returns the MongoDB client instance.
+     *
+     * @return the MongoClient instance
+     */
     public static MongoClient getClient() {
         return mongoClient;
     }
@@ -61,12 +71,17 @@ public class RegistryDB {
 
     private final static IndexOptions unique = new IndexOptions().unique(true);
 
+    /**
+     * Initializes the MongoDB connection and sets up collections and indexes if not already initialized.
+     */
     public static void init() {
         if (mongoClient != null) {
+            logger.info("RegistryDB already initialized");
             return;
         }
         final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
         final int REGISTRY_DB_PORT = Integer.parseInt(Utils.getEnv("REGISTRY_DB_PORT", String.valueOf(ServerAddress.defaultPort())));
+        logger.info("Initializing RegistryDB connection to database '{}' at {}:{}", REGISTRY_DB_NAME, REGISTRY_DB_HOST, REGISTRY_DB_PORT);
         mongoClient = new MongoClient(REGISTRY_DB_HOST, REGISTRY_DB_PORT);
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
@@ -110,6 +125,11 @@ public class RegistryDB {
         }
     }
 
+    /**
+     * Initializes the loading collections with appropriate indexes.
+     *
+     * @param mongoSession the MongoDB client session
+     */
     public static void initLoadingCollections(ClientSession mongoSession) {
         collection("endorsements_loading").createIndex(mongoSession, ascending("agent"));
         collection("endorsements_loading").createIndex(mongoSession, ascending("pubkey"));
@@ -138,10 +158,22 @@ public class RegistryDB {
         collection("trustPaths_loading").createIndex(mongoSession, descending("ratio"));
     }
 
+    /**
+     * Checks if the database has been initialized.
+     *
+     * @param mongoSession the MongoDB client session
+     * @return true if initialized, false otherwise
+     */
     public static boolean isInitialized(ClientSession mongoSession) {
         return getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") != null;
     }
 
+    /**
+     * Renames a collection in the database. If the new collection name already exists, it will be dropped first.
+     *
+     * @param oldCollectionName the current name of the collection
+     * @param newCollectionName the new name for the collection
+     */
     public static void rename(String oldCollectionName, String newCollectionName) {
         // Designed as idempotent operation: calling multiple times has same effect as calling once
         if (hasCollection(oldCollectionName)) {
@@ -152,70 +184,149 @@ public class RegistryDB {
         }
     }
 
+    /**
+     * Checks if a collection with the given name exists in the database.
+     *
+     * @param collectionName the name of the collection to check
+     * @return true if the collection exists, false otherwise
+     */
     public static boolean hasCollection(String collectionName) {
-        return mongoDB.listCollectionNames().into(new ArrayList<String>()).contains(collectionName);
+        return mongoDB.listCollectionNames().into(new ArrayList<>()).contains(collectionName);
     }
 
+    /**
+     * Increases the trust state counter in the server info collection.
+     *
+     * @param mongoSession the MongoDB client session
+     */
     public static void increaseStateCounter(ClientSession mongoSession) {
         MongoCursor<Document> cursor = collection(Collection.SERVER_INFO.toString()).find(mongoSession, new Document("_id", "trustStateCounter")).cursor();
         if (cursor.hasNext()) {
             long counter = cursor.next().getLong("value");
             collection(Collection.SERVER_INFO.toString()).updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
         } else {
-            collection(Collection.SERVER_INFO.toString()).insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0l));
+            collection(Collection.SERVER_INFO.toString()).insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0L));
         }
     }
 
+    /**
+     * Checks if an element with the given name exists in the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param elementName  the name of the element used as the _id field
+     * @return true if the element exists, false otherwise
+     */
     public static boolean has(ClientSession mongoSession, String collection, String elementName) {
         return has(mongoSession, collection, new Document("_id", elementName));
     }
 
     private static final CountOptions hasCountOptions = new CountOptions().limit(1);
 
+    /**
+     * Checks if any document matching the given filter exists in the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param find         the filter to match documents
+     * @return true if at least one matching document exists, false otherwise
+     */
     public static boolean has(ClientSession mongoSession, String collection, Bson find) {
         return collection(collection).countDocuments(mongoSession, find, hasCountOptions) > 0;
     }
 
+    /**
+     * Retrieves a cursor for documents matching the given filter in the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param find         the filter to match documents
+     * @return a MongoCursor for the matching documents
+     */
     public static MongoCursor<Document> get(ClientSession mongoSession, String collection, Bson find) {
         return collection(collection).find(mongoSession, find).cursor();
     }
 
+    /**
+     * Retrieves the value of an element with the given name from the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param elementName  the name of the element used as the _id field
+     * @return the value of the element, or null if not found
+     */
     public static Object getValue(ClientSession mongoSession, String collection, String elementName) {
         Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
-        if (d == null) return null;
+        if (d == null) {
+            return null;
+        }
         return d.get("value");
     }
 
+    /**
+     * Retrieves the boolean value of an element with the given name from the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param elementName  the name of the element used as the _id field
+     * @return the value of the element, or null if not found
+     */
     public static boolean isSet(ClientSession mongoSession, String collection, String elementName) {
         Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
-        if (d == null) return false;
+        if (d == null) {
+            return false;
+        }
         return d.getBoolean("value");
     }
 
+    /**
+     * Retrieves a single document matching the given filter from the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param find         the filter to match the document
+     * @return the matching document, or null if not found
+     */
     public static Document getOne(ClientSession mongoSession, String collection, Bson find) {
         return collection(collection).find(mongoSession, find).first();
     }
 
-    public static Document getOne(ClientSession mongoSession, String collection, Bson find, Bson sort) {
-        return collection(collection).find(mongoSession, find).sort(sort).first();
-    }
-
+    /**
+     * Retrieves the maximum value of a specified field from the documents in the given collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param fieldName    the field for which to find the maximum value
+     * @return the maximum value of the specified field, or null if no documents exist
+     */
     public static Object getMaxValue(ClientSession mongoSession, String collection, String fieldName) {
         Document doc = collection(collection).find(mongoSession).projection(new Document(fieldName, 1)).sort(new Document(fieldName, -1)).first();
-        if (doc == null) return null;
+        if (doc == null) {
+            return null;
+        }
         return doc.get(fieldName);
     }
 
-    public static Object getMaxValue(ClientSession mongoSession, String collection, Bson find, String fieldName) {
-        Document doc = collection(collection).find(mongoSession, find).projection(new Document(fieldName, 1)).sort(new Document(fieldName, -1)).first();
-        if (doc == null) return null;
-        return doc.get(fieldName);
-    }
-
+    /**
+     * Retrieves the document with the maximum value of a specified field from the documents matching the given filter in the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param find         the filter to match documents
+     * @param fieldName    the field for which to find the maximum value
+     * @return the document with the maximum value of the specified field, or null if no matching documents exist
+     */
     public static Document getMaxValueDocument(ClientSession mongoSession, String collection, Bson find, String fieldName) {
         return collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).first();
     }
 
+    /**
+     * Sets or updates a document in the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param update       the document to set or update (must contain an _id field)
+     */
     public static void set(ClientSession mongoSession, String collection, Document update) {
         Bson find = new Document("_id", update.get("_id"));
         MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).cursor();
@@ -224,14 +335,37 @@ public class RegistryDB {
         }
     }
 
+    /**
+     * Inserts a document into the specified collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param doc          the document to insert
+     */
     public static void insert(ClientSession mongoSession, String collection, Document doc) {
         collection(collection).insertOne(mongoSession, doc);
     }
 
+    /**
+     * Sets the value of an element with the given name in the specified collection.
+     * If the element does not exist, it will be created.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param collection   the name of the collection
+     * @param elementId    the name of the element used as the _id field
+     * @param value        the value to set
+     */
     public static void setValue(ClientSession mongoSession, String collection, String elementId, Object value) {
         collection(collection).updateOne(mongoSession, new Document("_id", elementId), new Document("$set", new Document("value", value)), new UpdateOptions().upsert(true));
     }
 
+    /**
+     * Records the hash of a given value in the "hashes" collection.
+     * If the hash already exists, it will be ignored.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param value        the value to hash and record
+     */
     public static void recordHash(ClientSession mongoSession, String value) {
         try {
             insert(mongoSession, "hashes", new Document("value", value).append("hash", Utils.getHash(value)));
@@ -241,37 +375,57 @@ public class RegistryDB {
         }
     }
 
+    /**
+     * Retrieves the original value corresponding to a given hash from the "hashes" collection.
+     *
+     * @param hash the hash to look up
+     * @return the original value, or null if not found
+     */
     public static String unhash(String hash) {
         try (var c = collection("hashes").find(new Document("hash", hash)).cursor()) {
-            if (c.hasNext()) return c.next().get("value").toString();
+            if (c.hasNext()) {
+                return c.next().getString("value");
+            }
             return null;
         }
     }
 
     /**
-     * Insert nanopub to the DB.
+     * Loads a nanopublication into the database.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param nanopub      the nanopublication to load
      */
     public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub) {
         return loadNanopub(mongoSession, nanopub, null);
     }
 
+    /**
+     * Loads a nanopublication into the database, optionally filtering by public key hash and types.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param nanopub      the nanopublication to load
+     * @param pubkeyHash   the public key hash to filter by (can be null)
+     * @param types        the types to filter by (can be empty)
+     * @return true if the nanopublication was loaded, false otherwise
+     */
     public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
         if (nanopub.getTripleCount() > 1200) {
-            log.info("Nanopub has too many triples ({}): {}", nanopub.getTripleCount(), nanopub.getUri());
+            logger.info("Nanopub has too many triples ({}): {}", nanopub.getTripleCount(), nanopub.getUri());
             return false;
         }
         if (nanopub.getByteCount() > 1000000) {
-            log.info("Nanopub is too large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
+            logger.info("Nanopub is too large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
             return false;
         }
         String pubkey = getPubkey(nanopub);
         if (pubkey == null) {
-            log.info("Ignoring invalid nanopub: {}", nanopub.getUri());
+            logger.info("Ignoring invalid nanopub: {}", nanopub.getUri());
             return false;
         }
         String ph = Utils.getHash(pubkey);
         if (pubkeyHash != null && !pubkeyHash.equals(ph)) {
-            log.info("Ignoring nanopub with non-matching pubkey: {}", nanopub.getUri());
+            logger.info("Ignoring nanopub with non-matching pubkey: {}", nanopub.getUri());
             return false;
         }
         recordHash(mongoSession, pubkey);
@@ -279,11 +433,11 @@ public class RegistryDB {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         if (ac == null) {
             // I don't think this ever happens, but checking here to be sure
-            log.info("ERROR. Unexpected Trusty URI: {}", nanopub.getUri());
+            logger.info("ERROR. Unexpected Trusty URI: {}", nanopub.getUri());
             return false;
         }
         if (has(mongoSession, Collection.NANOPUBS.toString(), ac)) {
-            log.info("Already loaded: {}", nanopub.getUri());
+            logger.info("Already loaded: {}", nanopub.getUri());
         } else {
             Long counter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
             if (counter == null) counter = 0l;
@@ -361,7 +515,7 @@ public class RegistryDB {
         }
 
         if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
-            log.info("Already listed: {}", nanopub.getUri());
+            logger.info("Already listed: {}", nanopub.getUri());
         } else {
 
             Document doc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
@@ -393,11 +547,17 @@ public class RegistryDB {
                 return el.getPublicKeyString();
             }
         } catch (MalformedCryptoElementException | GeneralSecurityException ex) {
-            log.error("Error in checking the signature of the nanopub {}", nanopub.getUri());
+            logger.error("Error in checking the signature of the nanopub {}", nanopub.getUri());
         }
         return null;
     }
 
+    /**
+     * Calculates a hash representing the current state of the trust paths in the loading collection.
+     *
+     * @param mongoSession the MongoDB client session
+     * @return the calculated trust state hash
+     */
     public static String calculateTrustStateHash(ClientSession mongoSession) {
         MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor();
         // TODO Improve this so we don't create the full string just for calculating its hash:
