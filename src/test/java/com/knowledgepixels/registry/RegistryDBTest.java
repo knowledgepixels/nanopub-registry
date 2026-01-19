@@ -95,6 +95,55 @@ class RegistryDBTest {
     }
 
     @Test
+    void renameWhenOriginalNotExists() {
+        RegistryDB.init();
+
+        String originalCollectionName = "testCollection";
+        String newCollectionName = "renamedCollection";
+
+        assertFalse(RegistryDB.hasCollection(originalCollectionName));
+        assertFalse(RegistryDB.hasCollection(newCollectionName));
+
+        RegistryDB.rename(originalCollectionName, newCollectionName);
+        assertFalse(RegistryDB.hasCollection(originalCollectionName));
+        assertFalse(RegistryDB.hasCollection(newCollectionName));
+    }
+
+    @Test
+    void renameWhenNewNotExists() {
+        RegistryDB.init();
+
+        ClientSession session = RegistryDB.getClient().startSession();
+        String originalCollectionName = "testCollection";
+        String newCollectionName = "renamedCollection";
+
+        RegistryDB.insert(session, originalCollectionName, new Document("_id", "testKey"));
+        assertTrue(RegistryDB.hasCollection(originalCollectionName));
+
+        RegistryDB.rename(originalCollectionName, newCollectionName);
+        assertFalse(RegistryDB.hasCollection(originalCollectionName));
+        assertTrue(RegistryDB.hasCollection(newCollectionName));
+    }
+
+    @Test
+    void renameWhenNewAlreadyExists() {
+        RegistryDB.init();
+
+        ClientSession session = RegistryDB.getClient().startSession();
+        String originalCollectionName = "testCollection";
+        String newCollectionName = "renamedCollection";
+
+        RegistryDB.insert(session, originalCollectionName, new Document("_id", "testKey"));
+        RegistryDB.insert(session, newCollectionName, new Document("_id", "testKey"));
+        assertTrue(RegistryDB.hasCollection(originalCollectionName));
+        assertTrue(RegistryDB.hasCollection(newCollectionName));
+
+        RegistryDB.rename(originalCollectionName, newCollectionName);
+        assertFalse(RegistryDB.hasCollection(originalCollectionName));
+        assertTrue(RegistryDB.hasCollection(newCollectionName));
+    }
+
+    @Test
     void getPubkey() throws MalformedNanopubException, IOException {
         File file = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/simple1.trig").getFile());
         Nanopub nanopub = new NanopubImpl(file);
@@ -252,6 +301,10 @@ class RegistryDBTest {
 
         RegistryDB.set(session, collectionName, new Document("_id", "testKey").append("value", "newValue"));
         assertEquals("newValue", RegistryDB.getValue(session, collectionName, "testKey"));
+
+        RegistryDB.set(session, collectionName, new Document("_id", "anotherKey").append("value", "newValue"));
+        // this shouldn't update anything as 'anotherKey' didn't exist before
+        assertNull(RegistryDB.getValue(session, collectionName, "anotherKey"));
     }
 
     @Test
@@ -273,14 +326,97 @@ class RegistryDBTest {
         ClientSession session = RegistryDB.getClient().startSession();
         String collectionName = "testCollection";
 
-        Document doc = new Document("_id", "testKey")
-                .append("value", "testValue")
-                .append("value", "anotherValue");
-        RegistryDB.insert(session, collectionName, doc);
+        Document doc1 = new Document("value", "testValue").append("otherField", 10);
+        Document doc2 = new Document("value", "testValue").append("otherField", 20);
+        Document doc3 = new Document("val", "moreDifferentValue");
 
-        Document retrieved = RegistryDB.getOne(session, collectionName, doc);
-        assertNotNull(retrieved);
-        assertTrue(retrieved.getString("value").equals("testValue") || retrieved.getString("value").equals("anotherValue"));
+        RegistryDB.insert(session, collectionName, doc1);
+        RegistryDB.insert(session, collectionName, doc2);
+        RegistryDB.insert(session, collectionName, doc3);
+
+        Document retrieved = RegistryDB.getOne(session, collectionName, new Document().append("value", "anotherValue"));
+        assertNull(retrieved);
+
+        retrieved = RegistryDB.getOne(session, collectionName, new Document().append("value", "testValue"));
+        assertTrue(retrieved.equals(doc1) || retrieved.equals(doc2));
+
+        retrieved = RegistryDB.getOne(session, collectionName, new Document().append("val", "moreDifferentValue"));
+        assertEquals(doc3, retrieved);
+    }
+
+    @Test
+    void isInitialized() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        assertFalse(RegistryDB.isInitialized(session));
+
+        // TODO implement the rest of the test when initialization flag is set in the DB - after tasks are executed
+    }
+
+    @Test
+    void getMaxValue() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        Document doc1 = new Document("value", 10);
+        Document doc2 = new Document("value", 20);
+
+        RegistryDB.insert(session, collectionName, doc1);
+        RegistryDB.insert(session, collectionName, doc2);
+
+        Object retrieved = RegistryDB.getMaxValue(session, collectionName, "value");
+        assertEquals(20, retrieved);
+
+        retrieved = RegistryDB.getMaxValue(session, collectionName, "nonExistingField");
+        assertNull(retrieved);
+    }
+
+    @Test
+    void getMaxValueDocument() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+        String collectionName = "testCollection";
+
+        Document doc1 = new Document("value", 10).append("position", 1);
+        Document doc2 = new Document("value", 10).append("position", 2);
+        Document doc3 = new Document("value", 10).append("position", 5);
+
+        RegistryDB.insert(session, collectionName, doc1);
+        RegistryDB.insert(session, collectionName, doc2);
+        RegistryDB.insert(session, collectionName, doc3);
+
+        Document retrieved = RegistryDB.getMaxValueDocument(session, collectionName, new Document().append("value", 10), "position");
+        assertEquals(doc3, retrieved);
+    }
+
+    @Test
+    void recordHash() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        String valueToBeHashed = "testValue";
+        String expectedHash = Utils.getHash(valueToBeHashed);
+
+        RegistryDB.recordHash(session, valueToBeHashed);
+        assertEquals(expectedHash, RegistryDB.collection("hashes").find(new Document().append("value", valueToBeHashed)).first().getString("hash"));
+    }
+
+    @Test
+    void unhash() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        String valueToBeHashed = "testValue";
+        String valueHashed = Utils.getHash(valueToBeHashed);
+
+        RegistryDB.insert(session, "hashes", new Document("value", valueToBeHashed).append("hash", valueHashed));
+        String retrievedValue = RegistryDB.unhash(valueHashed);
+        assertEquals(valueToBeHashed, retrievedValue);
+
+        String nonExistingHash = Utils.getHash("anotherValue");
+        retrievedValue = RegistryDB.unhash(nonExistingHash);
+        assertNull(retrievedValue);
     }
 
     /**
