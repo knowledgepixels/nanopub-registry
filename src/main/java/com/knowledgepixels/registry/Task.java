@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.db.IndexInitializer;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -101,7 +102,7 @@ public enum Task implements Serializable {
                 throw new IllegalTaskStatusException("Illegal status for this task: " + getServerStatus(s));
             }
 
-            RegistryDB.initLoadingCollections(s);
+            IndexInitializer.initLoadingCollections(s);
 
             // since this may take long, we start with postfix "_loading"
             // and only at completion it's changed to trustPath, endorsements, accounts

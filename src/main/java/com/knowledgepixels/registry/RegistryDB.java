@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.db.IndexInitializer;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoNamespace;
 import com.mongodb.MongoWriteException;
@@ -9,8 +10,6 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.CountOptions;
-import com.mongodb.client.model.IndexOptions;
-import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.UpdateOptions;
 import net.trustyuri.TrustyUriUtils;
 import org.bson.Document;
@@ -33,7 +32,7 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 
-import static com.mongodb.client.model.Indexes.*;
+import static com.mongodb.client.model.Indexes.ascending;
 
 public class RegistryDB {
 
@@ -65,11 +64,15 @@ public class RegistryDB {
         return mongoClient;
     }
 
+    /**
+     * Returns the specified collection from the MongoDB database.
+     *
+     * @param name the name of the collection
+     * @return the MongoCollection instance
+     */
     public static MongoCollection<Document> collection(String name) {
         return mongoDB.getCollection(name);
     }
-
-    private final static IndexOptions unique = new IndexOptions().unique(true);
 
     /**
      * Initializes the MongoDB connection and sets up collections and indexes if not already initialized.
@@ -89,73 +92,8 @@ public class RegistryDB {
             if (isInitialized(mongoSession)) {
                 return;
             }
-
-            final IndexOptions unique = new IndexOptions().unique(true);
-
-            collection("tasks").createIndex(mongoSession, Indexes.descending("not-before"));
-
-            collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("fullId"), unique);
-            collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, descending("counter"), unique);
-            collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("pubkey"));
-
-            collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
-            collection("lists").createIndex(mongoSession, ascending("status"));
-
-            collection("listEntries").createIndex(mongoSession, ascending("np"));
-            collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "np"), unique);
-            collection("listEntries").createIndex(mongoSession, compoundIndex(ascending("pubkey"), ascending("type"), descending("position")), unique);
-            collection("listEntries").createIndex(mongoSession, ascending("pubkey", "type", "checksum"), unique);
-            collection("listEntries").createIndex(mongoSession, ascending("invalidated"));
-
-            collection("invalidations").createIndex(mongoSession, ascending("invalidatingNp"));
-            collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey"));
-            collection("invalidations").createIndex(mongoSession, ascending("invalidatedNp"));
-            collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey", "invalidatedNp"));
-
-            collection("trustEdges").createIndex(mongoSession, ascending("fromAgent"));
-            collection("trustEdges").createIndex(mongoSession, ascending("fromPubkey"));
-            collection("trustEdges").createIndex(mongoSession, ascending("toAgent"));
-            collection("trustEdges").createIndex(mongoSession, ascending("toPubkey"));
-            collection("trustEdges").createIndex(mongoSession, ascending("source"));
-            collection("trustEdges").createIndex(mongoSession, ascending("fromAgent", "fromPubkey", "toAgent", "toPubkey", "source"), unique);
-            collection("trustEdges").createIndex(mongoSession, ascending("invalidated"));
-
-            collection("hashes").createIndex(mongoSession, ascending("hash"), unique);
-            collection("hashes").createIndex(mongoSession, ascending("value"), unique);
+            IndexInitializer.initCollections(mongoSession);
         }
-    }
-
-    /**
-     * Initializes the loading collections with appropriate indexes.
-     *
-     * @param mongoSession the MongoDB client session
-     */
-    public static void initLoadingCollections(ClientSession mongoSession) {
-        collection("endorsements_loading").createIndex(mongoSession, ascending("agent"));
-        collection("endorsements_loading").createIndex(mongoSession, ascending("pubkey"));
-        collection("endorsements_loading").createIndex(mongoSession, ascending("endorsedNanopub"));
-        collection("endorsements_loading").createIndex(mongoSession, ascending("source"));
-        collection("endorsements_loading").createIndex(mongoSession, ascending("status"));
-        // zip: Hmm, not possible to set com.mongodb.client.model.WriteModel<T> here
-        // I'd currently recommend to have a package with the DB related stuff
-        // and therein a Custom Extension T of <Document>, where we could put that WriteModel<T>.
-
-        collection("agents_loading").createIndex(mongoSession, ascending("agent"), unique);
-        collection("agents_loading").createIndex(mongoSession, descending("accountCount"));
-        collection("agents_loading").createIndex(mongoSession, descending("avgPathCount"));
-        collection("agents_loading").createIndex(mongoSession, descending("totalRatio"));
-
-        collection("accounts_loading").createIndex(mongoSession, ascending("agent"));
-        collection("accounts_loading").createIndex(mongoSession, ascending("pubkey"));
-        collection("accounts_loading").createIndex(mongoSession, ascending("agent", "pubkey"), unique);
-        collection("accounts_loading").createIndex(mongoSession, ascending("type"));
-        collection("accounts_loading").createIndex(mongoSession, ascending("status"));
-        collection("accounts_loading").createIndex(mongoSession, descending("ratio"));
-        collection("accounts_loading").createIndex(mongoSession, descending("pathCount"));
-
-        collection("trustPaths_loading").createIndex(mongoSession, ascending("agent", "pubkey", "depth", "sorthash"), unique);
-        collection("trustPaths_loading").createIndex(mongoSession, ascending("depth"));
-        collection("trustPaths_loading").createIndex(mongoSession, descending("ratio"));
     }
 
     /**
