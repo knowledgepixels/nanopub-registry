@@ -92,7 +92,7 @@ public class Utils {
      *
      * @param reader the environment reader to set
      */
-    static void setEnvReader(ReadsEnvironment reader) {
+    public static void setEnvReader(ReadsEnvironment reader) {
         ENV_READER = reader;
     }
 

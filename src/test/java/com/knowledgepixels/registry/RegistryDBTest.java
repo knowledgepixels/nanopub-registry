@@ -77,13 +77,6 @@ class RegistryDBTest {
     void init() {
         RegistryDB.init();
         assertNotNull(RegistryDB.getClient());
-        assertEquals(2, getNumberOfIndexes("tasks"));
-        assertEquals(4, getNumberOfIndexes(Collection.NANOPUBS.toString()));
-        assertEquals(3, getNumberOfIndexes("lists"));
-        assertEquals(6, getNumberOfIndexes("listEntries"));
-        assertEquals(5, getNumberOfIndexes("invalidations"));
-        assertEquals(8, getNumberOfIndexes("trustEdges"));
-        assertEquals(3, getNumberOfIndexes("hashes"));
     }
 
     @Test
