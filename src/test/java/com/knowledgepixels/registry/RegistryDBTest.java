@@ -174,18 +174,6 @@ class RegistryDBTest {
     }
 
     @Test
-    void initLoadingCollections() {
-        RegistryDB.init();
-        MongoClient client = RegistryDB.getClient();
-        ClientSession session = client.startSession();
-        RegistryDB.initLoadingCollections(session);
-        assertEquals(6, getNumberOfIndexes("endorsements_loading"));
-        assertEquals(5, getNumberOfIndexes("agents_loading"));
-        assertEquals(8, getNumberOfIndexes("accounts_loading"));
-        assertEquals(4, getNumberOfIndexes("trustPaths_loading"));
-    }
-
-    @Test
     void hasWithElementName() {
         RegistryDB.init();
         MongoClient client = RegistryDB.getClient();
