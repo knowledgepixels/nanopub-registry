@@ -40,27 +40,13 @@ public class MainVerticle extends AbstractVerticle {
             // /agent/... | /agents | /agentAccounts
             ListPage.show(c);
         });
-        router.route(HttpMethod.GET, "/nanopubs*").handler(c -> {
-            ListPage.show(c);
-        });
-        router.route(HttpMethod.GET, "/list*").handler(c -> {
-            ListPage.show(c);
-        });
-        router.route(HttpMethod.GET, "/pubkeys*").handler(c -> {
-            ListPage.show(c);
-        });
-        router.route(HttpMethod.GET, "/np/").handler(c -> {
-            c.response().putHeader("Location", "/").setStatusCode(307).end();
-        });
-        router.route(HttpMethod.GET, "/np/*").handler(c -> {
-            NanopubPage.show(c);
-        });
-        router.route(HttpMethod.GET, "/debug/*").handler(c -> {
-            DebugPage.show(c);
-        });
-        router.route(HttpMethod.GET, "/style.css").handler(c -> {
-            ResourcePage.show(c, "style.css", "text/css");
-        });
+        router.route(HttpMethod.GET, "/nanopubs*").handler(c -> ListPage.show(c));
+        router.route(HttpMethod.GET, "/list*").handler(c -> ListPage.show(c));
+        router.route(HttpMethod.GET, "/pubkeys*").handler(c -> ListPage.show(c));
+        router.route(HttpMethod.GET, "/np/").handler(c -> c.response().putHeader("Location", "/").setStatusCode(307).end());
+        router.route(HttpMethod.GET, "/np/*").handler(c -> NanopubPage.show(c));
+        router.route(HttpMethod.GET, "/debug/*").handler(c -> DebugPage.show(c));
+        router.route(HttpMethod.GET, "/style.css").handler(c -> ResourcePage.show(c, "style.css", "text/css"));
 
         // Metrics
         final var metricsHttpServer = vertx.createHttpServer();
@@ -71,12 +57,8 @@ public class MainVerticle extends AbstractVerticle {
         final var collector = new MetricsCollector(metricsRegistry);
         metricsRouter.route("/metrics").handler(PrometheusScrapingHandler.create(metricsRegistry));
 
-        router.route(HttpMethod.GET, "/*").handler(c -> {
-            MainPage.show(c);
-        });
-        router.route(HttpMethod.HEAD, "/*").handler(c -> {
-            MainPage.show(c);
-        });
+        router.route(HttpMethod.GET, "/*").handler(c -> MainPage.show(c));
+        router.route(HttpMethod.HEAD, "/*").handler(c -> MainPage.show(c));
 
         Handler<RoutingContext> postHandler = c -> {
             c.request().bodyHandler(bh -> {
@@ -130,17 +112,13 @@ public class MainVerticle extends AbstractVerticle {
 
         // INIT
         vertx.executeBlocking(() -> {
-
+            logger.info("Starting DB initialization...");
             RegistryDB.init();
 
-            new Thread(() -> {
-                Task.runTasks();
-            }).start();
+            new Thread(Task::runTasks).start();
 
             return null;
-        }).onComplete(res -> {
-            logger.info("DB initialization finished");
-        });
+        }).onComplete(res -> logger.info("DB initialization finished"));
 
         // Periodic metrics update
         vertx.setPeriodic(1000, id -> collector.updateMetrics());
@@ -153,8 +131,7 @@ public class MainVerticle extends AbstractVerticle {
                 vertx.close().toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
                 logger.info("Graceful shutdown completed");
             } catch (Exception ex) {
-                logger.error("Graceful shutdown failed");
-                ex.printStackTrace();
+                logger.error("Graceful shutdown failed", ex);
             }
         }));
 
