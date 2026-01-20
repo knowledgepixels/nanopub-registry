@@ -3,6 +3,8 @@ package com.knowledgepixels.registry;
 import com.mongodb.client.ClientSession;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Optional;
@@ -13,6 +15,7 @@ import static com.knowledgepixels.registry.RegistryDB.*;
 
 public final class MetricsCollector {
 
+    private final Logger logger = LoggerFactory.getLogger(MetricsCollector.class);
     private final AtomicInteger loadCounter = new AtomicInteger(0);
     private final AtomicInteger trustStateCounter = new AtomicInteger(0);
     private final AtomicInteger agentCount = new AtomicInteger(0);
@@ -58,7 +61,7 @@ public final class MetricsCollector {
                 statusStates.get(status).set(status.equals(currentStatus) ? 1 : 0);
             }
         } catch (Exception e) {
-            System.err.printf("Error updating metrics: %s%n", e.getMessage());
+            logger.error("Error updating metrics: {}", e.getMessage());
         }
     }
 

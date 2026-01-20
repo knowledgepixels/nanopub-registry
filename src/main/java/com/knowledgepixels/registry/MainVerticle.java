@@ -18,6 +18,8 @@ import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.server.PublishNanopub;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
@@ -25,6 +27,8 @@ import static com.knowledgepixels.registry.RegistryDB.has;
 import static com.knowledgepixels.registry.RegistryDB.isSet;
 
 public class MainVerticle extends AbstractVerticle {
+
+    private final Logger logger = LoggerFactory.getLogger(MainVerticle.class);
 
     @Override
     public void start(Promise<Void> startPromise) {
@@ -88,9 +92,9 @@ public class MainVerticle extends AbstractVerticle {
                         try (ClientSession s = RegistryDB.getClient().startSession()) {
                             String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
                             if (has(s, Collection.NANOPUBS.toString(), ac)) {
-                                System.err.println("POST: known nanopub " + ac);
+                                logger.info("POST: known nanopub {}", ac);
                             } else {
-                                System.err.println("POST: new nanopub " + ac);
+                                logger.info("POST: new nanopub {}", ac);
 
                                 // TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
 
@@ -135,7 +139,7 @@ public class MainVerticle extends AbstractVerticle {
 
             return null;
         }).onComplete(res -> {
-            System.err.println("DB initialization finished");
+            logger.info("DB initialization finished");
         });
 
         // Periodic metrics update
@@ -144,12 +148,12 @@ public class MainVerticle extends AbstractVerticle {
         // SHUTDOWN
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                System.err.println("Gracefully shutting down...");
+                logger.info("Gracefully shutting down...");
                 RegistryDB.getClient().close();
                 vertx.close().toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
-                System.err.println("Graceful shutdown completed");
+                logger.info("Graceful shutdown completed");
             } catch (Exception ex) {
-                System.err.println("Graceful shutdown failed");
+                logger.error("Graceful shutdown failed");
                 ex.printStackTrace();
             }
         }));
