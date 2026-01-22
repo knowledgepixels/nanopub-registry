@@ -42,4 +42,22 @@ public class TestUtils {
         }
     }
 
+    /**
+     * Clears the specified static fields of the given class by setting them to the provided values.
+     *
+     * @param clazz          the class whose static fields are to be cleared
+     * @param fieldNameValue a map of field names to their desired values
+     */
+    public static void clearStaticFields(Class<?> clazz, Map<String, Object> fieldNameValue) {
+        fieldNameValue.forEach((fieldName, value) -> {
+            try {
+                var field = clazz.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.set(null, value);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
 }
