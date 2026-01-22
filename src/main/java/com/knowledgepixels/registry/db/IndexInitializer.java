@@ -21,7 +21,7 @@ public final class IndexInitializer {
     public static void initCollections(ClientSession mongoSession) {
         final IndexOptions unique = new IndexOptions().unique(true);
 
-        collection("tasks").createIndex(mongoSession, Indexes.descending("not-before"));
+        collection(Collection.TASKS.toString()).createIndex(mongoSession, Indexes.descending("not-before"));
 
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("fullId"), unique);
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, descending("counter"), unique);

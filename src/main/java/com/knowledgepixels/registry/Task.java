@@ -38,7 +38,9 @@ public enum Task implements Serializable {
             setServerStatus(s, launching);
 
             increaseStateCounter(s);
-            if (RegistryDB.isInitialized(s)) throw new RuntimeException("DB already initialized");
+            if (RegistryDB.isInitialized(s)) {
+                throw new RuntimeException("DB already initialized");
+            }
             setValue(s, Collection.SERVER_INFO.toString(), "setupId", Math.abs(Utils.getRandom().nextLong()));
             setValue(s, Collection.SERVER_INFO.toString(), "testInstance", "true".equals(System.getenv("REGISTRY_TEST_INSTANCE")));
             schedule(s, LOAD_CONFIG);
@@ -859,8 +861,8 @@ public enum Task implements Serializable {
         return true;
     }
 
-    private Document doc() {
-        return withDelay(0l);
+    Document asDocument() {
+        return withDelay(0L);
     }
 
     private Document withDelay(long delay) {
@@ -870,7 +872,7 @@ public enum Task implements Serializable {
     }
 
     private Document with(String key, Object value) {
-        return doc().append(key, value);
+        return asDocument().append(key, value);
     }
 
     // TODO Move these to setting:
@@ -881,7 +883,7 @@ public enum Task implements Serializable {
     private static final int MIN_USER_QUOTA = 100;
     private static final int MAX_USER_QUOTA = 10000;
 
-    private static MongoCollection<Document> tasks = collection("tasks");
+    private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
 
     /**
      * The super important base entry point!
@@ -893,7 +895,7 @@ public enum Task implements Serializable {
             }
 
             while (true) {
-                FindIterable<Document> taskResult = tasks.find(s).sort(ascending("not-before"));
+                FindIterable<Document> taskResult = tasksCollection.find(s).sort(ascending("not-before"));
                 Document taskDoc = taskResult.first();
                 long sleepTime = 10;
                 if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
@@ -933,8 +935,10 @@ public enum Task implements Serializable {
 
     static void runTask(Task task, Document taskDoc) throws Exception {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
+            log.info("Executing task: {}", task.name());
             task.run(s, taskDoc);
-            tasks.deleteOne(s, eq("_id", taskDoc.get("_id")));
+            tasksCollection.deleteOne(s, eq("_id", taskDoc.get("_id")));
+            log.info("Task {} completed and removed from queue.", task.name());
         }
     }
 
@@ -996,12 +1000,12 @@ public enum Task implements Serializable {
     }
 
     private static void schedule(ClientSession mongoSession, Task task) {
-        schedule(mongoSession, task.doc());
+        schedule(mongoSession, task.asDocument());
     }
 
     private static void schedule(ClientSession mongoSession, Document taskDoc) {
         log.info("Scheduling task: {}", taskDoc.get("action"));
-        tasks.insertOne(mongoSession, taskDoc);
+        tasksCollection.insertOne(mongoSession, taskDoc);
     }
 
 }

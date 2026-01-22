@@ -49,7 +49,7 @@ class IndexInitializerTest {
 
     @Test
     void initCollections() {
-        assertEquals(2, getNumberOfIndexes("tasks"));
+        assertEquals(2, getNumberOfIndexes(Collection.TASKS.toString()));
         assertEquals(4, getNumberOfIndexes(Collection.NANOPUBS.toString()));
         assertEquals(3, getNumberOfIndexes("lists"));
         assertEquals(6, getNumberOfIndexes("listEntries"));

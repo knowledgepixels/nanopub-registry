@@ -6,7 +6,9 @@ public enum Collection {
     SETTING("setting"),
     AGENTS("agents"),
     ACCOUNTS("accounts"),
-    NANOPUBS("nanopubs");
+    NANOPUBS("nanopubs"),
+
+    TASKS("tasks");
 
     private final String value;
 
