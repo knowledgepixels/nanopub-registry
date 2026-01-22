@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.MongoClient;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
@@ -17,10 +18,6 @@ import org.testcontainers.mongodb.MongoDBContainer;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,20 +29,8 @@ class RegistryDBTest {
 
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_DB_NAME", "nanopubRegistry");
-        fakeEnv.put("REGISTRY_DB_HOST", mongoDBContainer.getHost());
-        fakeEnv.put("REGISTRY_DB_PORT", String.valueOf(mongoDBContainer.getFirstMappedPort()));
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
-
-        Field mongoClientField = RegistryDB.class.getDeclaredField("mongoClient");
-        mongoClientField.setAccessible(true);
-        mongoClientField.set(null, null);
-
-        Field mongoDBField = RegistryDB.class.getDeclaredField("mongoDB");
-        mongoDBField.setAccessible(true);
-        mongoDBField.set(null, null);
+        TestUtils.setupFakeEnv(mongoDBContainer);
+        TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
     }
 
     @Test
@@ -398,18 +383,6 @@ class RegistryDBTest {
         String nonExistingHash = Utils.getHash("anotherValue");
         retrievedValue = RegistryDB.unhash(nonExistingHash);
         assertNull(retrievedValue);
-    }
-
-    /**
-     * Helper method to get the number of indexes in a collection. Keep in mind that MongoDB creates a default index on the _id field.
-     * So if you call createIndex once, the total number of indexes will be 2. And so on.
-     *
-     * @param collectionName the name of the collection
-     * @return the number of indexes
-     */
-    private int getNumberOfIndexes(String collectionName) {
-        MongoCollection<Document> collection = RegistryDB.collection(collectionName);
-        return collection.listIndexes().into(new ArrayList<>()).size();
     }
 
 }

@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
+import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.rdf4j.model.IRI;
@@ -34,13 +35,7 @@ class UtilsTest {
 
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
-        Field settingNp = Utils.class.getDeclaredField("settingNp");
-        settingNp.setAccessible(true);
-        settingNp.set(null, null);
-
-        Field peerUrls = Utils.class.getDeclaredField("peerUrls");
-        peerUrls.setAccessible(true);
-        peerUrls.set(null, null);
+        TestUtils.clearStaticFields(Utils.class, "settingNp", "peerUrls");
 
         Field reader = Utils.class.getDeclaredField("ENV_READER");
         reader.setAccessible(true);

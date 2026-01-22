@@ -1,9 +1,8 @@
 package com.knowledgepixels.registry.db;
 
 import com.knowledgepixels.registry.Collection;
-import com.knowledgepixels.registry.ReadsEnvironment;
 import com.knowledgepixels.registry.RegistryDB;
-import com.knowledgepixels.registry.Utils;
+import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.MongoClient;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
@@ -14,10 +13,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -29,21 +25,8 @@ class IndexInitializerTest {
 
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_DB_NAME", "nanopubRegistry");
-        fakeEnv.put("REGISTRY_DB_HOST", mongoDBContainer.getHost());
-        fakeEnv.put("REGISTRY_DB_PORT", String.valueOf(mongoDBContainer.getFirstMappedPort()));
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
-
-        Field mongoClientField = RegistryDB.class.getDeclaredField("mongoClient");
-        mongoClientField.setAccessible(true);
-        mongoClientField.set(null, null);
-
-        Field mongoDBField = RegistryDB.class.getDeclaredField("mongoDB");
-        mongoDBField.setAccessible(true);
-        mongoDBField.set(null, null);
-
+        TestUtils.setupFakeEnv(mongoDBContainer);
+        TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
         RegistryDB.init();
     }
 

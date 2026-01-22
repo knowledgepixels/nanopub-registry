@@ -1,14 +1,12 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static com.knowledgepixels.registry.RegistryDB.getValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,13 +19,9 @@ class TaskTest {
     private final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0");
 
     @BeforeEach
-    void setUp() {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_DB_NAME", "nanopubRegistry");
-        fakeEnv.put("REGISTRY_DB_HOST", mongoDBContainer.getHost());
-        fakeEnv.put("REGISTRY_DB_PORT", String.valueOf(mongoDBContainer.getFirstMappedPort()));
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
+    void setUp() throws NoSuchFieldException, IllegalAccessException {
+        TestUtils.setupFakeEnv(mongoDBContainer);
+        TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
     }
 
     @Test
