@@ -20,7 +20,6 @@ import org.nanopub.extra.setting.NanopubSetting;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -36,10 +35,9 @@ class UtilsTest {
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
         TestUtils.clearStaticFields(Utils.class, "settingNp", "peerUrls");
-
-        Field reader = Utils.class.getDeclaredField("ENV_READER");
-        reader.setAccessible(true);
-        reader.set(null, new ReadsEnvironment(System::getenv));
+        TestUtils.clearStaticFields(Utils.class, new HashMap<>() {{
+            put("ENV_READER", new ReadsEnvironment(System::getenv));
+        }});
     }
 
     @AfterEach
