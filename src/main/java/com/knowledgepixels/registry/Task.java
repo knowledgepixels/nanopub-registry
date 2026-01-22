@@ -1004,7 +1004,7 @@ public enum Task implements Serializable {
     }
 
     private static void schedule(ClientSession mongoSession, Document taskDoc) {
-        log.info("Scheduling task: {}", taskDoc.get("action"));
+        log.info("Scheduling task: {}", taskDoc.getString("action"));
         tasksCollection.insertOne(mongoSession, taskDoc);
     }
 
