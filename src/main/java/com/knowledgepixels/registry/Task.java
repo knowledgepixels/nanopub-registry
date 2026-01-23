@@ -695,7 +695,6 @@ public enum Task implements Serializable {
 
     UPDATE {
         public void run(ClientSession s, Document taskDoc) {
-
             ServerStatus status = getServerStatus(s);
             if (status == ready || status == coreReady) {
                 setServerStatus(s, updating);

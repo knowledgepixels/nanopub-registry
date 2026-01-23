@@ -4,6 +4,7 @@ import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.model.Sorts;
+import org.bson.Document;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
@@ -88,7 +91,33 @@ class TaskTest {
         assertNotNull(RegistryDB.getValue(mongoSession, Collection.SETTING.toString(), "bootstrap-services"));
 
         assertEquals(ServerStatus.coreLoading.toString(), getValue(mongoSession, Collection.SERVER_INFO.toString(), "status"));
-        assertEquals(RegistryDB.collection(Collection.TASKS.toString()).find(mongoSession).sort(Sorts.descending("not-before")).first().getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
+        List<Document> retrievedTasks = RegistryDB.collection(Collection.TASKS.toString())
+                .find(mongoSession)
+                .sort(Sorts.descending("not-before"))
+                .into(new ArrayList<>());
+        assertEquals(retrievedTasks.getFirst().getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
+        assertEquals(retrievedTasks.get(1).getString("action"), Task.INIT_COLLECTIONS.asDocument().getString("action"));
+    }
+
+    @Test
+    void loadFull() throws Exception {
+        Task.runTask(Task.INIT_DB, Task.INIT_DB.asDocument());
+        Task.runTask(Task.LOAD_CONFIG, Task.LOAD_CONFIG.asDocument());
+
+        TestUtils.copyResourceToDataDir("setting.trig");
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
+
+        Task.runTask(Task.LOAD_SETTING, Task.LOAD_SETTING.asDocument());
+        Task.runTask(Task.LOAD_FULL, Task.LOAD_FULL.asDocument());
+        ClientSession mongoSession = RegistryDB.getClient().startSession();
+
+        List<Document> retrievedTasks = RegistryDB.collection(Collection.TASKS.toString())
+                .find(mongoSession)
+                .sort(Sorts.descending("not-before"))
+                .into(new ArrayList<>());
+
+        assertEquals(retrievedTasks.getFirst().getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
+        assertEquals(retrievedTasks.get(1).getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
     }
 
 }
