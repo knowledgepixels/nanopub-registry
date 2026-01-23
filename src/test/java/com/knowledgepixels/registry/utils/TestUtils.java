@@ -2,6 +2,8 @@ package com.knowledgepixels.registry.utils;
 
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -10,6 +12,8 @@ import java.util.Map;
 public class TestUtils {
 
     private static FakeEnv fakeEnv;
+    private final static String TEMPORARY_DATA_DIR_NAME = "data";
+    private final static Path temporaryDataDir = Path.of(TEMPORARY_DATA_DIR_NAME);
 
     /**
      * Sets up a fake environment for testing.
@@ -68,6 +72,37 @@ public class TestUtils {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private static void prepareDataDir() throws Exception {
+        if (!Files.exists(temporaryDataDir)) {
+            Files.createDirectory(temporaryDataDir);
+        }
+    }
+
+    /**
+     * Cleans up the temporary data directory used for testing.
+     *
+     * @throws Exception if an error occurs during cleanup
+     */
+    public static void cleanupDataDir() throws Exception {
+        if (Files.exists(temporaryDataDir)) {
+            Files.walk(temporaryDataDir)
+                    .map(Path::toFile)
+                    .forEach(java.io.File::delete);
+            Files.deleteIfExists(temporaryDataDir);
+        }
+    }
+
+    /**
+     * Copies a resource file to the temporary data directory used for testing.
+     *
+     * @param resourceName the name of the resource file to copy
+     * @throws Exception if an error occurs during the copy operation
+     */
+    public static void copyResourceToDataDir(String resourceName) throws Exception {
+        prepareDataDir();
+        Files.copy(Path.of(resourceName), temporaryDataDir.resolve(resourceName));
     }
 
 }
