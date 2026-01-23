@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
+import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import org.apache.commons.io.FileUtils;
@@ -22,7 +23,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,8 +36,11 @@ import static org.mockito.Mockito.mockStatic;
 
 class UtilsTest {
 
+    private FakeEnv fakeEnv;
+
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
+        fakeEnv = TestUtils.setupFakeEnv();
         TestUtils.clearStaticFields(Utils.class, "settingNp", "peerUrls");
         TestUtils.clearStaticFields(Utils.class, new HashMap<>() {{
             put("ENV_READER", new ReadsEnvironment(System::getenv));
@@ -42,6 +49,7 @@ class UtilsTest {
 
     @AfterEach
     void tearDown() throws IOException {
+        fakeEnv.reset();
         FileUtils.deleteDirectory(new File("data"));
     }
 
@@ -173,7 +181,6 @@ class UtilsTest {
 
     @Test
     void getSettingWithoutSettingsFile() {
-
         assertThrows(FileNotFoundException.class, Utils::getSetting);
     }
 
@@ -183,10 +190,7 @@ class UtilsTest {
         Files.createDirectory(dataDir);
         Files.copy(Path.of("setting.trig"), dataDir.resolve("setting.trig"));
 
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_SETTING_FILE", "./data/setting.trig");
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
         NanopubSetting settingValue = Utils.getSetting();
         assertNotNull(settingValue);
 
@@ -200,12 +204,12 @@ class UtilsTest {
 
     @Test
     void getPeerUrlsWithSettingFile() {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_PEER_URLS", "");
-        fakeEnv.put("REGISTRY_SERVICE_URL", "");
-        fakeEnv.put("REGISTRY_SETTING_FILE", "setting.trig");
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
+        fakeEnv
+                .addVariable("REGISTRY_PEER_URLS", "")
+                .addVariable("REGISTRY_SERVICE_URL", "")
+                .addVariable("REGISTRY_SETTING_FILE", "setting.trig")
+                .build();
+
         List<String> expectedPeerUrls = List.of("https://registry.petapico.org/", "https://registry.nanodash.net/", "https://registry.knowledgepixels.com/");
         assertEquals(expectedPeerUrls, Utils.getPeerUrls());
 
@@ -215,23 +219,22 @@ class UtilsTest {
 
     @Test
     void getPeerUrlsWithNotEmptyPeerUrlsVariable() {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_PEER_URLS", "https://registry.nanodash.net/;https://registry.knowledgepixels.com/");
-        fakeEnv.put("REGISTRY_SERVICE_URL", "https://registry.petapico.org/");
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
+        fakeEnv.addVariable("REGISTRY_PEER_URLS", "https://registry.nanodash.net/;https://registry.knowledgepixels.com/")
+                .addVariable("REGISTRY_SERVICE_URL", "https://registry.petapico.org/")
+                .build();
+
         List<String> expectedPeerUrls = List.of("https://registry.nanodash.net/", "https://registry.knowledgepixels.com/");
         assertEquals(expectedPeerUrls, Utils.getPeerUrls());
     }
 
     @Test
     void getRandomPeer() {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_PEER_URLS", "");
-        fakeEnv.put("REGISTRY_SERVICE_URL", "");
-        fakeEnv.put("REGISTRY_SETTING_FILE", "setting.trig");
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
+        fakeEnv
+                .addVariable("REGISTRY_PEER_URLS", "")
+                .addVariable("REGISTRY_SERVICE_URL", "")
+                .addVariable("REGISTRY_SETTING_FILE", "setting.trig")
+                .build();
+
         List<String> peerUrls = Utils.getPeerUrls();
         String randomPeer = Utils.getRandomPeer();
         assertTrue(peerUrls.contains(randomPeer));

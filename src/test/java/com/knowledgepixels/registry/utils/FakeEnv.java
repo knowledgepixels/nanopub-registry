@@ -56,11 +56,12 @@ public class FakeEnv {
     }
 
     /**
-     * Resets the fake environment and sets the environment reader back to the system environment.
+     * Resets the fake environment to its initial state and restores the original environment reader.
      */
     public void reset() {
-        logger.info("Resetting fake environment and setting the environment reader back to system environment");
+        logger.info("Resetting fake environment");
         this.variables.clear();
+        instance = null;
         Utils.setEnvReader(new ReadsEnvironment(System::getenv));
     }
 

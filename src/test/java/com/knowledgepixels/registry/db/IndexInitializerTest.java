@@ -2,11 +2,13 @@ package com.knowledgepixels.registry.db;
 
 import com.knowledgepixels.registry.Collection;
 import com.knowledgepixels.registry.RegistryDB;
+import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.MongoClient;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
 import org.bson.Document;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
@@ -20,14 +22,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Testcontainers
 class IndexInitializerTest {
 
+    private FakeEnv fakeEnv;
+
     @Container
     private final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0");
 
     @BeforeEach
     void setUp() throws NoSuchFieldException, IllegalAccessException {
-        TestUtils.setupFakeEnv(mongoDBContainer);
+        fakeEnv = TestUtils.setupFakeEnv();
+        TestUtils.setupDBEnv(mongoDBContainer, "nanopubRegistry");
         TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
         RegistryDB.init();
+    }
+
+    @AfterEach
+    void tearDown() {
+        fakeEnv.reset();
     }
 
     @Test
