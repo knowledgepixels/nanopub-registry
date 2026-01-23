@@ -1,10 +1,7 @@
 package com.knowledgepixels.registry.utils;
 
-import com.knowledgepixels.registry.ReadsEnvironment;
-import com.knowledgepixels.registry.Utils;
 import org.testcontainers.mongodb.MongoDBContainer;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -12,18 +9,31 @@ import java.util.Map;
  */
 public class TestUtils {
 
+    private static FakeEnv fakeEnv;
+
     /**
-     * Sets up a fake environment for testing with the provided MongoDB container.
+     * Sets up a fake environment for testing.
      *
-     * @param mongoDBContainer the MongoDB container to use for the fake environment
      */
-    public static void setupFakeEnv(MongoDBContainer mongoDBContainer) {
-        Map<String, String> fakeEnv = new HashMap<>();
-        fakeEnv.put("REGISTRY_DB_NAME", "nanopubRegistry");
-        fakeEnv.put("REGISTRY_DB_HOST", mongoDBContainer.getHost());
-        fakeEnv.put("REGISTRY_DB_PORT", String.valueOf(mongoDBContainer.getFirstMappedPort()));
-        ReadsEnvironment reader = new ReadsEnvironment(fakeEnv::get);
-        Utils.setEnvReader(reader);
+    public static FakeEnv setupFakeEnv() {
+        fakeEnv = FakeEnv.getInstance();
+        return fakeEnv;
+    }
+
+    /**
+     * Sets up the database environment variables for testing.
+     *
+     * @param mongoDBContainer the MongoDB container to use
+     * @param dbName           the name of the database
+     */
+    public static void setupDBEnv(MongoDBContainer mongoDBContainer, String dbName) {
+        if (fakeEnv == null) {
+            throw new IllegalStateException("FakeEnv not initialized. Call setupFakeEnv() first.");
+        }
+        fakeEnv.addVariable("REGISTRY_DB_NAME", dbName)
+                .addVariable("REGISTRY_DB_HOST", mongoDBContainer.getHost())
+                .addVariable("REGISTRY_DB_PORT", String.valueOf(mongoDBContainer.getFirstMappedPort()))
+                .build();
     }
 
     /**
