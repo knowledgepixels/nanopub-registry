@@ -4,7 +4,6 @@ import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.model.Sorts;
-import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,12 +11,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.Map;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryDB.getValue;
@@ -48,8 +42,8 @@ class TaskTest {
     }
 
     @AfterEach
-    void tearDown() throws IOException {
-        FileUtils.deleteDirectory(new File("data"));
+    void tearDown() throws Exception {
+        TestUtils.cleanupDataDir();
         fakeEnv.reset();
     }
 
@@ -82,11 +76,8 @@ class TaskTest {
         Task.runTask(Task.INIT_DB, Task.INIT_DB.asDocument());
         Task.runTask(Task.LOAD_CONFIG, Task.LOAD_CONFIG.asDocument());
 
-        Path dataDir = Path.of("data");
-        Files.createDirectory(dataDir);
-        Files.copy(Path.of("setting.trig"), dataDir.resolve("setting.trig"));
-        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig");
-        fakeEnv.build();
+        TestUtils.copyResourceToDataDir("setting.trig");
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
 
         Task.runTask(Task.LOAD_SETTING, Task.LOAD_SETTING.asDocument());
         ClientSession mongoSession = RegistryDB.getClient().startSession();

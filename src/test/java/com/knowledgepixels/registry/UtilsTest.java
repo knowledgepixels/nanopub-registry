@@ -5,7 +5,6 @@ import com.google.common.hash.Hashing;
 import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
-import org.apache.commons.io.FileUtils;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.util.Values;
 import org.junit.jupiter.api.AfterEach;
@@ -21,8 +20,6 @@ import org.nanopub.extra.setting.NanopubSetting;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
@@ -48,9 +45,9 @@ class UtilsTest {
     }
 
     @AfterEach
-    void tearDown() throws IOException {
+    void tearDown() throws Exception {
         fakeEnv.reset();
-        FileUtils.deleteDirectory(new File("data"));
+        TestUtils.cleanupDataDir();
     }
 
     @Test
@@ -185,12 +182,10 @@ class UtilsTest {
     }
 
     @Test
-    void getSettingWithSettingFile() throws IOException, MalformedNanopubException {
-        Path dataDir = Path.of("data");
-        Files.createDirectory(dataDir);
-        Files.copy(Path.of("setting.trig"), dataDir.resolve("setting.trig"));
-
+    void getSettingWithSettingFile() throws Exception {
+        TestUtils.copyResourceToDataDir("setting.trig");
         fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
+
         NanopubSetting settingValue = Utils.getSetting();
         assertNotNull(settingValue);
 
