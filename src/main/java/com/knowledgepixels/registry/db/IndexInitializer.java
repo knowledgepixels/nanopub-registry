@@ -4,6 +4,8 @@ import com.knowledgepixels.registry.Collection;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.mongodb.client.model.Indexes.*;
@@ -13,12 +15,15 @@ import static com.mongodb.client.model.Indexes.*;
  */
 public final class IndexInitializer {
 
+    private static final Logger logger = LoggerFactory.getLogger(IndexInitializer.class);
+
     /**
      * Initializes indexes for the main MongoDB collections.
      *
      * @param mongoSession the client session for MongoDB operations
      */
     public static void initCollections(ClientSession mongoSession) {
+        logger.info("Initializing MongoDB indexes for main collections...");
         final IndexOptions unique = new IndexOptions().unique(true);
 
         collection(Collection.TASKS.toString()).createIndex(mongoSession, Indexes.descending("not-before"));
@@ -57,6 +62,7 @@ public final class IndexInitializer {
      * Initializes indexes for loading-related MongoDB collections.
      */
     public static void initLoadingCollections(ClientSession mongoSession) {
+        logger.info("Initializing MongoDB indexes for loading collections...");
         final IndexOptions unique = new IndexOptions().unique(true);
 
         collection("endorsements_loading").createIndex(mongoSession, ascending("agent"));

@@ -39,7 +39,7 @@ public class LegacyConnector {
     }
 
     private static String checkUrl(ClientSession mongoSession, String url) {
-        log.info("Checking legacy URL {}", url);
+        log.info("Checking legacy URL for new nanopubs: {}", url);
         HttpGet get = new HttpGet(url);
         get.setHeader("Accept", "text/plain");
         HttpResponse resp = null;

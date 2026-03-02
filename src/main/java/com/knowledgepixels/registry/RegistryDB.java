@@ -194,6 +194,7 @@ public class RegistryDB {
      * @return the value of the element, or null if not found
      */
     public static Object getValue(ClientSession mongoSession, String collection, String elementName) {
+        logger.info("Getting value of element '{}' from collection '{}'", elementName, collection);
         Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
         if (d == null) {
             return null;
