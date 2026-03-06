@@ -386,8 +386,12 @@ public enum Task implements Serializable {
                 trustPath = null;
             }
 
-            if (trustPath == null) {
+            if (agentAccount == null) {
                 schedule(s, FINISH_ITERATION.with("depth", depth).append("load-count", loadCount));
+            } else if (trustPath == null) {
+                // Account was seen but has no trust path at this depth; skip it
+                set(s, "accounts_loading", agentAccount.append("status", skipped.getValue()));
+                schedule(s, LOAD_CORE.with("depth", depth).append("load-count", loadCount));
             } else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
                 set(s, "accounts_loading", agentAccount.append("status", skipped.getValue()));
                 Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
