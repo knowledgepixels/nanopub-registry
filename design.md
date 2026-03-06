@@ -39,6 +39,7 @@ Trusted agents:
 
 Quotas:
 
+- Quotas are computed per account from trust path ratios (stored as a `quota` field on each entry in the `accounts` collection)
 - For any trusted agent, if the number of nanopublications found on other registries is smaller than the agent's quota, all nanopublications are loaded
 
 
@@ -111,14 +112,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       coverageTypes:_all_
       globalQuota: 1000000
       stateCounter: 1423293
-    quotas:
-      { for#:_anyone_ quota:10 }
-      { for#:_approved_ quota:'global*ratio' }
-      { for#:JohnDoe/a83 quota:'global*ratio*10' }
-      { for#:SueRich/b55 quota:1000000 }
-      ...
-    pubkeys:
-      { id#:a83, fullPubkey:4e8d9x... }
+    hashes:
+      { hash*:a83, value*:4e8d9x... }
       ...
     lists:
       { pubkey**:a83, type**:_all_, status^:loading }
@@ -138,12 +133,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     nanopubs:
       { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
       ...
-    pubkeyDeclarations:
-      { declaration^:RA..., status^:loaded , agent^:JohnDoe, pubkey^:a83, declarationPubkey^:a83}
-      { declaration^:RA..., status^:toLoad }
-      ...
     endorsements:
-      { agent^:JohnDoe, pubkey^:a83, endorsedNanopub^:RA..., source^:RA... }
+      { agent^:JohnDoe, pubkey^:a83, endorsedNanopub^:RA..., source^:RA..., status^:retrieved }
       ...
     setting:
       original: RA123...
