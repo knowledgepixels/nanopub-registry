@@ -18,7 +18,7 @@ public class RegistryInfo implements Serializable {
     private String trustStateHash;
     private String status;
     private String coverageTypes;
-    private String coverateAgents;
+    private String coverageAgents;
     private String currentSetting;
     private String originalSetting;
     private Long agentCount;
@@ -38,7 +38,7 @@ public class RegistryInfo implements Serializable {
         ri.loadCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
         ri.status = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
         ri.coverageTypes = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes");
-        ri.coverateAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");
+        ri.coverageAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");
         ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");
         ri.originalSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "original");
         ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
