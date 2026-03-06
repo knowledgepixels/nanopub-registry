@@ -727,7 +727,7 @@ public enum Task implements Serializable {
                     setServerStatus(s, ready);
                 }
                 log.info("Scheduling optional loading checks");
-                schedule(s, CHECK_MORE_PUBKEYS.withDelay(100));
+                schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
@@ -843,7 +843,8 @@ public enum Task implements Serializable {
 
     CHECK_NEW {
         public void run(ClientSession s, Document taskDoc) {
-            // TODO Replace this legacy connection with checks at other Nanopub Registries:
+            RegistryPeerConnector.checkPeers(s);
+            // Keep legacy connection during transition period:
             LegacyConnector.checkForNewNanopubs(s);
             // TODO Somehow throttle the loading of such potentially non-approved nanopubs
 

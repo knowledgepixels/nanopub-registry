@@ -8,7 +8,8 @@ public enum Collection {
     ACCOUNTS("accounts"),
     NANOPUBS("nanopubs"),
 
-    TASKS("tasks");
+    TASKS("tasks"),
+    PEER_STATE("peerState");
 
     private final String value;
 
