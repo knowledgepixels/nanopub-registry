@@ -76,19 +76,19 @@ See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 
 To update nanopublications from peer Nanopub Registries, the steps below are followed. A Nanopub Registry prepares itself for these updates like this:
 
-- Keep a list of peer services, together with info from the last time they were visited, most importantly `setup-id`, `state-counter`, and `status`.
-- (`state-counter` is roughly the total number of nanopublication load events that have ever occurred on this instance, including those for pubkeys that have been unloaded since; but this still needs some proper write-up/specification)
+- Keep a list of peer services, together with info from the last time they were visited, most importantly `setupId`, `stateCounter`, and `status`.
+- (`stateCounter` is roughly the total number of nanopublication load events that have ever occurred on this instance, including those for pubkeys that have been unloaded since; but this still needs some proper write-up/specification)
 - This list of peer services includes the services listed in the settings as well as services approved by approved agents (to be specified how this works exactly).
 - Keep info also about the specific pubkey/type lists that were visited at these peer services, most importantly the position up to which we had checked and loaded all nanopublications
 
 For a registry to update its nanopublications, it iterates over the list of peer services and performs these steps on each of them:
 
-1. Retrieve the basic info of the chosen peer service, i.e. `setup-id`, `state-counter`, and `status`.
-2. If we have info about this peer service from an earlier request, but the `setup-id` is different, this means that the service has been reset in the meantime and our previous info about it is no longer valid. So, we delete the old info and treat it as an unknown service.
-3. If `setup-id` and `state-counter` both haven't changed since our last request, then there is nothing new on this peer service, and we can abort this process and move to the next peer service.
+1. Retrieve the basic info of the chosen peer service, i.e. `setupId`, `stateCounter`, and `status`.
+2. If we have info about this peer service from an earlier request, but the `setupId` is different, this means that the service has been reset in the meantime and our previous info about it is no longer valid. So, we delete the old info and treat it as an unknown service.
+3. If `setupId` and `stateCounter` both haven't changed since our last request, then there is nothing new on this peer service, and we can abort this process and move to the next peer service.
 4. If `status` is `loading` (or other non-ready status; to be specified), we ignore this instance for now and abort this process and move to the next peer service.
-5. If `state-counter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), request these nanopublications and load them to the respective lists. Then we abort this process and move to the next peer service.
-6. If `state-counter` has increased by more, we iterate over all our pubkeys to ask the peer service about them.
+5. If `stateCounter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), request these nanopublications and load them to the respective lists. Then we abort this process and move to the next peer service.
+6. If `stateCounter` has increased by more, we iterate over all our pubkeys to ask the peer service about them.
 7. Retrieve info about the specific pubkey list (with type = `$` standing for "all types"; more specific algorithms to be determined for the cases where services store only certain types), most importantly the maximum position (= size of list) and the overall checksum
 8. If our list has the same checksum (and therefore same size), there is nothing new and we can move on with checking the next pubkey.
 9. We calculate the maximum number of unknown nanopublications in the peer list, taking into account the info we have from any previous request (e.g. if the peer list has size 13, and we had checked the nanopublications up to position 5 the last time, then the maximum number of unknown nanopublications is 8)
@@ -102,15 +102,15 @@ For a registry to update its nanopublications, it iterates over the list of peer
 
 Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)
 
-    server-info:
-      setup-id: 1332309348
+    serverInfo:
+      setupId: 1332309348
       status: ready
-      last-update: 20240316-...
-      last-uptodate: 20240317-...
-      coverage-agents:_viaSetting_
-      coverage-types:_all_
-      global-quota: 1000000
-      state-counter: 1423293
+      lastUpdate: 20240316-...
+      lastUptodate: 20240317-...
+      coverageAgents:_viaSetting_
+      coverageTypes:_all_
+      globalQuota: 1000000
+      stateCounter: 1423293
     quotas:
       { for#:_anyone_ quota:10 }
       { for#:_approved_ quota:'global*ratio' }
@@ -118,12 +118,12 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { for#:SueRich/b55 quota:1000000 }
       ...
     pubkeys:
-      { id#:a83, full-pubkey:4e8d9x... }
+      { id#:a83, fullPubkey:4e8d9x... }
       ...
     lists:
       { pubkey**:a83, type**:_all_, status^:loading }
       ...
-    list-entries:
+    listEntries:
       { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX... }
       { pubkey**:a83, type**:_all_, position**:1, np**:RA..., checksum**:XX... }
       { pubkey**:a83, type**:_all_, position**:2, np**:RA..., checksum**:XX... }
@@ -133,50 +133,50 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { pubkey**:a83, type**:intro, position**:2, np**:RA..., checksum**:XX... }
       ...
     invalidations:
-      { invalidating-np^:RA..., invalidating-pubkey^:a83, invalidated-np^:RA... }
+      { invalidatingNp^:RA..., invalidatingPubkey^:a83, invalidatedNp^:RA... }
       ...
     nanopubs:
-      { id#:RA..., full-id*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
+      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
       ...
-    pubkey-declarations:
-      { declaration^:RA..., status^:loaded , agent^:JohnDoe, pubkey^:a83, declaration-pubkey^:a83}
-      { declaration^:RA..., status^:to-load }
+    pubkeyDeclarations:
+      { declaration^:RA..., status^:loaded , agent^:JohnDoe, pubkey^:a83, declarationPubkey^:a83}
+      { declaration^:RA..., status^:toLoad }
       ...
     endorsements:
-      { agent^:JohnDoe, pubkey^:a83, endorsed-nanopub^:RA..., source^:RA... }
+      { agent^:JohnDoe, pubkey^:a83, endorsedNanopub^:RA..., source^:RA... }
       ...
     setting:
       original: RA123...
       current: RA...
       status: loaded
-      last-update: 20240316-...
+      lastUpdate: 20240316-...
       status: completed
-      link-threshold: 0.000001
-      bootstrap-services: [..., ...]
+      linkThreshold: 0.000001
+      bootstrapServices: [..., ...]
     accounts:
-      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independent-paths:3, quota:1362000, status:loaded }
+      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independentPaths:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     agents:
-      { agent**:JohnDoe, total-ratio^:0.1732, account-count:3, avg-path-count:2.5 }
+      { agent**:JohnDoe, totalRatio^:0.1732, accountCount:3, avgPathCount:2.5 }
       { agent**:SueRich, ... }
       ...
-    trust-edges:
-      { from-agent^:$, from-pubkey^:$, to-agent^:JohnDoe to-pubkey^:a83, source^:RA... }
-      { from-agent^:JohnDoe, from-pubkey^:a83, to-agent^:SueRich to-pubkey^:b55, source^:RA... }
-      { from-agent^:SueRich, from-pubkey^:b55, to-agent^:EveBlue to-pubkey^:c43, source^:RA... }
+    trustEdges:
+      { fromAgent^:$, fromPubkey^:$, toAgent^:JohnDoe toPubkey^:a83, source^:RA... }
+      { fromAgent^:JohnDoe, fromPubkey^:a83, toAgent^:SueRich toPubkey^:b55, source^:RA... }
+      { fromAgent^:SueRich, fromPubkey^:b55, toAgent^:EveBlue toPubkey^:c43, source^:RA... }
       ...
-    trust-paths:
+    trustPaths:
       { id#:'JohnDoe>a83', depth^:1, agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
       { id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
       { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     tasks:
-      { not-before^:20240317-..., action^:check-np, peer:'https://example.com/peer', type:_all_, position:1538, retry-count:0 }
-      { not-before^:20240317-..., ... }
+      { notBefore^:20240317-..., action^:checkNp, peer:'https://example.com/peer', type:_all_, position:1538, retryCount:0 }
+      { notBefore^:20240317-..., ... }
       ...
-      { not-before^:20240229-..., ... }
+      { notBefore^:20240229-..., ... }
 
 See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java).
 
