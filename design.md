@@ -106,11 +106,11 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     serverInfo:
       setupId: 1332309348
       status: ready
-      lastUpdate: 20240316-...
-      lastUptodate: 20240317-...
+      lastTrustStateUpdate: 2024-03-16T...
+      lastUptodate: 20240317-...  (not yet implemented; to be added with peer sync)
       coverageAgents:_viaSetting_
       coverageTypes:_all_
-      globalQuota: 1000000
+      globalQuota: 1000000  (not yet implemented; currently a hardcoded constant, to be moved to setting)
       stateCounter: 1423293
     hashes:
       { hash*:a83, value*:4e8d9x... }
