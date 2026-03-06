@@ -68,7 +68,44 @@ Quotas:
 - Once a compromised pubkey is identified as such, the respective nanopublications can be efficiently unloaded from a registry, as all lists are clearly separated by pubkey
 
 
+## HTTP API
+
+All responses include the following headers:
+
+- `Nanopub-Registry-Status` — registry status (`launching`, `coreLoading`, `coreReady`, `updating`, `ready`)
+- `Nanopub-Registry-Setup-Id` — unique ID, changes on reset
+- `Nanopub-Registry-Trust-State-Counter` — incremented on trust state changes
+- `Nanopub-Registry-Last-Trust-State-Update` — ISO 8601 timestamp of last trust state update
+- `Nanopub-Registry-Trust-State-Hash` — SHA256 hash of the current trust state
+- `Nanopub-Registry-Load-Counter` — max counter value from nanopubs collection
+- `Nanopub-Registry-Test-Instance` — `true` if this is a test instance
+
+Endpoints:
+
+- `GET /` — registry info (HTML or JSON via `/.json`)
+- `GET /list` — all accounts (JSON)
+- `GET /list/{pubkeyHash}` — all lists for a pubkey (JSON)
+- `GET /list/{pubkeyHash}/{typeHash}.json` — list entries with positions and checksums (JSON)
+- `GET /list/{pubkeyHash}/{typeHash}.jelly` — nanopubs in a list (Jelly binary stream)
+- `GET /pubkeys` — all pubkey hashes (JSON)
+- `GET /agent/{agentId}` — agent info (JSON)
+- `GET /agents` — all agents (JSON)
+- `GET /np/{artifactCode}` — single nanopub (TriG, Jelly, JSON-LD, NQ, XML, or HTML)
+- `POST /` — submit a nanopub (TriG or other RDF format)
+
+See [MainVerticle.java](src/main/java/com/knowledgepixels/registry/MainVerticle.java).
+
+
 ## Task Workflow
+
+Tasks are scheduled and executed sequentially from a `tasks` collection. The main flow:
+
+1. `INIT_DB` → `LOAD_CONFIG` → `LOAD_SETTING` → `INIT_COLLECTIONS` — bootstrap the registry
+2. `LOAD_DECLARATIONS` → `EXPAND_TRUST_PATHS` → `LOAD_CORE` — iteratively load core nanopubs and build the trust network
+3. `FINISH_ITERATION` — repeats step 2 until no more changes
+4. `CALCULATE_TRUST_SCORES` → `AGGREGATE_AGENTS` → `ASSIGN_PUBKEYS` → `DETERMINE_UPDATES` → `FINALIZE_TRUST_STATE` → `RELEASE_DATA` — compute trust scores and quotas, swap in new data
+5. `UPDATE` → `LOAD_FULL` — load all nanopubs for trusted accounts
+6. `CHECK_MORE_PUBKEYS` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — discover new pubkeys from peers, load new nanopubs, then loop back to `LOAD_FULL`
 
 See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 
@@ -131,7 +168,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidatingNp^:RA..., invalidatingPubkey^:a83, invalidatedNp^:RA... }
       ...
     nanopubs:
-      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...' }
+      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...', jelly:<binary> }
       ...
     endorsements:
       { agent^:JohnDoe, pubkey^:a83, endorsedNanopub^:RA..., source^:RA..., status^:retrieved }
@@ -139,11 +176,9 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     setting:
       original: RA123...
       current: RA...
-      status: loaded
-      lastUpdate: 20240316-...
-      status: completed
-      linkThreshold: 0.000001
-      bootstrapServices: [..., ...]
+      bootstrap-services: [..., ...]
+      status: loaded  (not yet implemented)
+      linkThreshold: 0.000001  (not yet implemented; currently hardcoded as MIN_TRUST_PATH_RATIO)
     accounts:
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independentPaths:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
