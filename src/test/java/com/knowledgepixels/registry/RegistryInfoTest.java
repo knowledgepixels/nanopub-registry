@@ -16,7 +16,7 @@ class RegistryInfoTest {
     public static final String TRUST_STATE_HASH = "hash_value";
     public static final String STATUS = "test_running";
     public static final String COVERAGE_TYPES = "coverage_type";
-    public static final String COVERATE_AGENTS = "coverage_agent";
+    public static final String COVERAGE_AGENTS = "coverage_agent";
     public static final String CURRENT_SETTING = "current_setting";
     public static final String ORIGINAL_SETTING = "original_setting";
     public static final Long AGENT_COUNT = 0L;
@@ -36,7 +36,7 @@ class RegistryInfoTest {
             registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "counter")).thenReturn(LOAD_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "status")).thenReturn(STATUS);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageTypes")).thenReturn(COVERAGE_TYPES);
-            registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageAgents")).thenReturn(COVERATE_AGENTS);
+            registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageAgents")).thenReturn(COVERAGE_AGENTS);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "current")).thenReturn(CURRENT_SETTING);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "original")).thenReturn(ORIGINAL_SETTING);
 
@@ -62,7 +62,7 @@ class RegistryInfoTest {
                                   + "\"trustStateHash\":\"" + TRUST_STATE_HASH + "\","
                                   + "\"status\":\"" + STATUS + "\","
                                   + "\"coverageTypes\":\"" + COVERAGE_TYPES + "\","
-                                  + "\"coverateAgents\":\"" + COVERATE_AGENTS + "\","
+                                  + "\"coverageAgents\":\"" + COVERAGE_AGENTS + "\","
                                   + "\"currentSetting\":\"" + CURRENT_SETTING + "\","
                                   + "\"originalSetting\":\"" + ORIGINAL_SETTING + "\","
                                   + "\"agentCount\":" + AGENT_COUNT + ","
@@ -86,7 +86,7 @@ class RegistryInfoTest {
             registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "counter")).thenReturn(LOAD_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "status")).thenReturn(STATUS);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageTypes")).thenReturn(COVERAGE_TYPES);
-            registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageAgents")).thenReturn(COVERATE_AGENTS);
+            registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageAgents")).thenReturn(COVERAGE_AGENTS);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "current")).thenReturn(CURRENT_SETTING);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "original")).thenReturn(ORIGINAL_SETTING);
 
@@ -112,7 +112,7 @@ class RegistryInfoTest {
                                   + "\"trustStateHash\":\"" + TRUST_STATE_HASH + "\","
                                   + "\"status\":\"" + STATUS + "\","
                                   + "\"coverageTypes\":\"" + COVERAGE_TYPES + "\","
-                                  + "\"coverateAgents\":\"" + COVERATE_AGENTS + "\","
+                                  + "\"coverageAgents\":\"" + COVERAGE_AGENTS + "\","
                                   + "\"currentSetting\":\"" + CURRENT_SETTING + "\","
                                   + "\"originalSetting\":\"" + ORIGINAL_SETTING + "\","
                                   + "\"agentCount\":" + AGENT_COUNT + ","
