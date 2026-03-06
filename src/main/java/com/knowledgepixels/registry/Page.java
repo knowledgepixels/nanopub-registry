@@ -35,12 +35,12 @@ public abstract class Page {
 
         // TODO See whether we can cache these better on our side. Not sure how efficient the MongoDB caching is for these
         //      kinds of DB queries...
-        context.response().putHeader("Nanopub-Registry-Status", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "status"));
-        context.response().putHeader("Nanopub-Registry-Setup-Id", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId"));
-        context.response().putHeader("Nanopub-Registry-Trust-State-Counter", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter"));
-        context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate"));
-        context.response().putHeader("Nanopub-Registry-Trust-State-Hash", (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash"));
-        context.response().putHeader("Nanopub-Registry-Load-Counter", (String) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter"));
+        context.response().putHeader("Nanopub-Registry-Status", getValue(mongoSession, Collection.SERVER_INFO.toString(), "status").toString());
+        context.response().putHeader("Nanopub-Registry-Setup-Id", getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId").toString());
+        context.response().putHeader("Nanopub-Registry-Trust-State-Counter", getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter").toString());
+        context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate").toString());
+        context.response().putHeader("Nanopub-Registry-Trust-State-Hash", getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash").toString());
+        context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter").toString());
         context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")));
 
         String r = context.request().path().substring(1);
