@@ -143,12 +143,14 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     serverInfo:
       setupId: 1332309348
       status: ready
+      testInstance: false
       lastTrustStateUpdate: 2024-03-16T...
       lastUptodate: 20240317-...  (not yet implemented; to be added with peer sync)
+      trustStateCounter: 1423293
+      trustStateHash: 7a8b9c...
       coverageAgents:_viaSetting_
       coverageTypes:_all_
       globalQuota: 1000000  (not yet implemented; currently a hardcoded constant, to be moved to setting)
-      stateCounter: 1423293
     hashes:
       { hash*:a83, value*:4e8d9x... }
       ...
@@ -180,7 +182,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       status: loaded  (not yet implemented)
       linkThreshold: 0.000001  (not yet implemented; currently hardcoded as MIN_TRUST_PATH_RATIO)
     accounts:
-      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, paths:3, independentPaths:3, quota:1362000, status:loaded }
+      { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, depth:1, pathCount:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
       ...
     agents:
@@ -188,9 +190,9 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { agent**:SueRich, ... }
       ...
     trustEdges:
-      { fromAgent^:$, fromPubkey^:$, toAgent^:JohnDoe toPubkey^:a83, source^:RA... }
-      { fromAgent^:JohnDoe, fromPubkey^:a83, toAgent^:SueRich toPubkey^:b55, source^:RA... }
-      { fromAgent^:SueRich, fromPubkey^:b55, toAgent^:EveBlue toPubkey^:c43, source^:RA... }
+      { fromAgent^:$, fromPubkey^:$, toAgent^:JohnDoe, toPubkey^:a83, source^:RA..., invalidated:false }
+      { fromAgent^:JohnDoe, fromPubkey^:a83, toAgent^:SueRich, toPubkey^:b55, source^:RA..., invalidated:false }
+      { fromAgent^:SueRich, fromPubkey^:b55, toAgent^:EveBlue, toPubkey^:c43, source^:RA..., invalidated:false }
       ...
     trustPaths:
       { id#:'JohnDoe>a83', depth^:1, agent^:JohnDoe, pubkey^:a83, ratio:0.01 }
@@ -199,10 +201,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     tasks:
-      { notBefore^:20240317-..., action^:checkNp, peer:'https://example.com/peer', type:_all_, position:1538, retryCount:0 }
-      { notBefore^:20240317-..., ... }
-      ...
-      { notBefore^:20240229-..., ... }
+      { notBefore^:1710672000000, action^:CHECK_NEW }
+      { notBefore^:1710672000100, action^:LOAD_FULL }
+
+During trust state computation, intermediate `_loading` collections (`endorsements_loading`, `accounts_loading`, `agents_loading`, `trustPaths_loading`) are used and then renamed to replace the live collections in `RELEASE_DATA`.
 
 See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java).
 
