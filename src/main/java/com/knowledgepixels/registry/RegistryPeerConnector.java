@@ -1,0 +1,273 @@
+package com.knowledgepixels.registry;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.mongodb.client.ClientSession;
+import com.mongodb.client.MongoCursor;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.util.EntityUtils;
+import org.bson.Document;
+import org.nanopub.NanopubUtils;
+import org.nanopub.jelly.NanopubStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static com.knowledgepixels.registry.RegistryDB.*;
+
+/**
+ * Checks peer Nanopub Registries for new nanopublications and loads them.
+ */
+public class RegistryPeerConnector {
+
+    private RegistryPeerConnector() {}
+
+    private static final Logger log = LoggerFactory.getLogger(RegistryPeerConnector.class);
+    private static final Gson gson = new Gson();
+    static final int SMALL_DELTA_THRESHOLD = 100;
+
+    public static void checkPeers(ClientSession s) {
+        List<String> peerUrls = new ArrayList<>(Utils.getPeerUrls());
+        Collections.shuffle(peerUrls);
+
+        for (String peerUrl : peerUrls) {
+            try {
+                checkPeer(s, peerUrl);
+            } catch (Exception ex) {
+                log.info("Error checking peer {}: {}", peerUrl, ex.getMessage());
+            }
+        }
+    }
+
+    static void checkPeer(ClientSession s, String peerUrl) throws IOException {
+        log.info("Checking peer: {}", peerUrl);
+
+        JsonObject peerInfo = fetchPeerInfo(peerUrl);
+        if (peerInfo == null) return;
+
+        String status = getJsonString(peerInfo, "status");
+        if (!"ready".equals(status) && !"updating".equals(status)) {
+            log.info("Peer {} in non-ready state: {}", peerUrl, status);
+            return;
+        }
+
+        Long peerSetupId = getJsonLong(peerInfo, "setupId");
+        Long peerLoadCounter = getJsonLong(peerInfo, "loadCounter");
+        if (peerSetupId == null || peerLoadCounter == null) {
+            log.info("Peer {} missing setupId or loadCounter", peerUrl);
+            return;
+        }
+
+        syncWithPeer(s, peerUrl, peerSetupId, peerLoadCounter);
+    }
+
+    static void syncWithPeer(ClientSession s, String peerUrl, long peerSetupId, long peerLoadCounter) {
+        Document peerState = getPeerState(s, peerUrl);
+        Long lastSetupId = peerState != null ? peerState.getLong("setupId") : null;
+        Long lastLoadCounter = peerState != null ? peerState.getLong("loadCounter") : null;
+        Boolean fullFetchDone = peerState != null ? peerState.getBoolean("fullFetchDone") : null;
+
+        if (lastSetupId != null && !lastSetupId.equals(peerSetupId)) {
+            log.info("Peer {} was reset (setupId changed), resetting tracking", peerUrl);
+            deletePeerState(s, peerUrl);
+            lastLoadCounter = null;
+            fullFetchDone = null;
+        }
+
+        if (lastLoadCounter != null && lastLoadCounter.equals(peerLoadCounter)) {
+            log.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
+        } else {
+            long delta = (lastLoadCounter != null) ? peerLoadCounter - lastLoadCounter : Long.MAX_VALUE;
+
+            if (delta > 0 && delta < SMALL_DELTA_THRESHOLD) {
+                log.info("Peer {} has small delta ({}), fetching recent nanopubs", peerUrl, delta);
+                loadRecentNanopubs(s, peerUrl, lastLoadCounter);
+            } else {
+                log.info("Peer {} has large delta, checking per-pubkey lists", peerUrl);
+                // TODO Add per-pubkey/type position tracking for more efficient incremental sync
+                // TODO Add checksum-based binary search to avoid downloading full lists
+                loadByApprovedPubkeys(s, peerUrl);
+            }
+        }
+
+        // TODO Remove full fetch once incremental sync covers all nanopubs (including non-approved pubkeys)
+        if (!Boolean.TRUE.equals(fullFetchDone)) {
+            loadAllNanopubs(s, peerUrl);
+        }
+
+        discoverPubkeys(s, peerUrl);
+        updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter);
+    }
+
+    private static void loadAllNanopubs(ClientSession s, String peerUrl) {
+        String requestUrl = peerUrl + "nanopubs.jelly";
+        log.info("Full fetch of all nanopubs from: {}", requestUrl);
+        try {
+            HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
+            int httpStatus = resp.getStatusLine().getStatusCode();
+            if (httpStatus < 200 || httpStatus >= 300) {
+                EntityUtils.consumeQuietly(resp.getEntity());
+                log.info("Request failed: {} {}", requestUrl, httpStatus);
+                return;
+            }
+            // Use a dedicated session outside any wrapping transaction to avoid
+            // MongoDB transaction timeout on large streams.
+            try (InputStream is = resp.getEntity().getContent();
+                 ClientSession loadSession = RegistryDB.getClient().startSession()) {
+                NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
+                    if (m.isSuccess()) {
+                        NanopubLoader.simpleLoad(loadSession, m.getNanopub());
+                    }
+                });
+            }
+        } catch (IOException ex) {
+            log.info("Failed to fetch all nanopubs from {}: {}", peerUrl, ex.getMessage());
+        }
+    }
+
+    private static void loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
+        String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
+        log.info("Fetching recent nanopubs from: {}", requestUrl);
+        try {
+            HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
+            int httpStatus = resp.getStatusLine().getStatusCode();
+            if (httpStatus < 200 || httpStatus >= 300) {
+                EntityUtils.consumeQuietly(resp.getEntity());
+                log.info("Request failed: {} {}", requestUrl, httpStatus);
+                return;
+            }
+            try (InputStream is = resp.getEntity().getContent()) {
+                NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
+                    if (m.isSuccess()) {
+                        NanopubLoader.simpleLoad(s, m.getNanopub());
+                    }
+                });
+            }
+        } catch (IOException ex) {
+            log.info("Failed to fetch recent nanopubs from {}: {}", peerUrl, ex.getMessage());
+        }
+    }
+
+    static void loadByApprovedPubkeys(ClientSession s, String peerUrl) {
+        // Only process approved pubkeys (those with loaded "$" lists)
+        // TODO Add throttled loading for non-approved pubkeys
+        List<String> approvedPubkeys = getApprovedPubkeys(s);
+        log.info("Checking {} approved pubkeys at peer {}", approvedPubkeys.size(), peerUrl);
+
+        for (String pubkeyHash : approvedPubkeys) {
+            String requestUrl = peerUrl + "list/" + pubkeyHash + "/$.jelly";
+            log.info("Fetching list from: {}", requestUrl);
+            try {
+                HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
+                int httpStatus = resp.getStatusLine().getStatusCode();
+                if (httpStatus < 200 || httpStatus >= 300) {
+                    EntityUtils.consumeQuietly(resp.getEntity());
+                    if (httpStatus != 404) {
+                        log.info("Request failed: {} {}", requestUrl, httpStatus);
+                    }
+                    continue;
+                }
+                try (InputStream is = resp.getEntity().getContent()) {
+                    NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
+                        if (m.isSuccess()) {
+                            NanopubLoader.simpleLoad(s, m.getNanopub());
+                        }
+                    });
+                }
+            } catch (IOException ex) {
+                log.info("Failed to fetch list from {}: {}", requestUrl, ex.getMessage());
+            }
+        }
+    }
+
+    static void discoverPubkeys(ClientSession s, String peerUrl) {
+        log.info("Discovering pubkeys from peer: {}", peerUrl);
+        try {
+            List<String> peerPubkeys = Utils.retrieveListFromJsonUrl(peerUrl + "pubkeys.json");
+            int discovered = 0;
+            for (String pubkeyHash : peerPubkeys) {
+                Document filter = new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH);
+                if (!has(s, "lists", filter)) {
+                    insert(s, "lists", new Document("pubkey", pubkeyHash)
+                            .append("type", NanopubLoader.INTRO_TYPE_HASH)
+                            .append("status", EntryStatus.encountered.getValue()));
+                    discovered++;
+                } else if (!has(s, "lists", new Document(filter).append("status", EntryStatus.loaded.getValue()))) {
+                    // Set status to encountered if not already loaded (fixes null-status entries from older code)
+                    collection("lists").updateMany(s, filter,
+                            new Document("$set", new Document("status", EntryStatus.encountered.getValue())));
+                    discovered++;
+                }
+            }
+            log.info("Discovered {} new pubkeys from peer {}", discovered, peerUrl);
+        } catch (Exception ex) {
+            log.info("Failed to discover pubkeys from {}: {}", peerUrl, ex.getMessage());
+        }
+    }
+
+    static List<String> getApprovedPubkeys(ClientSession s) {
+        List<String> pubkeys = new ArrayList<>();
+        try (MongoCursor<Document> cursor = collection("lists").find(s,
+                new Document("type", "$").append("status", "loaded")).cursor()) {
+            while (cursor.hasNext()) {
+                pubkeys.add(cursor.next().getString("pubkey"));
+            }
+        }
+        return pubkeys;
+    }
+
+    static JsonObject fetchPeerInfo(String peerUrl) {
+        String requestUrl = peerUrl + ".json";
+        try {
+            HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
+            int httpStatus = resp.getStatusLine().getStatusCode();
+            if (httpStatus < 200 || httpStatus >= 300) {
+                EntityUtils.consumeQuietly(resp.getEntity());
+                log.info("Failed to fetch peer info from {}: {}", peerUrl, httpStatus);
+                return null;
+            }
+            String body = EntityUtils.toString(resp.getEntity());
+            return gson.fromJson(body, JsonObject.class);
+        } catch (IOException ex) {
+            log.info("Failed to connect to peer {}: {}", peerUrl, ex.getMessage());
+            return null;
+        }
+    }
+
+    static Document getPeerState(ClientSession s, String peerUrl) {
+        try (MongoCursor<Document> cursor = collection(Collection.PEER_STATE.toString())
+                .find(s, new Document("_id", peerUrl)).cursor()) {
+            return cursor.hasNext() ? cursor.next() : null;
+        }
+    }
+
+    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long loadCounter) {
+        collection(Collection.PEER_STATE.toString()).updateOne(s,
+                new Document("_id", peerUrl),
+                new Document("$set", new Document("_id", peerUrl)
+                        .append("setupId", setupId)
+                        .append("loadCounter", loadCounter)
+                        .append("fullFetchDone", true)
+                        .append("lastChecked", System.currentTimeMillis())),
+                new com.mongodb.client.model.UpdateOptions().upsert(true));
+    }
+
+    static void deletePeerState(ClientSession s, String peerUrl) {
+        collection(Collection.PEER_STATE.toString()).deleteOne(s, new Document("_id", peerUrl));
+    }
+
+    static String getJsonString(JsonObject obj, String key) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsString() : null;
+    }
+
+    static Long getJsonLong(JsonObject obj, String key) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsLong() : null;
+    }
+
+}

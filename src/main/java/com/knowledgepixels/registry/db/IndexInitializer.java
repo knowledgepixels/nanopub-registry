@@ -56,6 +56,8 @@ public final class IndexInitializer {
 
         collection("hashes").createIndex(mongoSession, ascending("hash"), unique);
         collection("hashes").createIndex(mongoSession, ascending("value"), unique);
+
+        collection(Collection.PEER_STATE.toString()).createIndex(mongoSession, ascending("setupId"));
     }
 
     /**
