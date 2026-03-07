@@ -96,10 +96,10 @@ public class RegistryPeerConnector {
             }
         }
 
-        // TODO Enable one-time full fetch for non-approved pubkey nanopubs:
-        // if (!Boolean.TRUE.equals(fullFetchDone)) {
-        //     loadAllNanopubs(s, peerUrl);
-        // }
+        // TODO Remove full fetch once incremental sync covers all nanopubs (including non-approved pubkeys)
+        if (!Boolean.TRUE.equals(fullFetchDone)) {
+            loadAllNanopubs(s, peerUrl);
+        }
 
         discoverPubkeys(s, peerUrl);
         updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter);
@@ -116,10 +116,13 @@ public class RegistryPeerConnector {
                 log.info("Request failed: {} {}", requestUrl, httpStatus);
                 return;
             }
-            try (InputStream is = resp.getEntity().getContent()) {
+            // Use a dedicated session outside any wrapping transaction to avoid
+            // MongoDB transaction timeout on large streams.
+            try (InputStream is = resp.getEntity().getContent();
+                 ClientSession loadSession = RegistryDB.getClient().startSession()) {
                 NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
                     if (m.isSuccess()) {
-                        NanopubLoader.simpleLoad(s, m.getNanopub());
+                        NanopubLoader.simpleLoad(loadSession, m.getNanopub());
                     }
                 });
             }
