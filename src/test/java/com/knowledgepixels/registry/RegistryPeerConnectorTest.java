@@ -1,9 +1,12 @@
 package com.knowledgepixels.registry;
 
-import com.google.gson.JsonObject;
 import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpVersion;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicStatusLine;
 import org.bson.Document;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,46 +25,50 @@ import static org.junit.jupiter.api.Assertions.*;
 class RegistryPeerConnectorTest {
 
     @Nested
-    class JsonHelperTests {
+    class HeaderHelperTests {
 
-        @Test
-        void getJsonString_returnsValue() {
-            JsonObject obj = new JsonObject();
-            obj.addProperty("status", "ready");
-            assertEquals("ready", getJsonString(obj, "status"));
+        private HttpResponse makeResponse(String... headers) {
+            HttpResponse resp = new BasicHttpResponse(new BasicStatusLine(HttpVersion.HTTP_1_1, 200, "OK"));
+            for (int i = 0; i < headers.length; i += 2) {
+                resp.setHeader(headers[i], headers[i + 1]);
+            }
+            return resp;
         }
 
         @Test
-        void getJsonString_returnsNullForMissingKey() {
-            JsonObject obj = new JsonObject();
-            assertNull(getJsonString(obj, "missing"));
+        void getHeader_returnsValue() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Status", "ready");
+            assertEquals("ready", getHeader(resp, "Nanopub-Registry-Status"));
         }
 
         @Test
-        void getJsonString_returnsNullForJsonNull() {
-            JsonObject obj = new JsonObject();
-            obj.add("status", com.google.gson.JsonNull.INSTANCE);
-            assertNull(getJsonString(obj, "status"));
+        void getHeader_returnsNullForMissingHeader() {
+            HttpResponse resp = makeResponse();
+            assertNull(getHeader(resp, "Nanopub-Registry-Status"));
         }
 
         @Test
-        void getJsonLong_returnsValue() {
-            JsonObject obj = new JsonObject();
-            obj.addProperty("loadCounter", 42000L);
-            assertEquals(42000L, getJsonLong(obj, "loadCounter"));
+        void getHeaderLong_returnsValue() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Load-Counter", "42000");
+            assertEquals(42000L, getHeaderLong(resp, "Nanopub-Registry-Load-Counter"));
         }
 
         @Test
-        void getJsonLong_returnsNullForMissingKey() {
-            JsonObject obj = new JsonObject();
-            assertNull(getJsonLong(obj, "missing"));
+        void getHeaderLong_returnsNullForMissingHeader() {
+            HttpResponse resp = makeResponse();
+            assertNull(getHeaderLong(resp, "Nanopub-Registry-Load-Counter"));
         }
 
         @Test
-        void getJsonLong_returnsNullForJsonNull() {
-            JsonObject obj = new JsonObject();
-            obj.add("loadCounter", com.google.gson.JsonNull.INSTANCE);
-            assertNull(getJsonLong(obj, "loadCounter"));
+        void getHeaderLong_returnsNullForNullValue() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Load-Counter", "null");
+            assertNull(getHeaderLong(resp, "Nanopub-Registry-Load-Counter"));
+        }
+
+        @Test
+        void getHeaderLong_returnsNullForInvalidNumber() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Load-Counter", "notanumber");
+            assertNull(getHeaderLong(resp, "Nanopub-Registry-Load-Counter"));
         }
     }
 

@@ -1,11 +1,10 @@
 package com.knowledgepixels.registry;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.bson.Document;
 import org.nanopub.NanopubUtils;
@@ -29,7 +28,6 @@ public class RegistryPeerConnector {
     private RegistryPeerConnector() {}
 
     private static final Logger log = LoggerFactory.getLogger(RegistryPeerConnector.class);
-    private static final Gson gson = new Gson();
     static final int SMALL_DELTA_THRESHOLD = 100;
 
     public static void checkPeers(ClientSession s) {
@@ -48,19 +46,24 @@ public class RegistryPeerConnector {
     static void checkPeer(ClientSession s, String peerUrl) throws IOException {
         log.info("Checking peer: {}", peerUrl);
 
-        JsonObject peerInfo = fetchPeerInfo(peerUrl);
-        if (peerInfo == null) return;
+        HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpHead(peerUrl));
+        int httpStatus = resp.getStatusLine().getStatusCode();
+        EntityUtils.consumeQuietly(resp.getEntity());
+        if (httpStatus < 200 || httpStatus >= 300) {
+            log.info("Failed to reach peer {}: {}", peerUrl, httpStatus);
+            return;
+        }
 
-        String status = getJsonString(peerInfo, "status");
+        String status = getHeader(resp, "Nanopub-Registry-Status");
         if (!"ready".equals(status) && !"updating".equals(status)) {
             log.info("Peer {} in non-ready state: {}", peerUrl, status);
             return;
         }
 
-        Long peerSetupId = getJsonLong(peerInfo, "setupId");
-        Long peerLoadCounter = getJsonLong(peerInfo, "loadCounter");
+        Long peerSetupId = getHeaderLong(resp, "Nanopub-Registry-Setup-Id");
+        Long peerLoadCounter = getHeaderLong(resp, "Nanopub-Registry-Load-Counter");
         if (peerSetupId == null || peerLoadCounter == null) {
-            log.info("Peer {} missing setupId or loadCounter", peerUrl);
+            log.info("Peer {} missing setupId or loadCounter headers", peerUrl);
             return;
         }
 
@@ -222,24 +225,6 @@ public class RegistryPeerConnector {
         return pubkeys;
     }
 
-    static JsonObject fetchPeerInfo(String peerUrl) {
-        String requestUrl = peerUrl + ".json";
-        try {
-            HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
-            int httpStatus = resp.getStatusLine().getStatusCode();
-            if (httpStatus < 200 || httpStatus >= 300) {
-                EntityUtils.consumeQuietly(resp.getEntity());
-                log.info("Failed to fetch peer info from {}: {}", peerUrl, httpStatus);
-                return null;
-            }
-            String body = EntityUtils.toString(resp.getEntity());
-            return gson.fromJson(body, JsonObject.class);
-        } catch (IOException ex) {
-            log.info("Failed to connect to peer {}: {}", peerUrl, ex.getMessage());
-            return null;
-        }
-    }
-
     static Document getPeerState(ClientSession s, String peerUrl) {
         try (MongoCursor<Document> cursor = collection(Collection.PEER_STATE.toString())
                 .find(s, new Document("_id", peerUrl)).cursor()) {
@@ -262,12 +247,18 @@ public class RegistryPeerConnector {
         collection(Collection.PEER_STATE.toString()).deleteOne(s, new Document("_id", peerUrl));
     }
 
-    static String getJsonString(JsonObject obj, String key) {
-        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsString() : null;
+    static String getHeader(HttpResponse resp, String name) {
+        return resp.getFirstHeader(name) != null ? resp.getFirstHeader(name).getValue() : null;
     }
 
-    static Long getJsonLong(JsonObject obj, String key) {
-        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsLong() : null;
+    static Long getHeaderLong(HttpResponse resp, String name) {
+        String value = getHeader(resp, name);
+        if (value == null || "null".equals(value)) return null;
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
 }

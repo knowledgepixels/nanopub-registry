@@ -766,25 +766,6 @@ public enum Task implements Serializable {
 
     },
 
-    CHECK_MORE_PUBKEYS {
-        public void run(ClientSession s, Document taskDoc) {
-            try {
-                for (String pubkeyHash : Utils.retrieveListFromJsonUrl(Utils.getRandomPeer() + "pubkeys.json")) {
-                    Validate.notNull(pubkeyHash);
-                    Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
-                    if (!has(s, "lists", d)) {
-                        insert(s, "lists", d.append("status", encountered.getValue()));
-                    }
-                }
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-
-            schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
-        }
-
-    },
-
     RUN_OPTIONAL_LOAD {
         public void run(ClientSession s, Document taskDoc) {
             Document di = getOne(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()));
@@ -820,7 +801,7 @@ public enum Task implements Serializable {
                 Document df = new Document("pubkey", pubkeyHash).append("type", "$");
                 if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered.getValue()));
 
-                schedule(s, CHECK_NEW.withDelay(100));
+                schedule(s, CHECK_NEW.withDelay(500));
                 return;
             }
 
@@ -840,7 +821,7 @@ public enum Task implements Serializable {
                 set(s, "lists", df.append("status", loaded.getValue()));
             }
 
-            schedule(s, CHECK_NEW.withDelay(100));
+            schedule(s, CHECK_NEW.withDelay(500));
         }
 
     },

@@ -1,7 +1,9 @@
 package com.knowledgepixels.registry;
 
-import com.google.gson.JsonObject;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpHead;
 import org.junit.jupiter.api.Test;
+import org.nanopub.NanopubUtils;
 
 import static com.knowledgepixels.registry.RegistryPeerConnector.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,31 +13,30 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class RegistryPeerConnectorIT {
 
-    @Test
-    void fetchPeerInfo_petapico() {
-        JsonObject info = fetchPeerInfo("https://registry.petapico.org/");
-        assertNotNull(info, "Should get response from petapico registry");
-        assertNotNull(getJsonLong(info, "setupId"), "Should have setupId");
-        assertNotNull(getJsonLong(info, "loadCounter"), "Should have loadCounter");
-        assertNotNull(getJsonString(info, "status"), "Should have status");
-        assertEquals("ready", getJsonString(info, "status"));
-        assertTrue(getJsonLong(info, "loadCounter") > 0, "loadCounter should be positive");
+    private HttpResponse headRequest(String url) throws Exception {
+        return NanopubUtils.getHttpClient().execute(new HttpHead(url));
     }
 
     @Test
-    void fetchPeerInfo_knowledgepixels() {
-        JsonObject info = fetchPeerInfo("https://registry.knowledgepixels.com/");
-        assertNotNull(info, "Should get response from knowledgepixels registry");
-        assertNotNull(getJsonLong(info, "setupId"), "Should have setupId");
-        assertNotNull(getJsonLong(info, "loadCounter"), "Should have loadCounter");
-        assertNotNull(getJsonString(info, "status"), "Should have status");
-        assertEquals("ready", getJsonString(info, "status"));
-        assertTrue(getJsonLong(info, "loadCounter") > 0, "loadCounter should be positive");
+    void headRequest_petapico() throws Exception {
+        HttpResponse resp = headRequest("https://registry.petapico.org/");
+        assertNotNull(getHeaderLong(resp, "Nanopub-Registry-Setup-Id"), "Should have setupId");
+        assertNotNull(getHeaderLong(resp, "Nanopub-Registry-Load-Counter"), "Should have loadCounter");
+        assertEquals("ready", getHeader(resp, "Nanopub-Registry-Status"));
+        assertTrue(getHeaderLong(resp, "Nanopub-Registry-Load-Counter") > 0, "loadCounter should be positive");
     }
 
     @Test
-    void fetchPeerInfo_invalidUrl_returnsNull() {
-        JsonObject info = fetchPeerInfo("https://nonexistent.invalid.example.com/");
-        assertNull(info, "Should return null for unreachable peer");
+    void headRequest_knowledgepixels() throws Exception {
+        HttpResponse resp = headRequest("https://registry.knowledgepixels.com/");
+        assertNotNull(getHeaderLong(resp, "Nanopub-Registry-Setup-Id"), "Should have setupId");
+        assertNotNull(getHeaderLong(resp, "Nanopub-Registry-Load-Counter"), "Should have loadCounter");
+        assertEquals("ready", getHeader(resp, "Nanopub-Registry-Status"));
+        assertTrue(getHeaderLong(resp, "Nanopub-Registry-Load-Counter") > 0, "loadCounter should be positive");
+    }
+
+    @Test
+    void headRequest_invalidUrl_throws() {
+        assertThrows(Exception.class, () -> headRequest("https://nonexistent.invalid.example.com/"));
     }
 }
