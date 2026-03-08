@@ -248,6 +248,29 @@ class RegistryPeerConnectorTest {
         }
 
         @Test
+        void discoverPubkeys_duplicateInsertDoesNotThrow() {
+            // Simulate a concurrent insert: pre-insert an encountered entry, then try inserting again
+            String pubkeyHash = "racePubkey";
+            Document doc = new Document("pubkey", pubkeyHash)
+                    .append("type", NanopubLoader.INTRO_TYPE_HASH)
+                    .append("status", EntryStatus.encountered.getValue());
+            RegistryDB.insert(session, "lists", doc);
+
+            // A second insert with the same key should be silently ignored (duplicate key)
+            try {
+                RegistryDB.insert(session, "lists", new Document("pubkey", pubkeyHash)
+                        .append("type", NanopubLoader.INTRO_TYPE_HASH)
+                        .append("status", EntryStatus.encountered.getValue()));
+            } catch (com.mongodb.MongoWriteException e) {
+                assertEquals(11000, e.getError().getCode(), "Should be a duplicate key error");
+            }
+
+            // Should still be exactly 1 document
+            assertEquals(1, collection("lists").countDocuments(session,
+                    new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH)));
+        }
+
+        @Test
         void discoverPubkeys_skipsAlreadyKnownPubkeys() {
             // Pre-insert a loaded list for this pubkey
             String pubkeyHash = "existingPubkey";

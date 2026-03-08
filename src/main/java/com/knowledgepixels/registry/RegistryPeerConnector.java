@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import org.apache.http.HttpResponse;
@@ -200,9 +201,13 @@ public class RegistryPeerConnector {
             for (String pubkeyHash : peerPubkeys) {
                 Document filter = new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH);
                 if (!has(s, "lists", filter)) {
-                    insert(s, "lists", new Document("pubkey", pubkeyHash)
-                            .append("type", NanopubLoader.INTRO_TYPE_HASH)
-                            .append("status", EntryStatus.encountered.getValue()));
+                    try {
+                        insert(s, "lists", new Document("pubkey", pubkeyHash)
+                                .append("type", NanopubLoader.INTRO_TYPE_HASH)
+                                .append("status", EntryStatus.encountered.getValue()));
+                    } catch (MongoWriteException e) {
+                        if (e.getError().getCode() != 11000) throw e;
+                    }
                     discovered++;
                 } else if (!has(s, "lists", new Document(filter).append("status", EntryStatus.loaded.getValue()))) {
                     // Set status to encountered if not already loaded (fixes null-status entries from older code)
