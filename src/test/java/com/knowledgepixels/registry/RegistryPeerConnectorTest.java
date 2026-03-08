@@ -105,19 +105,29 @@ class RegistryPeerConnectorTest {
 
         @Test
         void updatePeerState_createsPeerState() {
-            updatePeerState(session, "https://peer.example.com/", 123L, 42000L);
+            updatePeerState(session, "https://peer.example.com/", 123L, 42000L, true);
 
             Document state = getPeerState(session, "https://peer.example.com/");
             assertNotNull(state);
             assertEquals(123L, state.getLong("setupId"));
             assertEquals(42000L, state.getLong("loadCounter"));
+            assertTrue(state.getBoolean("fullFetchDone"));
             assertNotNull(state.getLong("lastChecked"));
         }
 
         @Test
+        void updatePeerState_storesFullFetchDoneFalse() {
+            updatePeerState(session, "https://peer.example.com/", 123L, 42000L, false);
+
+            Document state = getPeerState(session, "https://peer.example.com/");
+            assertNotNull(state);
+            assertFalse(state.getBoolean("fullFetchDone"));
+        }
+
+        @Test
         void updatePeerState_updatesExistingState() {
-            updatePeerState(session, "https://peer.example.com/", 123L, 100L);
-            updatePeerState(session, "https://peer.example.com/", 123L, 200L);
+            updatePeerState(session, "https://peer.example.com/", 123L, 100L, true);
+            updatePeerState(session, "https://peer.example.com/", 123L, 200L, true);
 
             Document state = getPeerState(session, "https://peer.example.com/");
             assertEquals(200L, state.getLong("loadCounter"));
@@ -126,7 +136,7 @@ class RegistryPeerConnectorTest {
 
         @Test
         void deletePeerState_removesState() {
-            updatePeerState(session, "https://peer.example.com/", 123L, 42000L);
+            updatePeerState(session, "https://peer.example.com/", 123L, 42000L, true);
             assertNotNull(getPeerState(session, "https://peer.example.com/"));
 
             deletePeerState(session, "https://peer.example.com/");
@@ -135,7 +145,7 @@ class RegistryPeerConnectorTest {
 
         @Test
         void syncWithPeer_skipsWhenLoadCounterUnchanged() {
-            updatePeerState(session, "https://peer.example.com/", 123L, 500L);
+            updatePeerState(session, "https://peer.example.com/", 123L, 500L, true);
 
             syncWithPeer(session, "https://peer.example.com/", 123L, 500L);
 
@@ -145,7 +155,7 @@ class RegistryPeerConnectorTest {
 
         @Test
         void syncWithPeer_resetsOnSetupIdChange() {
-            updatePeerState(session, "https://peer.example.com/", 100L, 500L);
+            updatePeerState(session, "https://peer.example.com/", 100L, 500L, true);
 
             // Sync with a different setupId — should reset and treat as new peer
             // This will try to load by pubkeys (which will find none), then update state
@@ -159,12 +169,28 @@ class RegistryPeerConnectorTest {
         @Test
         void syncWithPeer_updatesStateAfterSync() {
             // First time seeing this peer (no prior state)
+            // Full fetch will fail (no real HTTP endpoint), so fullFetchDone should be false
             syncWithPeer(session, "https://peer.example.com/", 123L, 42000L);
 
             Document state = getPeerState(session, "https://peer.example.com/");
             assertNotNull(state);
             assertEquals(123L, state.getLong("setupId"));
             assertEquals(42000L, state.getLong("loadCounter"));
+            assertFalse(state.getBoolean("fullFetchDone"),
+                    "fullFetchDone should be false when full fetch fails");
+        }
+
+        @Test
+        void syncWithPeer_preservesFullFetchDoneTrue() {
+            // Simulate a prior successful full fetch
+            updatePeerState(session, "https://peer.example.com/", 123L, 500L, true);
+
+            // Sync again with new loadCounter — fullFetchDone should remain true
+            syncWithPeer(session, "https://peer.example.com/", 123L, 600L);
+
+            Document state = getPeerState(session, "https://peer.example.com/");
+            assertTrue(state.getBoolean("fullFetchDone"),
+                    "fullFetchDone should remain true after subsequent syncs");
         }
 
         @Test
@@ -241,8 +267,8 @@ class RegistryPeerConnectorTest {
 
         @Test
         void multiplePeers_trackedIndependently() {
-            updatePeerState(session, "https://peer1.example.com/", 100L, 500L);
-            updatePeerState(session, "https://peer2.example.com/", 200L, 600L);
+            updatePeerState(session, "https://peer1.example.com/", 100L, 500L, true);
+            updatePeerState(session, "https://peer2.example.com/", 200L, 600L, true);
 
             Document state1 = getPeerState(session, "https://peer1.example.com/");
             Document state2 = getPeerState(session, "https://peer2.example.com/");

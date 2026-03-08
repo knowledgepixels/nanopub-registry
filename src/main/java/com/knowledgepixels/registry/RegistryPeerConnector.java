@@ -100,15 +100,16 @@ public class RegistryPeerConnector {
         }
 
         // TODO Remove full fetch once incremental sync covers all nanopubs (including non-approved pubkeys)
-        if (!Boolean.TRUE.equals(fullFetchDone)) {
-            loadAllNanopubs(s, peerUrl);
+        boolean fullFetchSucceeded = fullFetchDone != null && fullFetchDone;
+        if (!fullFetchSucceeded) {
+            fullFetchSucceeded = loadAllNanopubs(s, peerUrl);
         }
 
         discoverPubkeys(s, peerUrl);
-        updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter);
+        updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter, fullFetchSucceeded);
     }
 
-    private static void loadAllNanopubs(ClientSession s, String peerUrl) {
+    private static boolean loadAllNanopubs(ClientSession s, String peerUrl) {
         String requestUrl = peerUrl + "nanopubs.jelly";
         log.info("Full fetch of all nanopubs from: {}", requestUrl);
         try {
@@ -117,7 +118,7 @@ public class RegistryPeerConnector {
             if (httpStatus < 200 || httpStatus >= 300) {
                 EntityUtils.consumeQuietly(resp.getEntity());
                 log.info("Request failed: {} {}", requestUrl, httpStatus);
-                return;
+                return false;
             }
             // Use a dedicated session outside any wrapping transaction to avoid
             // MongoDB transaction timeout on large streams.
@@ -129,8 +130,10 @@ public class RegistryPeerConnector {
                     }
                 });
             }
+            return true;
         } catch (IOException ex) {
             log.info("Failed to fetch all nanopubs from {}: {}", peerUrl, ex.getMessage());
+            return false;
         }
     }
 
@@ -232,13 +235,13 @@ public class RegistryPeerConnector {
         }
     }
 
-    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long loadCounter) {
+    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long loadCounter, boolean fullFetchDone) {
         collection(Collection.PEER_STATE.toString()).updateOne(s,
                 new Document("_id", peerUrl),
                 new Document("$set", new Document("_id", peerUrl)
                         .append("setupId", setupId)
                         .append("loadCounter", loadCounter)
-                        .append("fullFetchDone", true)
+                        .append("fullFetchDone", fullFetchDone)
                         .append("lastChecked", System.currentTimeMillis())),
                 new com.mongodb.client.model.UpdateOptions().upsert(true));
     }
