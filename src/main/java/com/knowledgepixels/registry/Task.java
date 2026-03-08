@@ -717,7 +717,7 @@ public enum Task implements Serializable {
             if ("false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) return;
 
             ServerStatus status = getServerStatus(s);
-            if (status != coreReady && status != ready) {
+            if (status != coreReady && status != ready && status != updating) {
                 log.info("Server currently not ready; checking again later");
                 schedule(s, LOAD_FULL.withDelay(60 * 1000));
                 return;
