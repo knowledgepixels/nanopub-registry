@@ -104,8 +104,8 @@ Tasks are scheduled and executed sequentially from a `tasks` collection. The mai
 2. `LOAD_DECLARATIONS` → `EXPAND_TRUST_PATHS` → `LOAD_CORE` — iteratively load core nanopubs and build the trust network
 3. `FINISH_ITERATION` — repeats step 2 until no more changes
 4. `CALCULATE_TRUST_SCORES` → `AGGREGATE_AGENTS` → `ASSIGN_PUBKEYS` → `DETERMINE_UPDATES` → `FINALIZE_TRUST_STATE` → `RELEASE_DATA` — compute trust scores and quotas, swap in new data
-5. `UPDATE` → `LOAD_FULL` — load all nanopubs for trusted accounts
-6. `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — load nanopubs for non-approved pubkeys (one per cycle), check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`
+5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`
+6. `UPDATE` (hourly) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
 
 See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 
@@ -116,19 +116,20 @@ The `CHECK_NEW` task invokes `RegistryPeerConnector.checkPeers()`, which iterate
 
 **Preparation:**
 - Track each peer's `setupId` and `loadCounter` in the `peerState` collection
-- `loadCounter` is the number of nanopub load events on the peer (increments per nanopub)
-- Peer URLs come from settings and approved agents
+- `loadCounter` is the maximum counter value from the peer's nanopubs collection (increments per nanopub loaded)
+- Peer URLs come from the `REGISTRY_PEER_URLS` environment variable
 
 **Per-peer sync steps:**
 
-1. Fetch peer info (`.json` endpoint) to get `setupId`, `loadCounter`, and `status`.
+1. Send HTTP HEAD request to peer URL; extract `Nanopub-Registry-Status`, `Nanopub-Registry-Setup-Id`, and `Nanopub-Registry-Load-Counter` from response headers.
 2. Skip peers with non-ready status (only `ready` and `updating` are accepted).
 3. If `setupId` changed since last check, delete stored peer state and treat as new.
 4. If `loadCounter` is unchanged, skip (nothing new).
 5. **Small delta** (loadCounter difference < 100): fetch recent nanopubs via `/nanopubs.jelly?afterCounter=X`.
 6. **Large delta** (or first sync): iterate over approved pubkeys and download their `$.jelly` lists from the peer. Only pubkeys with loaded `$` lists are processed.
-7. **Discover pubkeys**: fetch `/pubkeys.json` from the peer and create `encountered` intro lists for any unknown pubkeys, so they can be loaded later via `RUN_OPTIONAL_LOAD`.
-8. Update peer state with current `setupId` and `loadCounter`.
+7. **Full fetch** (once per peer): if `fullFetchDone` is not set, fetch all nanopubs via `/nanopubs.jelly` using a dedicated session to avoid transaction timeouts.
+8. **Discover pubkeys**: fetch `/pubkeys.json` from the peer and create `encountered` intro lists for any unknown pubkeys, so they can be loaded later via `RUN_OPTIONAL_LOAD`.
+9. Update peer state with current `setupId`, `loadCounter`, and `fullFetchDone`.
 
 **Not yet implemented optimizations:**
 - Per-pubkey/type position tracking for incremental sync (currently downloads full lists)
@@ -201,7 +202,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     peerState:
-      { id#:'https://example.com/peer/', setupId:1332309348, loadCounter:42000, lastChecked:1710672000000 }
+      { id#:'https://example.com/peer/', setupId:1332309348, loadCounter:42000, fullFetchDone:true, lastChecked:1710672000000 }
       ...
     tasks:
       { notBefore^:1710672000000, action^:CHECK_NEW }
