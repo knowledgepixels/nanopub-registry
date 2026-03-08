@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import com.knowledgepixels.registry.db.IndexInitializer;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoNamespace;
+import com.mongodb.ErrorCategory;
 import com.mongodb.MongoWriteException;
 import com.mongodb.ServerAddress;
 import com.mongodb.client.ClientSession;
@@ -310,7 +311,7 @@ public class RegistryDB {
             insert(mongoSession, "hashes", new Document("value", value).append("hash", Utils.getHash(value)));
         } catch (MongoWriteException e) {
             // Duplicate key error -- ignore it
-            if (e.getError().getCode() != 11000) throw e;
+            if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
         }
     }
 
@@ -450,7 +451,7 @@ public class RegistryDB {
             insert(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", typeHash));
         } catch (MongoWriteException e) {
             // Duplicate key error -- ignore it
-            if (e.getError().getCode() != 11000) throw e;
+            if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
         }
 
         if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {

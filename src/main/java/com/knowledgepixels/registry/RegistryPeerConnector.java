@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.mongodb.ErrorCategory;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
@@ -206,7 +207,7 @@ public class RegistryPeerConnector {
                                 .append("type", NanopubLoader.INTRO_TYPE_HASH)
                                 .append("status", EntryStatus.encountered.getValue()));
                     } catch (MongoWriteException e) {
-                        if (e.getError().getCode() != 11000) throw e;
+                        if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
                     }
                     discovered++;
                 } else if (!has(s, "lists", new Document(filter).append("status", EntryStatus.loaded.getValue()))) {
