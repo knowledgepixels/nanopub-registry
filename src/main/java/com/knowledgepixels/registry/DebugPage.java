@@ -59,12 +59,12 @@ public class DebugPage extends Page {
             MongoCursor<Document> ps = collection(Collection.PEER_STATE.toString()).find(mongoSession).cursor();
             while (ps.hasNext()) {
                 Document d = ps.next();
-                println(d.getString("_id")
-                        + " setupId=" + d.getLong("setupId")
-                        + " loadCounter=" + d.getLong("loadCounter")
-                        + " fullFetchDone=" + d.getBoolean("fullFetchDone")
-                        + " fullFetchPosition=" + d.getLong("fullFetchPosition")
-                        + " lastChecked=" + d.getLong("lastChecked"));
+                println(d.get("_id")
+                        + " setupId=" + d.get("setupId")
+                        + " loadCounter=" + d.get("loadCounter")
+                        + " fullFetchDone=" + d.get("fullFetchDone")
+                        + " fullFetchPosition=" + d.get("fullFetchPosition")
+                        + " lastChecked=" + d.get("lastChecked"));
             }
             setRespContentType("text/plain");
         } else {
