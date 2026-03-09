@@ -8,6 +8,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
+import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,8 +22,11 @@ import org.testcontainers.mongodb.MongoDBContainer;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Calendar;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers
 class RegistryDBTest {
@@ -318,6 +323,53 @@ class RegistryDBTest {
 
         retrieved = RegistryDB.getOne(session, collectionName, new Document().append("val", "moreDifferentValue"));
         assertEquals(doc3, retrieved);
+    }
+
+    @Test
+    void loadNanopubRejectsFutureTimestamp() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        Nanopub nanopub = mock(Nanopub.class);
+        when(nanopub.getTripleCount()).thenReturn(10);
+        when(nanopub.getByteCount()).thenReturn(100L);
+        IRI uri = SimpleValueFactory.getInstance().createIRI("http://example.org/test");
+        when(nanopub.getUri()).thenReturn(uri);
+
+        Calendar futureTime = Calendar.getInstance();
+        futureTime.add(Calendar.HOUR, 1);
+        when(nanopub.getCreationTime()).thenReturn(futureTime);
+
+        assertFalse(RegistryDB.loadNanopub(session, nanopub));
+    }
+
+    @Test
+    void loadNanopubAcceptsNullCreationTime() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        Nanopub nanopub = mock(Nanopub.class);
+        when(nanopub.getTripleCount()).thenReturn(10);
+        when(nanopub.getByteCount()).thenReturn(100L);
+        IRI uri = SimpleValueFactory.getInstance().createIRI("http://example.org/test");
+        when(nanopub.getUri()).thenReturn(uri);
+        when(nanopub.getCreationTime()).thenReturn(null);
+
+        // Will pass the timestamp check but fail on signature validation (no pubkey)
+        assertFalse(RegistryDB.loadNanopub(session, nanopub));
+    }
+
+    @Test
+    void loadNanopubAcceptsPastTimestamp() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        // simple1.trig has dc:created "2014-07-24T18:05:11+01:00" — well in the past
+        File file = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/simple1.trig").getFile());
+        Nanopub nanopub = new NanopubImpl(file);
+
+        assertNotNull(nanopub.getCreationTime());
+        assertTrue(RegistryDB.loadNanopub(session, nanopub));
     }
 
     @Test
