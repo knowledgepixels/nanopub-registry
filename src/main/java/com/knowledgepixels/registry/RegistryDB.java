@@ -365,6 +365,13 @@ public class RegistryDB {
             logger.info("Nanopub has a future timestamp: {}", nanopub.getUri());
             return false;
         }
+        String nanopubUriStr = nanopub.getUri().stringValue();
+        for (IRI graphUri : nanopub.getGraphUris()) {
+            if (!graphUri.stringValue().startsWith(nanopubUriStr)) {
+                logger.info("Nanopub has graph URI not matching base URI: {}", nanopub.getUri());
+                return false;
+            }
+        }
         String pubkey = getPubkey(nanopub);
         if (pubkey == null) {
             logger.info("Ignoring invalid nanopub: {}", nanopub.getUri());

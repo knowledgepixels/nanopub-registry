@@ -23,6 +23,7 @@ import org.testcontainers.mongodb.MongoDBContainer;
 import java.io.File;
 import java.io.IOException;
 import java.util.Calendar;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -354,8 +355,26 @@ class RegistryDBTest {
         IRI uri = SimpleValueFactory.getInstance().createIRI("http://example.org/test");
         when(nanopub.getUri()).thenReturn(uri);
         when(nanopub.getCreationTime()).thenReturn(null);
+        when(nanopub.getGraphUris()).thenReturn(Set.of());
 
         // Will pass the timestamp check but fail on signature validation (no pubkey)
+        assertFalse(RegistryDB.loadNanopub(session, nanopub));
+    }
+
+    @Test
+    void loadNanopubRejectsMismatchedGraphUris() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        Nanopub nanopub = mock(Nanopub.class);
+        when(nanopub.getTripleCount()).thenReturn(10);
+        when(nanopub.getByteCount()).thenReturn(100L);
+        when(nanopub.getCreationTime()).thenReturn(null);
+        IRI nanopubUri = SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/RA3QeEArKrJhMi5hGQJwjizvDEPKnaM2wME9iuKItk_nE");
+        IRI mismatchedGraphUri = SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/RA54f2f2ef2408bf88c12fbb8fd62844263ab83ef5c22/Head");
+        when(nanopub.getUri()).thenReturn(nanopubUri);
+        when(nanopub.getGraphUris()).thenReturn(Set.of(mismatchedGraphUri));
+
         assertFalse(RegistryDB.loadNanopub(session, nanopub));
     }
 
