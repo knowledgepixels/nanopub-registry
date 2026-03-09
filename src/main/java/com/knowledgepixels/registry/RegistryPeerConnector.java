@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.knowledgepixels.registry.RegistryDB.*;
 
@@ -105,16 +106,20 @@ public class RegistryPeerConnector {
         // TODO Remove full fetch once incremental sync covers all nanopubs (including non-approved pubkeys)
         boolean fullFetchSucceeded = fullFetchDone != null && fullFetchDone;
         if (!fullFetchSucceeded) {
-            fullFetchSucceeded = loadAllNanopubs(s, peerUrl);
+            Long fullFetchPosition = peerState != null ? peerState.getLong("fullFetchPosition") : null;
+            long afterCounter = fullFetchPosition != null ? fullFetchPosition : -1;
+            fullFetchSucceeded = loadAllNanopubs(s, peerUrl, afterCounter);
         }
 
         discoverPubkeys(s, peerUrl);
         updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter, fullFetchSucceeded);
     }
 
-    private static boolean loadAllNanopubs(ClientSession s, String peerUrl) {
-        String requestUrl = peerUrl + "nanopubs.jelly";
-        log.info("Full fetch of all nanopubs from: {}", requestUrl);
+    private static boolean loadAllNanopubs(ClientSession s, String peerUrl, long afterCounter) {
+        String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
+        log.info("Full fetch of all nanopubs from: {} (resuming after counter {})", requestUrl, afterCounter);
+        AtomicLong lastCounter = new AtomicLong(afterCounter);
+        boolean completed = false;
         try {
             HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
             int httpStatus = resp.getStatusLine().getStatusCode();
@@ -133,13 +138,29 @@ public class RegistryPeerConnector {
                         RegistryDB.loadNanopub(loadSession, np);
                         NanopubLoader.simpleLoad(loadSession, np);
                     }
+                    if (m.getCounter() > 0) {
+                        lastCounter.set(m.getCounter());
+                    }
                 });
             }
+            completed = true;
             return true;
         } catch (IOException ex) {
             log.info("Failed to fetch all nanopubs from {}: {}", peerUrl, ex.getMessage());
             return false;
+        } finally {
+            if (!completed && lastCounter.get() > afterCounter) {
+                log.info("Full fetch interrupted at counter {}; saving position for resume", lastCounter.get());
+                saveFullFetchPosition(s, peerUrl, lastCounter.get());
+            }
         }
+    }
+
+    private static void saveFullFetchPosition(ClientSession s, String peerUrl, long position) {
+        collection(Collection.PEER_STATE.toString()).updateOne(s,
+                new Document("_id", peerUrl),
+                new Document("$set", new Document("fullFetchPosition", position)),
+                new com.mongodb.client.model.UpdateOptions().upsert(true));
     }
 
     private static void loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
