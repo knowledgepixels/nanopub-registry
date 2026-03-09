@@ -55,6 +55,18 @@ public class DebugPage extends Page {
                 Document d = tp.next();
                 println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
             }
+        } else if (getRequestString().matches("/debug/peerState")) {
+            MongoCursor<Document> ps = collection(Collection.PEER_STATE.toString()).find(mongoSession).cursor();
+            while (ps.hasNext()) {
+                Document d = ps.next();
+                println(d.getString("_id")
+                        + " setupId=" + d.getLong("setupId")
+                        + " loadCounter=" + d.getLong("loadCounter")
+                        + " fullFetchDone=" + d.getBoolean("fullFetchDone")
+                        + " fullFetchPosition=" + d.getLong("fullFetchPosition")
+                        + " lastChecked=" + d.getLong("lastChecked"));
+            }
+            setRespContentType("text/plain");
         } else {
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
