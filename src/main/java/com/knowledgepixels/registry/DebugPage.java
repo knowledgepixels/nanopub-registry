@@ -56,6 +56,7 @@ public class DebugPage extends Page {
                 println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
             }
         } else if (getRequestString().matches("/debug/peerState")) {
+            setRespContentType("text/plain");
             try {
                 long count = collection(Collection.PEER_STATE.toString()).countDocuments(mongoSession);
                 println("peerState documents: " + count);
@@ -66,7 +67,6 @@ public class DebugPage extends Page {
             } catch (Exception ex) {
                 println("Error: " + ex.getClass().getName() + ": " + ex.getMessage());
             }
-            setRespContentType("text/plain");
         } else {
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
