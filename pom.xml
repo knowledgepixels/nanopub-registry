@@ -305,8 +305,9 @@
           <extraDirectories>
             <paths>
               <path>
-                <from>${project.basedir}/setting.trig</from>
-                <to>/data</to>
+                <from>${project.basedir}</from>
+                <into>/data</into>
+                <includes>setting.trig</includes>
               </path>
             </paths>
           </extraDirectories>
