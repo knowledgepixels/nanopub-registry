@@ -836,6 +836,13 @@ public enum Task implements Serializable {
             schedule(s, LOAD_FULL.withDelay(100));
         }
 
+        @Override
+        public boolean runAsTransaction() {
+            // Peer sync includes long-running streaming fetches that would exceed
+            // MongoDB's transaction timeout; each operation is individually safe.
+            return false;
+        }
+
     };
 
     private static final Logger log = LoggerFactory.getLogger(Task.class);
