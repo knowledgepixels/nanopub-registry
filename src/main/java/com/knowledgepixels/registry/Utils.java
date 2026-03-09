@@ -48,8 +48,10 @@ public class Utils {
     public static String getMimeType(RoutingContext context, String supported) {
         List<String> supportedList = Arrays.asList(StringUtils.split(supported, ','));
         String mimeType = supportedList.getFirst();
+        String acceptHeader = context.request().getHeader("Accept");
+        if (acceptHeader == null) return mimeType;
         try {
-            mimeType = MIMEParse.bestMatch(supportedList, context.request().getHeader("Accept"));
+            mimeType = MIMEParse.bestMatch(supportedList, acceptHeader);
         } catch (Exception ex) {
             logger.error("Error parsing Accept header.", ex);
         }
