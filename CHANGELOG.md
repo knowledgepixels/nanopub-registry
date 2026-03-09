@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.1.0...nanopub-registry-1.1.1) (2026-03-09)
+
+### Bug Fixes
+
+* **settings:** update build configuration for setting.trig file ([2c61baa](https://github.com/knowledgepixels/nanopub-registry/commit/2c61baa30ed002f6c2feef54478759328de1e704))
+
 ## [1.1.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.0.0...nanopub-registry-1.1.0) (2026-03-09)
 
 ### Features
