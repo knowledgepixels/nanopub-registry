@@ -9,6 +9,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.bson.Document;
+import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
 import org.nanopub.jelly.NanopubStream;
 import org.slf4j.Logger;
@@ -128,7 +129,9 @@ public class RegistryPeerConnector {
                  ClientSession loadSession = RegistryDB.getClient().startSession()) {
                 NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
                     if (m.isSuccess()) {
-                        NanopubLoader.simpleLoad(loadSession, m.getNanopub());
+                        Nanopub np = m.getNanopub();
+                        RegistryDB.loadNanopub(loadSession, np);
+                        NanopubLoader.simpleLoad(loadSession, np);
                     }
                 });
             }
@@ -153,7 +156,9 @@ public class RegistryPeerConnector {
             try (InputStream is = resp.getEntity().getContent()) {
                 NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
                     if (m.isSuccess()) {
-                        NanopubLoader.simpleLoad(s, m.getNanopub());
+                        Nanopub np = m.getNanopub();
+                        RegistryDB.loadNanopub(s, np);
+                        NanopubLoader.simpleLoad(s, np);
                     }
                 });
             }
@@ -184,7 +189,9 @@ public class RegistryPeerConnector {
                 try (InputStream is = resp.getEntity().getContent()) {
                     NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
                         if (m.isSuccess()) {
-                            NanopubLoader.simpleLoad(s, m.getNanopub());
+                            Nanopub np = m.getNanopub();
+                            RegistryDB.loadNanopub(s, np);
+                            NanopubLoader.simpleLoad(s, np);
                         }
                     });
                 }
