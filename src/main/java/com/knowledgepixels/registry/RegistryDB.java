@@ -20,6 +20,8 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+
+import java.util.Calendar;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.security.MalformedCryptoElementException;
 import org.nanopub.extra.security.NanopubSignatureElement;
@@ -355,6 +357,11 @@ public class RegistryDB {
         }
         if (nanopub.getByteCount() > 1000000) {
             logger.info("Nanopub is too large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
+            return false;
+        }
+        Calendar creationTime = nanopub.getCreationTime();
+        if (creationTime != null && creationTime.getTimeInMillis() > System.currentTimeMillis() + 60000) {
+            logger.info("Nanopub has a future timestamp: {}", nanopub.getUri());
             return false;
         }
         String pubkey = getPubkey(nanopub);
