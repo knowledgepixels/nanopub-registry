@@ -16,8 +16,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
-import java.util.List;
-
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryPeerConnector.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -194,41 +192,6 @@ class RegistryPeerConnectorTest {
         }
 
         @Test
-        void getApprovedPubkeys_returnsEmptyWhenNoLists() {
-            List<String> pubkeys = getApprovedPubkeys(session);
-            assertTrue(pubkeys.isEmpty());
-        }
-
-        @Test
-        void getApprovedPubkeys_returnsLoadedPubkeys() {
-            collection("lists").insertOne(session,
-                    new Document("pubkey", "abc123").append("type", "$").append("status", "loaded"));
-            collection("lists").insertOne(session,
-                    new Document("pubkey", "def456").append("type", "$").append("status", "loaded"));
-            // This one should NOT be returned (status is not "loaded")
-            collection("lists").insertOne(session,
-                    new Document("pubkey", "ghi789").append("type", "$").append("status", "encountered"));
-
-            List<String> pubkeys = getApprovedPubkeys(session);
-            assertEquals(2, pubkeys.size());
-            assertTrue(pubkeys.contains("abc123"));
-            assertTrue(pubkeys.contains("def456"));
-            assertFalse(pubkeys.contains("ghi789"));
-        }
-
-        @Test
-        void getApprovedPubkeys_excludesNonDollarTypes() {
-            collection("lists").insertOne(session,
-                    new Document("pubkey", "abc123").append("type", "$").append("status", "loaded"));
-            collection("lists").insertOne(session,
-                    new Document("pubkey", "abc123").append("type", "introHash").append("status", "loaded"));
-
-            List<String> pubkeys = getApprovedPubkeys(session);
-            assertEquals(1, pubkeys.size());
-            assertEquals("abc123", pubkeys.getFirst());
-        }
-
-        @Test
         void discoverPubkeys_createsEncounteredIntroLists() {
             // Simulate what discoverPubkeys does: insert encountered intro lists for unknown pubkeys
             String pubkeyHash = "newPubkey123";
@@ -300,15 +263,6 @@ class RegistryPeerConnectorTest {
             assertEquals(200L, state2.getLong("setupId"));
             assertEquals(500L, state1.getLong("loadCounter"));
             assertEquals(600L, state2.getLong("loadCounter"));
-        }
-    }
-
-    @Nested
-    class SmallDeltaThresholdTests {
-
-        @Test
-        void thresholdIsReasonable() {
-            assertEquals(100, SMALL_DELTA_THRESHOLD);
         }
     }
 

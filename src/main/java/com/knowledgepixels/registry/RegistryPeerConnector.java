@@ -32,7 +32,6 @@ public class RegistryPeerConnector {
     private RegistryPeerConnector() {}
 
     private static final Logger log = LoggerFactory.getLogger(RegistryPeerConnector.class);
-    static final int SMALL_DELTA_THRESHOLD = 100;
 
     public static void checkPeers(ClientSession s) {
         List<String> peerUrls = new ArrayList<>(Utils.getPeerUrls());
@@ -89,18 +88,15 @@ public class RegistryPeerConnector {
 
         if (lastLoadCounter != null && lastLoadCounter.equals(peerLoadCounter)) {
             log.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
+        } else if (lastLoadCounter != null) {
+            // Fetch all nanopubs added since our last known position.
+            // This works for any delta size; the full fetch covers the first-sync case.
+            // TODO Add per-pubkey afterCounter tracking for more targeted incremental sync
+            long delta = peerLoadCounter - lastLoadCounter;
+            log.info("Peer {} has {} new nanopubs, fetching recent", peerUrl, delta);
+            loadRecentNanopubs(s, peerUrl, lastLoadCounter);
         } else {
-            long delta = (lastLoadCounter != null) ? peerLoadCounter - lastLoadCounter : Long.MAX_VALUE;
-
-            if (delta > 0 && delta < SMALL_DELTA_THRESHOLD) {
-                log.info("Peer {} has small delta ({}), fetching recent nanopubs", peerUrl, delta);
-                loadRecentNanopubs(s, peerUrl, lastLoadCounter);
-            } else {
-                log.info("Peer {} has large delta, checking per-pubkey lists", peerUrl);
-                // TODO Add per-pubkey/type position tracking for more efficient incremental sync
-                // TODO Add checksum-based binary search to avoid downloading full lists
-                loadByApprovedPubkeys(s, peerUrl);
-            }
+            log.info("Peer {} is new, full fetch will handle initial sync", peerUrl);
         }
 
         // TODO Remove full fetch once incremental sync covers all nanopubs (including non-approved pubkeys)
@@ -188,40 +184,6 @@ public class RegistryPeerConnector {
         }
     }
 
-    static void loadByApprovedPubkeys(ClientSession s, String peerUrl) {
-        // Only process approved pubkeys (those with loaded "$" lists)
-        // TODO Add throttled loading for non-approved pubkeys
-        List<String> approvedPubkeys = getApprovedPubkeys(s);
-        log.info("Checking {} approved pubkeys at peer {}", approvedPubkeys.size(), peerUrl);
-
-        for (String pubkeyHash : approvedPubkeys) {
-            String requestUrl = peerUrl + "list/" + pubkeyHash + "/$.jelly";
-            log.info("Fetching list from: {}", requestUrl);
-            try {
-                HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
-                int httpStatus = resp.getStatusLine().getStatusCode();
-                if (httpStatus < 200 || httpStatus >= 300) {
-                    EntityUtils.consumeQuietly(resp.getEntity());
-                    if (httpStatus != 404) {
-                        log.info("Request failed: {} {}", requestUrl, httpStatus);
-                    }
-                    continue;
-                }
-                try (InputStream is = resp.getEntity().getContent()) {
-                    NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
-                        if (m.isSuccess()) {
-                            Nanopub np = m.getNanopub();
-                            RegistryDB.loadNanopub(s, np);
-                            NanopubLoader.simpleLoad(s, np);
-                        }
-                    });
-                }
-            } catch (IOException ex) {
-                log.info("Failed to fetch list from {}: {}", requestUrl, ex.getMessage());
-            }
-        }
-    }
-
     static void discoverPubkeys(ClientSession s, String peerUrl) {
         log.info("Discovering pubkeys from peer: {}", peerUrl);
         try {
@@ -249,17 +211,6 @@ public class RegistryPeerConnector {
         } catch (Exception ex) {
             log.info("Failed to discover pubkeys from {}: {}", peerUrl, ex.getMessage());
         }
-    }
-
-    static List<String> getApprovedPubkeys(ClientSession s) {
-        List<String> pubkeys = new ArrayList<>();
-        try (MongoCursor<Document> cursor = collection("lists").find(s,
-                new Document("type", "$").append("status", "loaded")).cursor()) {
-            while (cursor.hasNext()) {
-                pubkeys.add(cursor.next().getString("pubkey"));
-            }
-        }
-        return pubkeys;
     }
 
     static Document getPeerState(ClientSession s, String peerUrl) {
