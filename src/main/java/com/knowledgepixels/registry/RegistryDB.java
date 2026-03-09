@@ -377,7 +377,7 @@ public class RegistryDB {
             return false;
         }
         if (has(mongoSession, Collection.NANOPUBS.toString(), ac)) {
-            logger.info("Already loaded: {}", nanopub.getUri());
+            logger.debug("Already loaded: {}", nanopub.getUri());
         } else {
             Long counter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
             if (counter == null) counter = 0l;
@@ -455,7 +455,7 @@ public class RegistryDB {
         }
 
         if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
-            logger.info("Already listed: {}", nanopub.getUri());
+            logger.debug("Already listed: {}", nanopub.getUri());
         } else {
 
             Document doc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
