@@ -115,6 +115,7 @@ public class RegistryPeerConnector {
         String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
         log.info("Full fetch of all nanopubs from: {} (resuming after counter {})", requestUrl, afterCounter);
         AtomicLong lastCounter = new AtomicLong(afterCounter);
+        AtomicLong processedCount = new AtomicLong(0);
         boolean completed = false;
         try {
             HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
@@ -136,6 +137,10 @@ public class RegistryPeerConnector {
                     }
                     if (m.getCounter() > 0) {
                         lastCounter.set(m.getCounter());
+                    }
+                    long count = processedCount.incrementAndGet();
+                    if (count % 1000 == 0) {
+                        log.info("Full fetch progress: {} nanopubs processed (counter: {})", count, lastCounter.get());
                     }
                 });
             }
