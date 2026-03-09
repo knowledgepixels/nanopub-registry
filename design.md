@@ -104,36 +104,37 @@ Tasks are scheduled and executed sequentially from a `tasks` collection. The mai
 2. `LOAD_DECLARATIONS` → `EXPAND_TRUST_PATHS` → `LOAD_CORE` — iteratively load core nanopubs and build the trust network
 3. `FINISH_ITERATION` — repeats step 2 until no more changes
 4. `CALCULATE_TRUST_SCORES` → `AGGREGATE_AGENTS` → `ASSIGN_PUBKEYS` → `DETERMINE_UPDATES` → `FINALIZE_TRUST_STATE` → `RELEASE_DATA` — compute trust scores and quotas, swap in new data
-5. `UPDATE` → `LOAD_FULL` — load all nanopubs for trusted accounts
-6. `CHECK_MORE_PUBKEYS` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — discover new pubkeys from peers, load new nanopubs, then loop back to `LOAD_FULL`
+5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`
+6. `UPDATE` (hourly) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
 
 See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 
 
 ## Updating from peers
 
-To update nanopublications from peer Nanopub Registries, the steps below are followed. A Nanopub Registry prepares itself for these updates like this:
+The `CHECK_NEW` task invokes `RegistryPeerConnector.checkPeers()`, which iterates over peer registries (in random order) and synchronizes nanopubs. Per-peer state is tracked in the `peerState` collection.
 
-- Keep a list of peer services, together with info from the last time they were visited, most importantly `setupId`, `stateCounter`, and `status`.
-- (`stateCounter` is roughly the total number of nanopublication load events that have ever occurred on this instance, including those for pubkeys that have been unloaded since; but this still needs some proper write-up/specification)
-- This list of peer services includes the services listed in the settings as well as services approved by approved agents (to be specified how this works exactly).
-- Keep info also about the specific pubkey/type lists that were visited at these peer services, most importantly the position up to which we had checked and loaded all nanopublications
+**Preparation:**
+- Track each peer's `setupId` and `loadCounter` in the `peerState` collection
+- `loadCounter` is the maximum counter value from the peer's nanopubs collection (increments per nanopub loaded)
+- Peer URLs come from the `REGISTRY_PEER_URLS` environment variable
 
-For a registry to update its nanopublications, it iterates over the list of peer services and performs these steps on each of them:
+**Per-peer sync steps:**
 
-1. Retrieve the basic info of the chosen peer service, i.e. `setupId`, `stateCounter`, and `status`.
-2. If we have info about this peer service from an earlier request, but the `setupId` is different, this means that the service has been reset in the meantime and our previous info about it is no longer valid. So, we delete the old info and treat it as an unknown service.
-3. If `setupId` and `stateCounter` both haven't changed since our last request, then there is nothing new on this peer service, and we can abort this process and move to the next peer service.
-4. If `status` is `loading` (or other non-ready status; to be specified), we ignore this instance for now and abort this process and move to the next peer service.
-5. If `stateCounter` has increased since the last request but only by a relatively small amount (given by a threshold value still to be determined, e.g. 100 or 1000), request these nanopublications and load them to the respective lists. Then we abort this process and move to the next peer service.
-6. If `stateCounter` has increased by more, we iterate over all our pubkeys to ask the peer service about them.
-7. Retrieve info about the specific pubkey list (with type = `$` standing for "all types"; more specific algorithms to be determined for the cases where services store only certain types), most importantly the maximum position (= size of list) and the overall checksum
-8. If our list has the same checksum (and therefore same size), there is nothing new and we can move on with checking the next pubkey.
-9. We calculate the maximum number of unknown nanopublications in the peer list, taking into account the info we have from any previous request (e.g. if the peer list has size 13, and we had checked the nanopublications up to position 5 the last time, then the maximum number of unknown nanopublications is 8)
-10. If the maximum number of unknown nanopublications is small enough (given by a threshold value still to be determined, e.g. 100 or 1000), we request all nanopublications after the last position one by one, and add unknown ones to our list too.
-11. If the maximum number of unknown nanopublications is larger, then we try to find a position up to which both lists have identical nanopublications by checking whether checksums we have in our list occur in the peer list too (this can be done with individual requests or bulk ones of e.g. 100 checksums; to be defined)
-12. If we find a match, we update our position up to which we know that all nanopublications are loaded to the found position. If the maximum number of unknown nanopublications is now small enough, we load the nanopublications one by one as for Step 5.
-13. If we don't find a matching checksum or the maximum number of unknown nanopublications is still too large, we check a defined number of positions at the peer list, but then stop and leave this for later. The idea is that we are hoping that we have better luck at other peers loading the missing nanopublications (because they might have ordered them in a way that is more similar to our lists, thereby increasing the chances of identical checksums).
+1. Send HTTP HEAD request to peer URL; extract `Nanopub-Registry-Status`, `Nanopub-Registry-Setup-Id`, and `Nanopub-Registry-Load-Counter` from response headers.
+2. Skip peers with non-ready status (only `ready` and `updating` are accepted).
+3. If `setupId` changed since last check, delete stored peer state and treat as new.
+4. If `loadCounter` is unchanged, skip (nothing new).
+5. **Small delta** (loadCounter difference < 100): fetch recent nanopubs via `/nanopubs.jelly?afterCounter=X`.
+6. **Large delta** (or first sync): iterate over approved pubkeys and download their `$.jelly` lists from the peer. Only pubkeys with loaded `$` lists are processed.
+7. **Full fetch** (once per peer): if `fullFetchDone` is not set, fetch all nanopubs via `/nanopubs.jelly` using a dedicated session to avoid transaction timeouts.
+8. **Discover pubkeys**: fetch `/pubkeys.json` from the peer and create `encountered` intro lists for any unknown pubkeys, so they can be loaded later via `RUN_OPTIONAL_LOAD`.
+9. Update peer state with current `setupId`, `loadCounter`, and `fullFetchDone`.
+
+**Not yet implemented optimizations:**
+- Per-pubkey/type position tracking for incremental sync (currently downloads full lists)
+- Checksum-based binary search to avoid downloading full lists when only a few nanopubs are new
+- Throttled loading for non-approved pubkeys during peer sync
 
 
 ## Data Structure
@@ -199,6 +200,9 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'SueRich>b55 JohnDoe>a83', depth^:2, agent^:JohnDoe, pubkey^:a83, ratio:0.009 }
       { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
+      ...
+    peerState:
+      { id#:'https://example.com/peer/', setupId:1332309348, loadCounter:42000, fullFetchDone:true, lastChecked:1710672000000 }
       ...
     tasks:
       { notBefore^:1710672000000, action^:CHECK_NEW }

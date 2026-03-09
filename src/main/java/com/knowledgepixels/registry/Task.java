@@ -717,7 +717,7 @@ public enum Task implements Serializable {
             if ("false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) return;
 
             ServerStatus status = getServerStatus(s);
-            if (status != coreReady && status != ready) {
+            if (status != coreReady && status != ready && status != updating) {
                 log.info("Server currently not ready; checking again later");
                 schedule(s, LOAD_FULL.withDelay(60 * 1000));
                 return;
@@ -731,7 +731,7 @@ public enum Task implements Serializable {
                     setServerStatus(s, ready);
                 }
                 log.info("Scheduling optional loading checks");
-                schedule(s, CHECK_MORE_PUBKEYS.withDelay(100));
+                schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
@@ -762,25 +762,6 @@ public enum Task implements Serializable {
         public boolean runAsTransaction() {
             // TODO Make this a transaction once we connect to other Nanopub Registry instances:
             return false;
-        }
-
-    },
-
-    CHECK_MORE_PUBKEYS {
-        public void run(ClientSession s, Document taskDoc) {
-            try {
-                for (String pubkeyHash : Utils.retrieveListFromJsonUrl(Utils.getRandomPeer() + "pubkeys.json")) {
-                    Validate.notNull(pubkeyHash);
-                    Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
-                    if (!has(s, "lists", d)) {
-                        insert(s, "lists", d.append("status", encountered.getValue()));
-                    }
-                }
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-
-            schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
         }
 
     },
@@ -820,7 +801,7 @@ public enum Task implements Serializable {
                 Document df = new Document("pubkey", pubkeyHash).append("type", "$");
                 if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered.getValue()));
 
-                schedule(s, CHECK_NEW.withDelay(100));
+                schedule(s, CHECK_NEW.withDelay(500));
                 return;
             }
 
@@ -840,18 +821,26 @@ public enum Task implements Serializable {
                 set(s, "lists", df.append("status", loaded.getValue()));
             }
 
-            schedule(s, CHECK_NEW.withDelay(100));
+            schedule(s, CHECK_NEW.withDelay(500));
         }
 
     },
 
     CHECK_NEW {
         public void run(ClientSession s, Document taskDoc) {
-            // TODO Replace this legacy connection with checks at other Nanopub Registries:
+            RegistryPeerConnector.checkPeers(s);
+            // Keep legacy connection during transition period:
             LegacyConnector.checkForNewNanopubs(s);
             // TODO Somehow throttle the loading of such potentially non-approved nanopubs
 
             schedule(s, LOAD_FULL.withDelay(100));
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Peer sync includes long-running streaming fetches that would exceed
+            // MongoDB's transaction timeout; each operation is individually safe.
+            return false;
         }
 
     };

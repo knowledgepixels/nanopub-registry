@@ -55,6 +55,18 @@ public class DebugPage extends Page {
                 Document d = tp.next();
                 println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
             }
+        } else if (getRequestString().matches("/debug/peerState")) {
+            setRespContentType("text/plain");
+            try {
+                long count = collection(Collection.PEER_STATE.toString()).countDocuments(mongoSession);
+                println("peerState documents: " + count);
+                MongoCursor<Document> ps = collection(Collection.PEER_STATE.toString()).find(mongoSession).cursor();
+                while (ps.hasNext()) {
+                    println(ps.next().toJson());
+                }
+            } catch (Exception ex) {
+                println("Error: " + ex.getClass().getName() + ": " + ex.getMessage());
+            }
         } else {
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }

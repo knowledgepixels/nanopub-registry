@@ -1,5 +1,7 @@
 package com.knowledgepixels.registry;
 
+import com.mongodb.ErrorCategory;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import net.trustyuri.TrustyUriUtils;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static com.knowledgepixels.registry.RegistryDB.has;
+import static com.knowledgepixels.registry.RegistryDB.insert;
 
 public class NanopubLoader {
 
@@ -68,6 +71,15 @@ public class NanopubLoader {
             RegistryDB.loadNanopub(mongoSession, np, pubkeyHash, "$");
         } else if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
             RegistryDB.loadNanopub(mongoSession, np, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
+        } else if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
+            // Unknown pubkey: create encountered intro list so RUN_OPTIONAL_LOAD picks it up
+            try {
+                insert(mongoSession, "lists", new Document("pubkey", pubkeyHash)
+                        .append("type", INTRO_TYPE_HASH)
+                        .append("status", EntryStatus.encountered.getValue()));
+            } catch (MongoWriteException e) {
+                if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
+            }
         }
     }
 
