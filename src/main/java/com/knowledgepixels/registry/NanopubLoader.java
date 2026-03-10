@@ -119,7 +119,13 @@ public class NanopubLoader {
                     continue;
                 }
                 InputStream is = resp.getEntity().getContent();
-                return NanopubStream.fromByteStream(is).getAsNanopubs();
+                return NanopubStream.fromByteStream(is).getAsNanopubs().onClose(() -> {
+                    try {
+                        resp.close();
+                    } catch (IOException e) {
+                        log.debug("Error closing HTTP response", e);
+                    }
+                });
             } catch (UnsupportedOperationException | IOException ex) {
                 log.info("Request failed: ", ex);
             }
