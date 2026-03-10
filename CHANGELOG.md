@@ -1,3 +1,29 @@
+## [1.3.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.2.0...nanopub-registry-1.3.0) (2026-03-10)
+
+### Features
+
+* stream all nanopub IDs in JSON format with sort options ([aa99ba3](https://github.com/knowledgepixels/nanopub-registry/commit/aa99ba39c36463dde325508307a765f8950fec5d))
+
+### Dependency updates
+
+* **deps:** update commons-exec to 1.6.0 ([1310e61](https://github.com/knowledgepixels/nanopub-registry/commit/1310e61f5e87006d6c5409e86ccb656c6ba4cf37))
+* **deps:** update exec-maven-plugin to 3.6.3 ([690d77b](https://github.com/knowledgepixels/nanopub-registry/commit/690d77bd22cdd960d853eaee47bf19c829f33bed))
+* **deps:** update jacoco-maven-plugin to 0.8.14 ([a435c0a](https://github.com/knowledgepixels/nanopub-registry/commit/a435c0a94f0a28e932a941534a21af5a723136e8))
+* **deps:** update jelly to 3.7.1 ([4a9193d](https://github.com/knowledgepixels/nanopub-registry/commit/4a9193d4250d40d126a1b55466e67051179c516d))
+* **deps:** update maven-shade-plugin to 3.6.2 ([44c5476](https://github.com/knowledgepixels/nanopub-registry/commit/44c5476efe34c1ec3353d3dc7c3af32820630a2a))
+* **deps:** update maven-surefire-plugin to 3.5.5 ([bb80ffb](https://github.com/knowledgepixels/nanopub-registry/commit/bb80ffb329a5919a892bbda852eacabd90611c9b))
+* **deps:** update mockito-core to 5.22.0 ([e53b33f](https://github.com/knowledgepixels/nanopub-registry/commit/e53b33f28abfadeca54bba1e73b6b8ef417e1420))
+* **deps:** update nanopub to 1.86.1 ([ff4bd01](https://github.com/knowledgepixels/nanopub-registry/commit/ff4bd01e665e58bb27211263b575200619018406))
+* **deps:** update testcontainers to 2.0.3 ([e52d780](https://github.com/knowledgepixels/nanopub-registry/commit/e52d780a58ab293f4b52a81da275aa8326c92848))
+
+### Bug Fixes
+
+* **test:** use system temp dir to avoid collision with Docker volumes ([98428e8](https://github.com/knowledgepixels/nanopub-registry/commit/98428e88226521140ebcd802fc32c218614f1d72))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([545915b](https://github.com/knowledgepixels/nanopub-registry/commit/545915baa4f2e3beb47b161ce8740f7d42f1a4c7))
+
 ## [1.2.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.1.1...nanopub-registry-1.2.0) (2026-03-10)
 
 ### Features
