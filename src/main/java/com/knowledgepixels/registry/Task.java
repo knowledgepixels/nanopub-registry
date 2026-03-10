@@ -878,6 +878,17 @@ public enum Task implements Serializable {
 
     private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
 
+    private static volatile String currentTaskName;
+    private static volatile long currentTaskStartTime;
+
+    public static String getCurrentTaskName() {
+        return currentTaskName;
+    }
+
+    public static long getCurrentTaskStartTime() {
+        return currentTaskStartTime;
+    }
+
     /**
      * The super important base entry point!
      */
@@ -929,9 +940,13 @@ public enum Task implements Serializable {
     static void runTask(Task task, Document taskDoc) throws Exception {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             log.info("Executing task: {}", task.name());
+            currentTaskName = task.name();
+            currentTaskStartTime = System.currentTimeMillis();
             task.run(s, taskDoc);
             tasksCollection.deleteOne(s, eq("_id", taskDoc.get("_id")));
             log.info("Task {} completed and removed from queue.", task.name());
+        } finally {
+            currentTaskName = null;
         }
     }
 

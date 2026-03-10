@@ -58,6 +58,14 @@ public class DebugPage extends Page {
         } else if (getRequestString().matches("/debug/tasks")) {
             setRespContentType("text/plain");
             try {
+                String currentTask = Task.getCurrentTaskName();
+                if (currentTask != null) {
+                    long elapsed = System.currentTimeMillis() - Task.getCurrentTaskStartTime();
+                    println("Currently running: " + currentTask + " (for " + elapsed + "ms)");
+                } else {
+                    println("Currently running: (none)");
+                }
+                println("");
                 MongoCursor<Document> tasks = collection(Collection.TASKS.toString()).find(mongoSession)
                         .sort(ascending("not-before")).cursor();
                 int count = 0;
@@ -65,7 +73,7 @@ public class DebugPage extends Page {
                     println(tasks.next().toJson());
                     count++;
                 }
-                println("Total tasks: " + count);
+                println("Total queued tasks: " + count);
             } catch (Exception ex) {
                 println("Error: " + ex.getClass().getName() + ": " + ex.getMessage());
             }
