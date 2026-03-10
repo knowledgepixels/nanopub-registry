@@ -1,3 +1,20 @@
+## [1.2.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.1.1...nanopub-registry-1.2.0) (2026-03-10)
+
+### Features
+
+* add /debug/tasks endpoint to expose the task queue ([94dcb1d](https://github.com/knowledgepixels/nanopub-registry/commit/94dcb1de97c00ab3be4276642953dd8f5e473f2d))
+* add REGISTRY_PERFORM_FULL_FETCH env var to disable full fetch ([9df347b](https://github.com/knowledgepixels/nanopub-registry/commit/9df347b9794ab89f95c44f29c4741c65ed5d9ef7))
+* show currently running task on /debug/tasks page ([e0e4e51](https://github.com/knowledgepixels/nanopub-registry/commit/e0e4e51bd10ef80d47d0fd30d3cd8ed93cbee538))
+
+### Bug Fixes
+
+* close HTTP response in retrieveNanopubsFromPeers to prevent connection pool exhaustion ([76e42f6](https://github.com/knowledgepixels/nanopub-registry/commit/76e42f6aa1619a65bce2fc6d294437180bda1a37))
+* improve resilience of peer sync ([01dcace](https://github.com/knowledgepixels/nanopub-registry/commit/01dcace4859ce80a0baf5d01d1589f4e3f972950))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([fb23502](https://github.com/knowledgepixels/nanopub-registry/commit/fb2350240900efef00783151c034b20fb5d7ce30))
+
 ## [1.1.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.1.0...nanopub-registry-1.1.1) (2026-03-09)
 
 ### Bug Fixes
