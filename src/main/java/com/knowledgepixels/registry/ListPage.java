@@ -314,32 +314,57 @@ public class ListPage extends Page {
                     context.response().write(outputStream.getBuffer());
                 }
             } else {
-                // Return latest nanopubs
+                // Return nanopubs as streamed JSON or HTML
+                String sortParam = getParam("sort", "date");
 
-                MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession).sort(descending("counter")).limit(1000).cursor();
                 if (TYPE_JSON.equals(format)) {
-                    println("[");
-                    while (c.hasNext()) {
-                        print(gson.toJson(c.next().getString("_id")));
-                        println(c.hasNext() ? "," : "");
+                    Bson filter;
+                    Bson sort;
+                    if ("id".equals(sortParam)) {
+                        String afterId = getParam("after", "");
+                        filter = afterId.isEmpty() ? new Document() : gt("_id", afterId);
+                        sort = ascending("_id");
+                    } else {
+                        // sort=date (default): latest first, using indexed counter field
+                        filter = new Document();
+                        sort = descending("counter");
                     }
-                    println("]");
+                    try (MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession)
+                            .filter(filter).sort(sort)
+                            .projection(include("_id")).cursor()) {
+                        println("[");
+                        boolean first = true;
+                        while (c.hasNext()) {
+                            if (!first) println(",");
+                            first = false;
+                            print(gson.toJson(c.next().getString("_id")));
+                        }
+                        println("\n]");
+                    }
                 } else {
-                    printHtmlHeader("Latest nanopubs - Nanopub Registry");
+                    printHtmlHeader("Nanopubs - Nanopub Registry");
                     println("<h1>Nanopubs</h1>");
                     println("<p><a href=\"/\">&lt; Home</a></p>");
-                    println("<h3>Latest Nanopubs JSON (max. 1000)</h3>");
+                    println("<h3>All Nanopub IDs (JSON, latest first)</h3>");
                     println("<p>");
                     println("<a href=\"nanopubs.json\">.json</a> |");
                     println("<a href=\"nanopubs.json.txt\">.json.txt</a>");
                     println("</p>");
+                    println("<h3>All Nanopub IDs (JSON, sorted by artifact code)</h3>");
+                    println("<p>");
+                    println("<a href=\"nanopubs.json?sort=id\">.json</a> |");
+                    println("<a href=\"nanopubs.json.txt?sort=id\">.json.txt</a>");
+                    println("</p>");
                     println("<h3>All Nanopubs (Jelly)</h3>");
                     println("<p><a href=\"nanopubs.jelly\">.jelly</a></p>");
-                    println("<h3>Latest Nanopubs List (max. 1000)</h3>");
+                    println("<h3>Latest Nanopubs (max. 1000)</h3>");
                     println("<ol>");
-                    while (c.hasNext()) {
-                        String npId = c.next().getString("_id");
-                        println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
+                    try (MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession)
+                            .sort(descending("counter")).limit(1000).cursor()) {
+                        while (c.hasNext()) {
+                            String npId = c.next().getString("_id");
+                            println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
+                        }
                     }
                     println("</ol>");
                     printHtmlFooter();
