@@ -55,6 +55,20 @@ public class DebugPage extends Page {
                 Document d = tp.next();
                 println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
             }
+        } else if (getRequestString().matches("/debug/tasks")) {
+            setRespContentType("text/plain");
+            try {
+                MongoCursor<Document> tasks = collection(Collection.TASKS.toString()).find(mongoSession)
+                        .sort(ascending("not-before")).cursor();
+                int count = 0;
+                while (tasks.hasNext()) {
+                    println(tasks.next().toJson());
+                    count++;
+                }
+                println("Total tasks: " + count);
+            } catch (Exception ex) {
+                println("Error: " + ex.getClass().getName() + ": " + ex.getMessage());
+            }
         } else if (getRequestString().matches("/debug/peerState")) {
             setRespContentType("text/plain");
             try {
