@@ -99,9 +99,9 @@ public class RegistryPeerConnector {
             log.info("Peer {} is new, full fetch will handle initial sync", peerUrl);
         }
 
-        // TODO Remove full fetch once incremental sync covers all nanopubs (including non-approved pubkeys)
+        // Full fetch can be disabled once incremental sync covers all nanopubs (including non-approved pubkeys)
         boolean fullFetchSucceeded = fullFetchDone != null && fullFetchDone;
-        if (!fullFetchSucceeded) {
+        if (!fullFetchSucceeded && !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_FETCH", ""))) {
             Long fullFetchPosition = peerState != null ? peerState.getLong("fullFetchPosition") : null;
             long afterCounter = fullFetchPosition != null ? fullFetchPosition : -1;
             fullFetchSucceeded = loadAllNanopubs(s, peerUrl, afterCounter);
