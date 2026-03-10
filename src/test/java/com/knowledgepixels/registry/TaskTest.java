@@ -80,7 +80,7 @@ class TaskTest {
         Task.runTask(Task.LOAD_CONFIG, Task.LOAD_CONFIG.asDocument());
 
         TestUtils.copyResourceToDataDir("setting.trig");
-        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", TestUtils.getDataDir().resolve("setting.trig").toString()).build();
 
         Task.runTask(Task.LOAD_SETTING, Task.LOAD_SETTING.asDocument());
         ClientSession mongoSession = RegistryDB.getClient().startSession();
@@ -105,7 +105,7 @@ class TaskTest {
         Task.runTask(Task.LOAD_CONFIG, Task.LOAD_CONFIG.asDocument());
 
         TestUtils.copyResourceToDataDir("setting.trig");
-        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", TestUtils.getDataDir().resolve("setting.trig").toString()).build();
 
         Task.runTask(Task.LOAD_SETTING, Task.LOAD_SETTING.asDocument());
         Task.runTask(Task.LOAD_FULL, Task.LOAD_FULL.asDocument());

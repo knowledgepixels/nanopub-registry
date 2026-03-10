@@ -12,8 +12,14 @@ import java.util.Map;
 public class TestUtils {
 
     private static FakeEnv fakeEnv;
-    private final static String TEMPORARY_DATA_DIR_NAME = "data";
-    private final static Path temporaryDataDir = Path.of(TEMPORARY_DATA_DIR_NAME);
+    private final static Path temporaryDataDir = Path.of(System.getProperty("java.io.tmpdir"), "nanopub-registry-test-data");
+
+    /**
+     * Returns the path to the temporary data directory used for testing.
+     */
+    public static Path getDataDir() {
+        return temporaryDataDir;
+    }
 
     /**
      * Sets up a fake environment for testing.

@@ -184,7 +184,7 @@ class UtilsTest {
     @Test
     void getSettingWithSettingFile() throws Exception {
         TestUtils.copyResourceToDataDir("setting.trig");
-        fakeEnv.addVariable("REGISTRY_SETTING_FILE", "./data/setting.trig").build();
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", TestUtils.getDataDir().resolve("setting.trig").toString()).build();
 
         NanopubSetting settingValue = Utils.getSetting();
         assertNotNull(settingValue);
