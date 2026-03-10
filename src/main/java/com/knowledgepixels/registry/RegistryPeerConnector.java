@@ -131,9 +131,15 @@ public class RegistryPeerConnector {
                  ClientSession loadSession = RegistryDB.getClient().startSession()) {
                 NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
                     if (m.isSuccess()) {
-                        Nanopub np = m.getNanopub();
-                        RegistryDB.loadNanopub(loadSession, np);
-                        NanopubLoader.simpleLoad(loadSession, np);
+                        Nanopub np = null;
+                        try {
+                            np = m.getNanopub();
+                            RegistryDB.loadNanopub(loadSession, np);
+                            NanopubLoader.simpleLoad(loadSession, np);
+                        } catch (Exception ex) {
+                            log.warn("Skipping nanopub {} during full fetch: {}",
+                                    np != null ? np.getUri() : "unknown", ex.getMessage());
+                        }
                     }
                     if (m.getCounter() > 0) {
                         lastCounter.set(m.getCounter());
@@ -141,12 +147,13 @@ public class RegistryPeerConnector {
                     long count = processedCount.incrementAndGet();
                     if (count % 1000 == 0) {
                         log.info("Full fetch progress: {} nanopubs processed (counter: {})", count, lastCounter.get());
+                        saveFullFetchPosition(s, peerUrl, lastCounter.get());
                     }
                 });
             }
             completed = true;
             return true;
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             log.info("Failed to fetch all nanopubs from {}: {}", peerUrl, ex.getMessage());
             return false;
         } finally {
@@ -178,9 +185,15 @@ public class RegistryPeerConnector {
             try (InputStream is = resp.getEntity().getContent()) {
                 NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
                     if (m.isSuccess()) {
-                        Nanopub np = m.getNanopub();
-                        RegistryDB.loadNanopub(s, np);
-                        NanopubLoader.simpleLoad(s, np);
+                        Nanopub np = null;
+                        try {
+                            np = m.getNanopub();
+                            RegistryDB.loadNanopub(s, np);
+                            NanopubLoader.simpleLoad(s, np);
+                        } catch (Exception ex) {
+                            log.warn("Skipping nanopub {} during recent fetch: {}",
+                                    np != null ? np.getUri() : "unknown", ex.getMessage());
+                        }
                     }
                 });
             }

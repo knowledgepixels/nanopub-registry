@@ -360,7 +360,13 @@ public class RegistryDB {
             logger.info("Nanopub is too large ({}): {}", nanopub.getByteCount(), nanopub.getUri());
             return false;
         }
-        Calendar creationTime = nanopub.getCreationTime();
+        Calendar creationTime;
+        try {
+            creationTime = nanopub.getCreationTime();
+        } catch (Exception ex) {
+            logger.info("Nanopub has malformed timestamp, treating as no timestamp: {}", nanopub.getUri());
+            creationTime = null;
+        }
         if (creationTime != null && creationTime.getTimeInMillis() > System.currentTimeMillis() + 60000) {
             logger.info("Nanopub has a future timestamp: {}", nanopub.getUri());
             return false;
