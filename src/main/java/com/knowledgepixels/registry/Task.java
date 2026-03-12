@@ -801,7 +801,7 @@ public enum Task implements Serializable {
                 Document df = new Document("pubkey", pubkeyHash).append("type", "$");
                 if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered.getValue()));
 
-                if (loadAllPubkeys()) {
+                if (prioritizeAllPubkeys()) {
                     schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
                 } else {
                     schedule(s, CHECK_NEW.withDelay(500));
@@ -824,7 +824,7 @@ public enum Task implements Serializable {
 
                 set(s, "lists", df.append("status", loaded.getValue()));
 
-                if (loadAllPubkeys()) {
+                if (prioritizeAllPubkeys()) {
                     schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
                     return;
                 }
@@ -877,8 +877,8 @@ public enum Task implements Serializable {
         return asDocument().append(key, value);
     }
 
-    private static boolean loadAllPubkeys() {
-        return "true".equals(System.getenv("REGISTRY_LOAD_ALL_PUBKEYS"));
+    private static boolean prioritizeAllPubkeys() {
+        return "true".equals(System.getenv("REGISTRY_PRIORITIZE_ALL_PUBKEYS"));
     }
 
     // TODO Move these to setting:
