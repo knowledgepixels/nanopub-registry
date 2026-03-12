@@ -4,7 +4,7 @@
 #
 # Periodically polls the registry's JSON endpoint and logs key metrics as TSV.
 # Useful for tracking how fast nanopubs are loaded after a fresh start, comparing
-# configurations (e.g. with/without REGISTRY_LOAD_ALL_PUBKEYS), or watching a
+# configurations (e.g. with/without REGISTRY_PRIORITIZE_ALL_PUBKEYS), or watching a
 # trust update cycle.
 #
 # Columns: timestamp, elapsed seconds, server status, nanopubCount, loadCounter,
