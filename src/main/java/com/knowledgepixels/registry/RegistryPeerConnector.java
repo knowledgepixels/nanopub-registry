@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.knowledgepixels.registry.RegistryDB.*;
 
@@ -77,98 +76,27 @@ public class RegistryPeerConnector {
         Document peerState = getPeerState(s, peerUrl);
         Long lastSetupId = peerState != null ? peerState.getLong("setupId") : null;
         Long lastLoadCounter = peerState != null ? peerState.getLong("loadCounter") : null;
-        Boolean fullFetchDone = peerState != null ? peerState.getBoolean("fullFetchDone") : null;
 
         if (lastSetupId != null && !lastSetupId.equals(peerSetupId)) {
             log.info("Peer {} was reset (setupId changed), resetting tracking", peerUrl);
             deletePeerState(s, peerUrl);
             lastLoadCounter = null;
-            fullFetchDone = null;
         }
 
         if (lastLoadCounter != null && lastLoadCounter.equals(peerLoadCounter)) {
             log.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
         } else if (lastLoadCounter != null) {
             // Fetch all nanopubs added since our last known position.
-            // This works for any delta size; the full fetch covers the first-sync case.
             // TODO Add per-pubkey afterCounter tracking for more targeted incremental sync
             long delta = peerLoadCounter - lastLoadCounter;
             log.info("Peer {} has {} new nanopubs, fetching recent", peerUrl, delta);
             loadRecentNanopubs(s, peerUrl, lastLoadCounter);
         } else {
-            log.info("Peer {} is new, full fetch will handle initial sync", peerUrl);
-        }
-
-        // Full fetch can be disabled once incremental sync covers all nanopubs (including non-approved pubkeys)
-        boolean fullFetchSucceeded = fullFetchDone != null && fullFetchDone;
-        if (!fullFetchSucceeded && !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_FETCH", ""))) {
-            Long fullFetchPosition = peerState != null ? peerState.getLong("fullFetchPosition") : null;
-            long afterCounter = fullFetchPosition != null ? fullFetchPosition : -1;
-            fullFetchSucceeded = loadAllNanopubs(s, peerUrl, afterCounter);
+            log.info("Peer {} is new, pubkey discovery will handle initial sync", peerUrl);
         }
 
         discoverPubkeys(s, peerUrl);
-        updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter, fullFetchSucceeded);
-    }
-
-    private static boolean loadAllNanopubs(ClientSession s, String peerUrl, long afterCounter) {
-        String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
-        log.info("Full fetch of all nanopubs from: {} (resuming after counter {})", requestUrl, afterCounter);
-        AtomicLong lastCounter = new AtomicLong(afterCounter);
-        AtomicLong processedCount = new AtomicLong(0);
-        boolean completed = false;
-        try {
-            HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
-            int httpStatus = resp.getStatusLine().getStatusCode();
-            if (httpStatus < 200 || httpStatus >= 300) {
-                EntityUtils.consumeQuietly(resp.getEntity());
-                log.info("Request failed: {} {}", requestUrl, httpStatus);
-                return false;
-            }
-            // Use a dedicated session outside any wrapping transaction to avoid
-            // MongoDB transaction timeout on large streams.
-            try (InputStream is = resp.getEntity().getContent();
-                 ClientSession loadSession = RegistryDB.getClient().startSession()) {
-                NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
-                    if (m.isSuccess()) {
-                        Nanopub np = null;
-                        try {
-                            np = m.getNanopub();
-                            RegistryDB.loadNanopub(loadSession, np);
-                            NanopubLoader.simpleLoad(loadSession, np);
-                        } catch (Exception ex) {
-                            log.warn("Skipping nanopub {} during full fetch: {}",
-                                    np != null ? np.getUri() : "unknown", ex.getMessage());
-                        }
-                    }
-                    if (m.getCounter() > 0) {
-                        lastCounter.set(m.getCounter());
-                    }
-                    long count = processedCount.incrementAndGet();
-                    if (count % 1000 == 0) {
-                        log.info("Full fetch progress: {} nanopubs processed (counter: {})", count, lastCounter.get());
-                        saveFullFetchPosition(s, peerUrl, lastCounter.get());
-                    }
-                });
-            }
-            completed = true;
-            return true;
-        } catch (Exception ex) {
-            log.info("Failed to fetch all nanopubs from {}: {}", peerUrl, ex.getMessage());
-            return false;
-        } finally {
-            if (!completed && lastCounter.get() > afterCounter) {
-                log.info("Full fetch interrupted at counter {}; saving position for resume", lastCounter.get());
-                saveFullFetchPosition(s, peerUrl, lastCounter.get());
-            }
-        }
-    }
-
-    private static void saveFullFetchPosition(ClientSession s, String peerUrl, long position) {
-        collection(Collection.PEER_STATE.toString()).updateOne(s,
-                new Document("_id", peerUrl),
-                new Document("$set", new Document("fullFetchPosition", position)),
-                new com.mongodb.client.model.UpdateOptions().upsert(true));
+        updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter);
     }
 
     private static void loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
@@ -238,13 +166,12 @@ public class RegistryPeerConnector {
         }
     }
 
-    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long loadCounter, boolean fullFetchDone) {
+    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long loadCounter) {
         collection(Collection.PEER_STATE.toString()).updateOne(s,
                 new Document("_id", peerUrl),
                 new Document("$set", new Document("_id", peerUrl)
                         .append("setupId", setupId)
                         .append("loadCounter", loadCounter)
-                        .append("fullFetchDone", fullFetchDone)
                         .append("lastChecked", System.currentTimeMillis())),
                 new com.mongodb.client.model.UpdateOptions().upsert(true));
     }

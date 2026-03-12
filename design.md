@@ -125,11 +125,9 @@ The `CHECK_NEW` task invokes `RegistryPeerConnector.checkPeers()`, which iterate
 2. Skip peers with non-ready status (only `ready` and `updating` are accepted).
 3. If `setupId` changed since last check, delete stored peer state and treat as new.
 4. If `loadCounter` is unchanged, skip (nothing new).
-5. **Small delta** (loadCounter difference < 100): fetch recent nanopubs via `/nanopubs.jelly?afterCounter=X`.
-6. **Large delta** (or first sync): iterate over approved pubkeys and download their `$.jelly` lists from the peer. Only pubkeys with loaded `$` lists are processed.
-7. **Full fetch** (once per peer): if `fullFetchDone` is not set, fetch all nanopubs via `/nanopubs.jelly` using a dedicated session to avoid transaction timeouts.
-8. **Discover pubkeys**: fetch `/pubkeys.json` from the peer and create `encountered` intro lists for any unknown pubkeys, so they can be loaded later via `RUN_OPTIONAL_LOAD`.
-9. Update peer state with current `setupId`, `loadCounter`, and `fullFetchDone`.
+5. **Incremental sync**: fetch recent nanopubs via `/nanopubs.jelly?afterCounter=X`.
+6. **Discover pubkeys**: fetch `/pubkeys.json` from the peer and create `encountered` intro lists for any unknown pubkeys, so they can be loaded later via `RUN_OPTIONAL_LOAD`.
+7. Update peer state with current `setupId` and `loadCounter`.
 
 **Not yet implemented optimizations:**
 - Per-pubkey/type position tracking for incremental sync (currently downloads full lists)
@@ -202,7 +200,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     peerState:
-      { id#:'https://example.com/peer/', setupId:1332309348, loadCounter:42000, fullFetchDone:true, lastChecked:1710672000000 }
+      { id#:'https://example.com/peer/', setupId:1332309348, loadCounter:42000, lastChecked:1710672000000 }
       ...
     tasks:
       { notBefore^:1710672000000, action^:CHECK_NEW }

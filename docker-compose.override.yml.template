@@ -8,7 +8,8 @@ services:
 #     - REGISTRY_SERVICE_URL=https://url.of.this.registry.com/
       - REGISTRY_PEER_URLS=https://registry.petapico.org/;https://registry.knowledgepixels.com/
 #     - REGISTRY_PERFORM_FULL_LOAD=false
-#     - REGISTRY_PERFORM_FULL_FETCH=false  # Disable full fetch of all nanopubs from peers during CHECK_NEW
+#     - REGISTRY_PRIORITIZE_ALL_PUBKEYS=true  # Load all discovered pubkeys at high priority, not just trust-approved ones
+#                                            # (all pubkeys are loaded eventually; this flag removes the throttling)
 #     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
 #     - REGISTRY_SETTING_FILE=/data/registry.trig
 #     - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
