@@ -1,3 +1,25 @@
+## [1.4.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.3.0...nanopub-registry-1.4.0) (2026-03-13)
+
+### Features
+
+* add REGISTRY_LOAD_ALL_PUBKEYS env var for high-priority loading of all pubkeys ([#80](https://github.com/knowledgepixels/nanopub-registry/issues/80)) ([9c6b7a6](https://github.com/knowledgepixels/nanopub-registry/commit/9c6b7a6e56ccee98cc04ebd7f441655823ae3120))
+
+### Dependency updates
+
+* **core-deps:** update dependency org.mongodb:mongo-driver-sync to v4.10.0 ([b37a04d](https://github.com/knowledgepixels/nanopub-registry/commit/b37a04df1f7cbdefc9f66d3a004bd624f49e101d))
+
+### Bug Fixes
+
+* update stale env var name in monitor.sh comment ([4662189](https://github.com/knowledgepixels/nanopub-registry/commit/46621897d425a09ec3f4fc08d4d1500385124061))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([9d469cd](https://github.com/knowledgepixels/nanopub-registry/commit/9d469cdaeec4e103d380ac6fb32998093212e53a))
+
+### Refactoring
+
+* remove full fetch mechanism (REGISTRY_PERFORM_FULL_FETCH) ([3b08a37](https://github.com/knowledgepixels/nanopub-registry/commit/3b08a37af88854d11d28c42c6d0e72abfa6fdbe0))
+
 ## [1.3.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.2.0...nanopub-registry-1.3.0) (2026-03-10)
 
 ### Features
