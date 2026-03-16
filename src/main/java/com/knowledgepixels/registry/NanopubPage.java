@@ -22,11 +22,23 @@ import static com.knowledgepixels.registry.Utils.*;
 
 public class NanopubPage extends Page {
 
+    static final String NANODASH_BASE_URL_DEFAULT = "https://nanodash.knowledgepixels.com/";
+
+    static String getNanodashBaseUrl() {
+        return Utils.getEnv("REGISTRY_NANODASH_BASE_URL", NANODASH_BASE_URL_DEFAULT);
+    }
+
+    private final boolean forwardHtml;
+
     public static void show(RoutingContext context) {
+        show(context, false);
+    }
+
+    public static void show(RoutingContext context, boolean forwardHtml) {
         NanopubPage page;
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             s.startTransaction();
-            page = new NanopubPage(s, context);
+            page = new NanopubPage(s, context, forwardHtml);
             page.show();
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -36,8 +48,9 @@ public class NanopubPage extends Page {
         }
     }
 
-    private NanopubPage(ClientSession mongoSession, RoutingContext context) {
+    private NanopubPage(ClientSession mongoSession, RoutingContext context, boolean forwardHtml) {
         super(mongoSession, context);
+        this.forwardHtml = forwardHtml;
     }
 
     protected void show() throws IOException {
@@ -60,8 +73,8 @@ public class NanopubPage extends Page {
             setRespContentType(format);
         }
 
-        if (req.matches("/np/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
-            String ac = req.replaceFirst("/np/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$1");
+        if (req.matches("/(np|get)/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
+            String ac = req.replaceFirst("/(np|get)/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$2");
             Document npDoc = collection(Collection.NANOPUBS.toString()).find(new Document("_id", ac)).first();
             if (npDoc == null) {
                 if (!isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")) {
@@ -101,6 +114,15 @@ public class NanopubPage extends Page {
                 outputNanopub(npDoc, RDFFormat.JSONLD);
             } else if (format != null && format.equals(TYPE_TRIX)) {
                 outputNanopub(npDoc, RDFFormat.TRIX);
+            } else if (forwardHtml && isHtmlRequested(c)) {
+                String fullId = npDoc.getString("fullId");
+                c.response().setStatusCode(302);
+                c.response().putHeader("Location", getNanodashBaseUrl() + "explore?id=" + Utils.urlEncode(fullId));
+                return;
+            } else if (forwardHtml) {
+                // Non-HTML default for /get/ path (e.g. Accept: */*): serve as trig
+                setRespContentType(TYPE_TRIG);
+                println(npDoc.getString("content"));
             } else {
                 printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
                 println("<h1>Nanopublication</h1>");
@@ -130,6 +152,11 @@ public class NanopubPage extends Page {
         } else {
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
+    }
+
+    private static boolean isHtmlRequested(RoutingContext c) {
+        String accept = c.request().getHeader("Accept");
+        return accept != null && accept.contains("text/html");
     }
 
     private void outputNanopub(Document npDoc, RDFFormat rdfFormat) {
