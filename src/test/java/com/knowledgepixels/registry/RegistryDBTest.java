@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
+import org.nanopub.testsuite.NanopubTestSuite;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
@@ -139,7 +140,7 @@ class RegistryDBTest {
 
     @Test
     void getPubkey() throws MalformedNanopubException, IOException {
-        File file = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/simple1.trig").getFile());
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(file);
         String pubkey = RegistryDB.getPubkey(nanopub);
         assertNotNull(pubkey);
@@ -148,7 +149,7 @@ class RegistryDBTest {
 
     @Test
     void getPubkeyWithInvalidNanopub() throws MalformedNanopubException, IOException {
-        File file = new File(this.getClass().getClassLoader().getResource("testsuite/invalid/signed/simple1-invalid-rsa.trig").getFile());
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RAeUPiCKlke8Pw9wYbqIESyBqFJM5UDSkx4uF9kkRfCh0").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(file);
         String pubkey = RegistryDB.getPubkey(nanopub);
         assertNull(pubkey);
@@ -384,7 +385,7 @@ class RegistryDBTest {
         ClientSession session = RegistryDB.getClient().startSession();
 
         // simple1.trig has dc:created "2014-07-24T18:05:11+01:00" — well in the past
-        File file = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/simple1.trig").getFile());
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(file);
 
         assertNotNull(nanopub.getCreationTime());

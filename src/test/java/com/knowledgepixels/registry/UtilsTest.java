@@ -16,6 +16,7 @@ import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.extra.setting.NanopubSetting;
+import org.nanopub.testsuite.NanopubTestSuite;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -237,7 +238,7 @@ class UtilsTest {
 
     @Test
     void getInvalidatedNanopubIds() throws MalformedNanopubException, IOException {
-        File nanopubExample = new File(this.getClass().getClassLoader().getResource("testsuite/valid/signed/example5.trig").getFile());
+        File nanopubExample = NanopubTestSuite.getLatest().getByArtifactCode("RAjPRftIBK8ZbR2LausQpdsMbI39_eRe07AZwfHTsm2dY").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(nanopubExample);
         Set<IRI> invalidatedIds = Utils.getInvalidatedNanopubIds(nanopub);
         assertEquals(1, invalidatedIds.size());
