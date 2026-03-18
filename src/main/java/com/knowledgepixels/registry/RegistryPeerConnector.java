@@ -56,6 +56,11 @@ public class RegistryPeerConnector {
             return;
         }
 
+        if (isTestInstance(resp)) {
+            log.info("Skipping peer {} because it is a test instance", peerUrl);
+            return;
+        }
+
         String status = getHeader(resp, "Nanopub-Registry-Status");
         if (!"ready".equals(status) && !"updating".equals(status)) {
             log.info("Peer {} in non-ready state: {}", peerUrl, status);
@@ -178,6 +183,10 @@ public class RegistryPeerConnector {
 
     static void deletePeerState(ClientSession s, String peerUrl) {
         collection(Collection.PEER_STATE.toString()).deleteOne(s, new Document("_id", peerUrl));
+    }
+
+    static boolean isTestInstance(HttpResponse resp) {
+        return "true".equals(getHeader(resp, "Nanopub-Registry-Test-Instance"));
     }
 
     static String getHeader(HttpResponse resp, String name) {
