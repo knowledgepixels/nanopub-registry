@@ -17,7 +17,6 @@ import org.eclipse.rdf4j.rio.Rio;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
-import org.nanopub.extra.server.PublishNanopub;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,16 +87,6 @@ public class MainVerticle extends AbstractVerticle {
                                     throw new RuntimeException("Nanopublication not supported: " + np.getUri());
                                 // Load to lists, if applicable:
                                 NanopubLoader.simpleLoad(s, np);
-
-                                if (!isSet(s, Collection.SERVER_INFO.toString(), "testInstance")) {
-                                    // Here we publish it also to the first-generation services, so they know about it too:
-                                    // TODO Remove this at some point
-                                    try {
-                                        new PublishNanopub().publishNanopub(np, "https://np.knowledgepixels.com/");
-                                    } catch (Exception ex) {
-                                        ex.printStackTrace();
-                                    }
-                                }
                             }
                         }
                     }

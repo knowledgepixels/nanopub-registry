@@ -68,6 +68,24 @@ class RegistryPeerConnectorTest {
             HttpResponse resp = makeResponse("Nanopub-Registry-Load-Counter", "notanumber");
             assertNull(getHeaderLong(resp, "Nanopub-Registry-Load-Counter"));
         }
+
+        @Test
+        void isTestInstance_returnsTrueWhenHeaderIsTrue() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Test-Instance", "true");
+            assertTrue(isTestInstance(resp));
+        }
+
+        @Test
+        void isTestInstance_returnsFalseWhenHeaderIsFalse() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Test-Instance", "false");
+            assertFalse(isTestInstance(resp));
+        }
+
+        @Test
+        void isTestInstance_returnsFalseWhenHeaderMissing() {
+            HttpResponse resp = makeResponse();
+            assertFalse(isTestInstance(resp));
+        }
     }
 
     @Nested
