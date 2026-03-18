@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.knowledgepixels.registry.RegistryDB.*;
 
@@ -88,6 +89,8 @@ public class RegistryPeerConnector {
             lastLoadCounter = null;
         }
 
+        long effectiveLoadCounter = lastLoadCounter != null ? lastLoadCounter : 0;
+
         if (lastLoadCounter != null && lastLoadCounter.equals(peerLoadCounter)) {
             log.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
         } else if (lastLoadCounter != null) {
@@ -95,25 +98,33 @@ public class RegistryPeerConnector {
             // TODO Add per-pubkey afterCounter tracking for more targeted incremental sync
             long delta = peerLoadCounter - lastLoadCounter;
             log.info("Peer {} has {} new nanopubs, fetching recent", peerUrl, delta);
-            loadRecentNanopubs(s, peerUrl, lastLoadCounter);
+            long lastReceived = loadRecentNanopubs(s, peerUrl, lastLoadCounter);
+            if (lastReceived > 0) {
+                effectiveLoadCounter = lastReceived;
+            }
         } else {
             log.info("Peer {} is new, pubkey discovery will handle initial sync", peerUrl);
         }
 
         discoverPubkeys(s, peerUrl);
-        updatePeerState(s, peerUrl, peerSetupId, peerLoadCounter);
+        updatePeerState(s, peerUrl, peerSetupId, effectiveLoadCounter);
     }
 
-    private static void loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
+    /**
+     * Fetches nanopubs from a peer after the given counter.
+     * @return the counter of the last successfully received nanopub, or -1 if none were received
+     */
+    private static long loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
         String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
         log.info("Fetching recent nanopubs from: {}", requestUrl);
+        AtomicLong lastReceivedCounter = new AtomicLong(-1);
         try {
             HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
             int httpStatus = resp.getStatusLine().getStatusCode();
             if (httpStatus < 200 || httpStatus >= 300) {
                 EntityUtils.consumeQuietly(resp.getEntity());
                 log.info("Request failed: {} {}", requestUrl, httpStatus);
-                return;
+                return -1;
             }
             try (InputStream is = resp.getEntity().getContent()) {
                 NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
@@ -123,6 +134,9 @@ public class RegistryPeerConnector {
                             np = m.getNanopub();
                             RegistryDB.loadNanopub(s, np);
                             NanopubLoader.simpleLoad(s, np);
+                            if (m.getCounter() > 0) {
+                                lastReceivedCounter.set(m.getCounter());
+                            }
                         } catch (Exception ex) {
                             log.warn("Skipping nanopub {} during recent fetch: {}",
                                     np != null ? np.getUri() : "unknown", ex.getMessage());
@@ -133,6 +147,8 @@ public class RegistryPeerConnector {
         } catch (IOException ex) {
             log.info("Failed to fetch recent nanopubs from {}: {}", peerUrl, ex.getMessage());
         }
+        log.info("Last received counter from {}: {}", peerUrl, lastReceivedCounter.get());
+        return lastReceivedCounter.get();
     }
 
     static void discoverPubkeys(ClientSession s, String peerUrl) {

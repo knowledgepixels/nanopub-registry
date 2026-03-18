@@ -169,7 +169,8 @@ class RegistryPeerConnectorTest {
 
             Document state = getPeerState(session, "https://peer.example.com/");
             assertEquals(200L, state.getLong("setupId"));
-            assertEquals(600L, state.getLong("loadCounter"));
+            // After reset, no nanopubs were actually received, so loadCounter stays at 0
+            assertEquals(0L, state.getLong("loadCounter"));
         }
 
         @Test
@@ -180,7 +181,8 @@ class RegistryPeerConnectorTest {
             Document state = getPeerState(session, "https://peer.example.com/");
             assertNotNull(state);
             assertEquals(123L, state.getLong("setupId"));
-            assertEquals(42000L, state.getLong("loadCounter"));
+            // No nanopubs were actually received, so loadCounter reflects that
+            assertEquals(0L, state.getLong("loadCounter"));
         }
 
         @Test
