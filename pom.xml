@@ -63,6 +63,12 @@
 
   <dependencies>
     <dependency>
+      <groupId>org.nanopub</groupId>
+      <artifactId>nanopub-testsuite-connector</artifactId>
+      <version>1.0.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-core</artifactId>
     </dependency>
