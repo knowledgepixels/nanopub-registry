@@ -29,14 +29,14 @@ public class ListPage extends Page {
     public static void show(RoutingContext context) {
         ListPage page;
         try (ClientSession s = RegistryDB.getClient().startSession()) {
-            s.startTransaction();
+            // No transaction here: the nanopubs.jelly endpoint streams large result sets
+            // that would exceed MongoDB's transaction timeout.
             page = new ListPage(s, context);
             page.show();
         } catch (IOException ex) {
             ex.printStackTrace();
         } finally {
             context.response().end();
-            // TODO Clean-up here?
         }
     }
 
@@ -301,8 +301,6 @@ public class ListPage extends Page {
                     context.response().setStatusCode(400).setStatusMessage("Invalid afterCounter parameter.");
                     return;
                 }
-                // TODO: something is aborting the Mongo transaction here after a while,
-                //  find out what exactly.
                 var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("counter", afterCounter)).sort(ascending("counter"))
                         // Only include the needed fields to save bandwidth to the DB
                         .projection(include("jelly", "counter"));
