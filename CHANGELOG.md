@@ -1,3 +1,29 @@
+## [1.5.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.4.0...nanopub-registry-1.5.0) (2026-03-18)
+
+### Features
+
+* add /get/ path that forwards to Nanodash for HTML requests ([b550996](https://github.com/knowledgepixels/nanopub-registry/commit/b550996232c89e69502a55159aadc38cba65e67c)), closes [#82](https://github.com/knowledgepixels/nanopub-registry/issues/82)
+* stop pushing nanopubs to legacy server and skip test-instance peers during sync ([93a1003](https://github.com/knowledgepixels/nanopub-registry/commit/93a1003bd4495886405e51d055024665659acc54))
+
+### Bug Fixes
+
+* prevent peer sync from stalling due to MongoDB transaction timeout ([f537889](https://github.com/knowledgepixels/nanopub-registry/commit/f5378890a1281732d3bfcb58ea40682910f51902))
+
+### Tests
+
+* **deps:** add org.nanopub:nanopub-testsuite-connector dependency v1.0.0 ([d4c5f9d](https://github.com/knowledgepixels/nanopub-registry/commit/d4c5f9d22589e5a8e0f05f6ba66a3a20b691e54d))
+* update test cases to use NanopubTestSuite for nanopub retrieval ([1c233da](https://github.com/knowledgepixels/nanopub-registry/commit/1c233da1685ab88d133008d77b4dcd83fc5cc682))
+
+### Build and continuous integration
+
+* **release:** automate main branch update after release ([2f82131](https://github.com/knowledgepixels/nanopub-registry/commit/2f82131ce33d801c1bb2668a7df6102a9b81cb23))
+
+### General maintenance
+
+* remove testsuite submodule ([d6861f9](https://github.com/knowledgepixels/nanopub-registry/commit/d6861f950d095efbbd087a1ba7da8767c571dd6f))
+* remove unused git submodule execution from exec-maven-plugin ([8baebcd](https://github.com/knowledgepixels/nanopub-registry/commit/8baebcdc3cd87a7ed38f8ed4e5da8705b7609dee))
+* setting next snapshot version [skip ci] ([fa00b56](https://github.com/knowledgepixels/nanopub-registry/commit/fa00b56efc5b5a2edf06539c7a18d299ab452908))
+
 ## [1.4.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.3.0...nanopub-registry-1.4.0) (2026-03-13)
 
 ### Features
