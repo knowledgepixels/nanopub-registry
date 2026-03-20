@@ -1,3 +1,14 @@
+## [1.5.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.5.0...nanopub-registry-1.5.1) (2026-03-20)
+
+### Bug Fixes
+
+* prevent CHECK_NEW starvation when REGISTRY_PRIORITIZE_ALL_PUBKEYS is enabled ([0cbac1d](https://github.com/knowledgepixels/nanopub-registry/commit/0cbac1d861acc11272136a83d7a07339f696eb88))
+
+### General maintenance
+
+* Adjust run.sh script to do `mvn clean` ([a0be72a](https://github.com/knowledgepixels/nanopub-registry/commit/a0be72ae57de4cfc195ccc702f40f29b47033b83))
+* setting next snapshot version [skip ci] ([11b9344](https://github.com/knowledgepixels/nanopub-registry/commit/11b9344c835b548b3f296d3be4ed3bff8b310aeb))
+
 ## [1.5.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.4.0...nanopub-registry-1.5.0) (2026-03-18)
 
 ### Features
