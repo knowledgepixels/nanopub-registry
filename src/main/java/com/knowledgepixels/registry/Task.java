@@ -802,7 +802,7 @@ public enum Task implements Serializable {
                 if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered.getValue()));
 
                 if (prioritizeAllPubkeys()) {
-                    schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
+                    schedule(s, CHECK_NEW.withDelay(100));
                 } else {
                     schedule(s, CHECK_NEW.withDelay(500));
                 }
@@ -825,7 +825,7 @@ public enum Task implements Serializable {
                 set(s, "lists", df.append("status", loaded.getValue()));
 
                 if (prioritizeAllPubkeys()) {
-                    schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
+                    schedule(s, CHECK_NEW.withDelay(100));
                     return;
                 }
             }
