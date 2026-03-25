@@ -409,7 +409,8 @@ public enum Task implements Serializable {
                     insert(s, "lists", introList);
                 }
 
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
+                String coreIntroChecksums = buildChecksumFallbacks(s, pubkeyHash, INTRO_TYPE_HASH);
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash, coreIntroChecksums)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess())
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");
@@ -428,7 +429,8 @@ public enum Task implements Serializable {
                     insert(s, "lists", endorseList);
                 }
 
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
+                String coreEndorseChecksums = buildChecksumFallbacks(s, pubkeyHash, ENDORSE_TYPE_HASH);
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash, coreEndorseChecksums)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess())
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");
@@ -735,7 +737,8 @@ public enum Task implements Serializable {
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
-                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph)) {
+                    String checksums = buildChecksumFallbacks(s, ph, "$");
+                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
                         long startTime = System.nanoTime();
                         AtomicLong loaded = new AtomicLong(0);
                         stream.forEach(m -> {
@@ -774,7 +777,8 @@ public enum Task implements Serializable {
                 Validate.notNull(pubkeyHash);
                 log.info("Optional core loading: {}", pubkeyHash);
 
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
+                String introChecksums = buildChecksumFallbacks(s, pubkeyHash, INTRO_TYPE_HASH);
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash, introChecksums)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess())
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");
@@ -783,7 +787,8 @@ public enum Task implements Serializable {
                 }
                 set(s, "lists", di.append("status", loaded.getValue()));
 
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
+                String endorseChecksums = buildChecksumFallbacks(s, pubkeyHash, ENDORSE_TYPE_HASH);
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash, endorseChecksums)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess())
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");
@@ -814,7 +819,8 @@ public enum Task implements Serializable {
                 final String pubkeyHash = df.getString("pubkey");
                 log.info("Optional full loading: {}", pubkeyHash);
 
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash)) {
+                String fullChecksums = buildChecksumFallbacks(s, pubkeyHash, "$");
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash, fullChecksums)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess())
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");

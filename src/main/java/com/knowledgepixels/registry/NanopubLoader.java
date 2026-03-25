@@ -99,6 +99,18 @@ public class NanopubLoader {
      * @return A stream of MaybeNanopub objects, or an empty stream if no peer is available.
      */
     public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash) {
+        return retrieveNanopubsFromPeers(typeHash, pubkeyHash, null);
+    }
+
+    /**
+     * Retrieve Nanopubs from the peers, optionally skipping ahead using checksums.
+     *
+     * @param typeHash        The hash of the type of the Nanopub to retrieve.
+     * @param pubkeyHash      The hash of the pubkey of the Nanopub to retrieve.
+     * @param afterChecksums  Comma-separated checksums for skip-ahead (geometric fallback), or null for full fetch.
+     * @return A stream of MaybeNanopub objects, or an empty stream if no peer is available.
+     */
+    public static Stream<MaybeNanopub> retrieveNanopubsFromPeers(String typeHash, String pubkeyHash, String afterChecksums) {
         // TODO Move the code of this method to nanopub-java library.
 
         List<String> peerUrlsToTry = new ArrayList<>(Utils.getPeerUrls());
@@ -107,6 +119,9 @@ public class NanopubLoader {
             String peerUrl = peerUrlsToTry.removeFirst();
 
             String requestUrl = peerUrl + "list/" + pubkeyHash + "/" + typeHash + ".jelly";
+            if (afterChecksums != null) {
+                requestUrl += "?afterChecksums=" + afterChecksums;
+            }
             log.info("Request: {}", requestUrl);
             try {
                 CloseableHttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));

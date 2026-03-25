@@ -470,6 +470,125 @@ class RegistryDBTest {
     }
 
     @Test
+    void recordHashIsIdempotent() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        String value = "testPubkey";
+        String expectedHash = Utils.getHash(value);
+
+        // Call twice — should not throw, and result in exactly one document
+        RegistryDB.recordHash(session, value);
+        RegistryDB.recordHash(session, value);
+
+        long count = RegistryDB.collection("hashes").countDocuments(session, new Document("value", value));
+        assertEquals(1, count);
+        assertEquals(expectedHash, RegistryDB.collection("hashes").find(new Document("value", value)).first().getString("hash"));
+    }
+
+    @Test
+    void buildChecksumFallbacksReturnsNullForEmptyList() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        assertNull(RegistryDB.buildChecksumFallbacks(session, "nonexistent", "nonexistent"));
+    }
+
+    @Test
+    void buildChecksumFallbacksReturnsLatestChecksum() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        String pubkey = "testpubkey";
+        String type = "testtype";
+
+        // Insert a single list entry at position 0
+        RegistryDB.insert(session, "listEntries", new Document("pubkey", pubkey).append("type", type)
+                .append("position", 0L).append("np", "testac").append("checksum", "abc123").append("invalidated", false));
+
+        String result = RegistryDB.buildChecksumFallbacks(session, pubkey, type);
+        assertNotNull(result);
+        assertEquals("abc123", result);  // Only the latest, no geometric fallbacks (list too small)
+    }
+
+    @Test
+    void buildChecksumFallbacksReturnsGeometricPositions() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        String pubkey = "testpubkey2";
+        String type = "testtype2";
+
+        // Insert 25 list entries at positions 0-24
+        for (int i = 0; i < 25; i++) {
+            RegistryDB.insert(session, "listEntries", new Document("pubkey", pubkey).append("type", type)
+                    .append("position", (long) i).append("np", "np" + i).append("checksum", "chk" + i).append("invalidated", false));
+        }
+
+        String result = RegistryDB.buildChecksumFallbacks(session, pubkey, type);
+        assertNotNull(result);
+        String[] checksums = result.split(",");
+
+        // Should have: latest (pos 24) and fallback at pos 14 (24-10)
+        assertEquals(2, checksums.length);
+        assertEquals("chk24", checksums[0]);  // latest
+        assertEquals("chk14", checksums[1]);  // 24 - 10
+    }
+
+    @Test
+    void buildChecksumFallbacksReturnsMultipleFallbacks() {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        String pubkey = "testpubkey3";
+        String type = "testtype3";
+
+        // Insert 150 list entries at positions 0-149
+        for (int i = 0; i < 150; i++) {
+            RegistryDB.insert(session, "listEntries", new Document("pubkey", pubkey).append("type", type)
+                    .append("position", (long) i).append("np", "np" + i).append("checksum", "chk" + i).append("invalidated", false));
+        }
+
+        String result = RegistryDB.buildChecksumFallbacks(session, pubkey, type);
+        assertNotNull(result);
+        String[] checksums = result.split(",");
+
+        // Should have: latest (pos 149), pos 139 (149-10), pos 49 (149-100)
+        assertEquals(3, checksums.length);
+        assertEquals("chk149", checksums[0]);
+        assertEquals("chk139", checksums[1]);
+        assertEquals("chk49", checksums[2]);
+    }
+
+    @Test
+    void loadNanopubCreatesListEntriesWithAtomicPosition() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        assertNotNull(pubkey);
+        String pubkeyHash = Utils.getHash(pubkey);
+
+        // Load with pubkeyHash and type "$" to trigger addToList
+        assertTrue(RegistryDB.loadNanopub(session, nanopub, pubkeyHash, "$"));
+
+        // Verify list entry was created at position 0 (type "$" uses literal "$" as typeHash)
+        Document entry = RegistryDB.collection("listEntries").find(session,
+                new Document("pubkey", pubkeyHash).append("type", "$").append("position", 0L)).first();
+        assertNotNull(entry);
+        assertNotNull(entry.getString("checksum"));
+        assertFalse(entry.getBoolean("invalidated"));
+
+        // Verify the lists document has maxPosition updated
+        Document listDoc = RegistryDB.collection("lists").find(session,
+                new Document("pubkey", pubkeyHash).append("type", "$")).first();
+        assertNotNull(listDoc);
+        assertEquals(0L, listDoc.getLong("maxPosition"));
+    }
+
+    @Test
     void loadNanopubVerifiedStoresNanopub() throws MalformedNanopubException, IOException {
         RegistryDB.init();
         ClientSession session = RegistryDB.getClient().startSession();

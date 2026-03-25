@@ -44,7 +44,7 @@ class IndexInitializerTest {
     void initCollections() {
         assertEquals(2, getNumberOfIndexes(Collection.TASKS.toString()));
         assertEquals(4, getNumberOfIndexes(Collection.NANOPUBS.toString()));
-        assertEquals(3, getNumberOfIndexes("lists"));
+        assertEquals(4, getNumberOfIndexes("lists"));
         assertEquals(6, getNumberOfIndexes("listEntries"));
         assertEquals(5, getNumberOfIndexes("invalidations"));
         assertEquals(8, getNumberOfIndexes("trustEdges"));

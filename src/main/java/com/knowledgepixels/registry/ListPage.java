@@ -10,6 +10,7 @@ import org.nanopub.jelly.NanopubStream;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
@@ -71,10 +72,31 @@ public class ListPage extends Page {
             String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
 
             if (TYPE_JELLY.equals(format)) {
-                // Return all nanopubs in the list as a single Jelly stream
-                List<Bson> pipeline = List.of(match(new Document("pubkey", pubkey).append("type", type)), sort(ascending("position")), // TODO: is this needed?
+                // Determine start position from afterChecksums parameter (comma-separated, geometric fallback)
+                long afterPosition = -1;
+                String afterChecksums = getParam("afterChecksums", null);
+                if (afterChecksums != null) {
+                    for (String checksum : afterChecksums.split(",")) {
+                        checksum = checksum.trim();
+                        if (checksum.isEmpty()) continue;
+                        Document match = collection("listEntries").find(mongoSession,
+                                new Document("pubkey", pubkey).append("type", type).append("checksum", checksum)).first();
+                        if (match != null) {
+                            long matchPos = match.getLong("position");
+                            if (matchPos > afterPosition) {
+                                afterPosition = matchPos;
+                            }
+                        }
+                    }
+                }
+
+                // Build pipeline with optional position filter
+                Document matchFilter = new Document("pubkey", pubkey).append("type", type);
+                if (afterPosition >= 0) {
+                    matchFilter.append("position", new Document("$gt", afterPosition));
+                }
+                List<Bson> pipeline = List.of(match(matchFilter), sort(ascending("position")),
                         lookup("nanopubs", "np", "_id", "nanopub"), project(new Document("jelly", "$nanopub.jelly")), unwind("$jelly"));
-                // TODO: try with resource should be used for all DB access, really, like here
                 try (var result = collection("listEntries").aggregate(mongoSession, pipeline).cursor()) {
                     NanopubStream npStream = NanopubStream.fromMongoCursor(result);
                     BufferOutputStream outputStream = new BufferOutputStream();

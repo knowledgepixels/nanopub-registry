@@ -33,6 +33,7 @@ public final class IndexInitializer {
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("pubkey"));
 
         collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
+        collection("lists").createIndex(mongoSession, ascending("pubkey", "type", "status"));
         collection("lists").createIndex(mongoSession, ascending("status"));
 
         collection("listEntries").createIndex(mongoSession, ascending("np"));
