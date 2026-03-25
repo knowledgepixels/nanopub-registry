@@ -132,8 +132,11 @@ public class RegistryPeerConnector {
                         Nanopub np = null;
                         try {
                             np = m.getNanopub();
-                            RegistryDB.loadNanopub(s, np);
-                            NanopubLoader.simpleLoad(s, np);
+                            String pubkey = RegistryDB.getPubkey(np);
+                            if (pubkey != null) {
+                                RegistryDB.loadNanopubVerified(s, np, pubkey, null);
+                                NanopubLoader.simpleLoad(s, np, pubkey);
+                            }
                             if (m.getCounter() > 0) {
                                 lastReceivedCounter.set(m.getCounter());
                             }

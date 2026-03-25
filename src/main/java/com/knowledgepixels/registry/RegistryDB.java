@@ -383,6 +383,19 @@ public class RegistryDB {
      * @return true if the nanopublication was loaded, false otherwise
      */
     public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
+        String pubkey = getPubkey(nanopub);
+        if (pubkey == null) {
+            logger.info("Ignoring invalid nanopub: {}", nanopub.getUri());
+            return false;
+        }
+        return loadNanopubVerified(mongoSession, nanopub, pubkey, pubkeyHash, types);
+    }
+
+    /**
+     * Loads a nanopublication with a pre-verified public key, skipping signature verification.
+     * Use this when the caller has already verified the signature via getPubkey().
+     */
+    static boolean loadNanopubVerified(ClientSession mongoSession, Nanopub nanopub, String verifiedPubkey, String pubkeyHash, String... types) {
         if (nanopub.getTripleCount() > 1200) {
             logger.info("Nanopub has too many triples ({}): {}", nanopub.getTripleCount(), nanopub.getUri());
             return false;
@@ -409,17 +422,12 @@ public class RegistryDB {
                 return false;
             }
         }
-        String pubkey = getPubkey(nanopub);
-        if (pubkey == null) {
-            logger.info("Ignoring invalid nanopub: {}", nanopub.getUri());
-            return false;
-        }
-        String ph = Utils.getHash(pubkey);
+        String ph = Utils.getHash(verifiedPubkey);
         if (pubkeyHash != null && !pubkeyHash.equals(ph)) {
             logger.info("Ignoring nanopub with non-matching pubkey: {}", nanopub.getUri());
             return false;
         }
-        recordHash(mongoSession, pubkey);
+        recordHash(mongoSession, verifiedPubkey);
 
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         if (ac == null) {
