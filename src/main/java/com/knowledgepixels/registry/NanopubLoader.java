@@ -65,12 +65,20 @@ public class NanopubLoader {
             log.info("Ignore (not signed): {}", np.getUri());
             return;
         }
-        String pubkeyHash = Utils.getHash(pubkey);
+        simpleLoad(mongoSession, np, pubkey);
+    }
+
+    /**
+     * Loads a nanopub to the appropriate lists, using a pre-verified public key
+     * to skip redundant signature verification.
+     */
+    public static void simpleLoad(ClientSession mongoSession, Nanopub np, String verifiedPubkey) {
+        String pubkeyHash = Utils.getHash(verifiedPubkey);
         // TODO Do we need to load anything else here, into the other DB collections?
         if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
-            RegistryDB.loadNanopub(mongoSession, np, pubkeyHash, "$");
+            RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, "$");
         } else if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
-            RegistryDB.loadNanopub(mongoSession, np, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
+            RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
         } else if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
             // Unknown pubkey: create encountered intro list so RUN_OPTIONAL_LOAD picks it up
             try {

@@ -63,7 +63,7 @@ public class MainVerticle extends AbstractVerticle {
 
         Handler<RoutingContext> postHandler = c -> {
             c.request().bodyHandler(bh -> {
-                try {
+                vertx.<Void>executeBlocking(() -> {
                     String contentType = c.request().getHeader("Content-Type");
                     Nanopub np = null;
                     try {
@@ -81,21 +81,28 @@ public class MainVerticle extends AbstractVerticle {
 
                                 // TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
 
+                                // Verify signature once, pass through to avoid redundant verification:
+                                String pubkey = RegistryDB.getPubkey(np);
+                                if (pubkey == null)
+                                    throw new RuntimeException("Nanopublication not supported: " + np.getUri());
                                 // Load to nanopub store:
-                                boolean success = RegistryDB.loadNanopub(s, np);
+                                boolean success = RegistryDB.loadNanopubVerified(s, np, pubkey, null);
                                 if (!success)
                                     throw new RuntimeException("Nanopublication not supported: " + np.getUri());
                                 // Load to lists, if applicable:
-                                NanopubLoader.simpleLoad(s, np);
+                                NanopubLoader.simpleLoad(s, np, pubkey);
                             }
                         }
                     }
-                    c.response().setStatusCode(201);
-                } catch (Exception ex) {
-                    c.response().setStatusCode(400).setStatusMessage("Error processing nanopub: " + ex.getMessage());
-                } finally {
-                    c.response().end();
-                }
+                    return null;
+                }).onComplete(ar -> {
+                    if (ar.succeeded()) {
+                        c.response().setStatusCode(201).end();
+                    } else {
+                        c.response().setStatusCode(400)
+                                .setStatusMessage("Error processing nanopub: " + ar.cause().getMessage()).end();
+                    }
+                });
             });
         };
         router.route(HttpMethod.POST, "/").handler(postHandler);

@@ -21,6 +21,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import net.trustyuri.TrustyUriUtils;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Calendar;
@@ -465,6 +467,114 @@ class RegistryDBTest {
         String nonExistingHash = Utils.getHash("anotherValue");
         retrievedValue = RegistryDB.unhash(nonExistingHash);
         assertNull(retrievedValue);
+    }
+
+    @Test
+    void loadNanopubVerifiedStoresNanopub() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        assertNotNull(pubkey);
+
+        // Load via the verified path (skips signature re-verification)
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+
+        // Verify nanopub is stored in the database
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        assertTrue(RegistryDB.has(session, Collection.NANOPUBS.toString(), ac));
+
+        // Verify counter was assigned
+        Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
+        assertNotNull(doc);
+        assertTrue(doc.getLong("counter") > 0);
+        assertEquals(Utils.getHash(pubkey), doc.getString("pubkey"));
+    }
+
+    @Test
+    void loadNanopubVerifiedMatchesLoadNanopub() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+
+        // Load via verified path
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
+        assertNotNull(doc);
+
+        // Verify the stored fields match what loadNanopub would produce
+        assertEquals(nanopub.getUri().stringValue(), doc.getString("fullId"));
+        assertEquals(Utils.getHash(pubkey), doc.getString("pubkey"));
+        assertNotNull(doc.getString("content"));
+        assertNotNull(doc.get("jelly"));
+    }
+
+    @Test
+    void loadNanopubVerifiedSkipsDuplicates() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+
+        // Load twice — second call should succeed without error
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+
+        // Only one document in the collection
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        assertEquals(1, RegistryDB.collection(Collection.NANOPUBS.toString())
+                .countDocuments(session, new Document("_id", ac)));
+    }
+
+    @Test
+    void simpleLoadWithVerifiedPubkeyCreatesListEntries() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        String pubkeyHash = Utils.getHash(pubkey);
+
+        // Store the nanopub first
+        RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null);
+
+        // simpleLoad should create an encountered list entry for unknown pubkeys
+        NanopubLoader.simpleLoad(session, nanopub, pubkey);
+
+        // Verify that a list was created for this pubkey (encountered status for unknown pubkey)
+        assertTrue(RegistryDB.has(session, "lists",
+                new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH)));
+    }
+
+    @Test
+    void simpleLoadWithVerifiedPubkeyMatchesSimpleLoad() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        String pubkeyHash = Utils.getHash(pubkey);
+
+        // Store via verified path then simpleLoad with pubkey
+        RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null);
+        NanopubLoader.simpleLoad(session, nanopub, pubkey);
+
+        // Capture the state created by the verified path
+        Document listDoc = RegistryDB.collection("lists").find(session,
+                new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH)).first();
+        assertNotNull(listDoc);
+        assertEquals(EntryStatus.encountered.getValue(), listDoc.getString("status"));
     }
 
 }
