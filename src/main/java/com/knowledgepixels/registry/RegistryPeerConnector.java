@@ -102,11 +102,12 @@ public class RegistryPeerConnector {
             if (lastReceived > 0) {
                 effectiveLoadCounter = lastReceived;
             }
+            // Only discover new pubkeys when the peer has new data
+            discoverPubkeys(s, peerUrl);
         } else {
             log.info("Peer {} is new, pubkey discovery will handle initial sync", peerUrl);
+            discoverPubkeys(s, peerUrl);
         }
-
-        discoverPubkeys(s, peerUrl);
         updatePeerState(s, peerUrl, peerSetupId, effectiveLoadCounter);
     }
 
@@ -127,25 +128,22 @@ public class RegistryPeerConnector {
                 return -1;
             }
             try (InputStream is = resp.getEntity().getContent()) {
-                NanopubStream.fromByteStream(is).getAsNanopubs().forEach(m -> {
-                    if (m.isSuccess()) {
-                        Nanopub np = null;
-                        try {
-                            np = m.getNanopub();
-                            String pubkey = RegistryDB.getPubkey(np);
-                            if (pubkey != null) {
-                                RegistryDB.loadNanopubVerified(s, np, pubkey, null);
-                                NanopubLoader.simpleLoad(s, np, pubkey);
-                            }
-                            if (m.getCounter() > 0) {
+                NanopubLoader.loadStreamInParallel(
+                        NanopubStream.fromByteStream(is).getAsNanopubs().peek(m -> {
+                            // Track counter in the main thread as items are consumed from the stream
+                            if (m.isSuccess() && m.getCounter() > 0) {
                                 lastReceivedCounter.set(m.getCounter());
                             }
-                        } catch (Exception ex) {
-                            log.warn("Skipping nanopub {} during recent fetch: {}",
-                                    np != null ? np.getUri() : "unknown", ex.getMessage());
-                        }
-                    }
-                });
+                        }),
+                        np -> {
+                            try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
+                                String pubkey = RegistryDB.getPubkey(np);
+                                if (pubkey != null) {
+                                    RegistryDB.loadNanopubVerified(workerSession, np, pubkey, null);
+                                    NanopubLoader.simpleLoad(workerSession, np, pubkey);
+                                }
+                            }
+                        });
             }
         } catch (IOException ex) {
             log.info("Failed to fetch recent nanopubs from {}: {}", peerUrl, ex.getMessage());

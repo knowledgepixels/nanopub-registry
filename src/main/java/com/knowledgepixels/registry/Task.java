@@ -411,10 +411,10 @@ public enum Task implements Serializable {
 
                 String coreIntroChecksums = buildChecksumFallbacks(s, pubkeyHash, INTRO_TYPE_HASH);
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash, coreIntroChecksums)) {
-                    stream.forEach(m -> {
-                        if (!m.isSuccess())
-                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
-                        loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
+                    NanopubLoader.loadStreamInParallel(stream, np -> {
+                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                            loadNanopub(ws, np, pubkeyHash, INTRO_TYPE);
+                        }
                     });
                 }
 
@@ -741,11 +741,11 @@ public enum Task implements Serializable {
                     try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
                         long startTime = System.nanoTime();
                         AtomicLong loaded = new AtomicLong(0);
-                        stream.forEach(m -> {
-                            if (!m.isSuccess())
-                                throw new AbortingTaskException("Failed to download nanopub; aborting task...");
-                            loadNanopub(s, m.getNanopub(), ph, "$");
-                            loaded.incrementAndGet();
+                        NanopubLoader.loadStreamInParallel(stream, np -> {
+                            try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                loadNanopub(ws, np, ph, "$");
+                                loaded.incrementAndGet();
+                            }
                         });
                         double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
                         log.info("Loaded {} nanopubs in {}s, {} np/s",
@@ -770,29 +770,40 @@ public enum Task implements Serializable {
     },
 
     RUN_OPTIONAL_LOAD {
+
+        private static final int BATCH_SIZE = Integer.parseInt(
+                Utils.getEnv("REGISTRY_OPTIONAL_LOAD_BATCH_SIZE", "100"));
+
         public void run(ClientSession s, Document taskDoc) {
-            Document di = getOne(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()));
-            if (di != null) {
+            AtomicLong totalLoaded = new AtomicLong(0);
+
+            // Phase 1: Process encountered intro lists (core loading)
+            while (totalLoaded.get() < BATCH_SIZE) {
+                Document di = getOne(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()));
+                if (di == null) break;
+
                 final String pubkeyHash = di.getString("pubkey");
                 Validate.notNull(pubkeyHash);
                 log.info("Optional core loading: {}", pubkeyHash);
 
                 String introChecksums = buildChecksumFallbacks(s, pubkeyHash, INTRO_TYPE_HASH);
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash, introChecksums)) {
-                    stream.forEach(m -> {
-                        if (!m.isSuccess())
-                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
-                        loadNanopub(s, m.getNanopub(), pubkeyHash, INTRO_TYPE);
+                    NanopubLoader.loadStreamInParallel(stream, np -> {
+                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                            loadNanopub(ws, np, pubkeyHash, INTRO_TYPE);
+                            totalLoaded.incrementAndGet();
+                        }
                     });
                 }
                 set(s, "lists", di.append("status", loaded.getValue()));
 
                 String endorseChecksums = buildChecksumFallbacks(s, pubkeyHash, ENDORSE_TYPE_HASH);
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash, endorseChecksums)) {
-                    stream.forEach(m -> {
-                        if (!m.isSuccess())
-                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
-                        loadNanopub(s, m.getNanopub(), pubkeyHash, ENDORSE_TYPE);
+                    NanopubLoader.loadStreamInParallel(stream, np -> {
+                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                            loadNanopub(ws, np, pubkeyHash, ENDORSE_TYPE);
+                            totalLoaded.incrementAndGet();
+                        }
                     });
                 }
 
@@ -805,38 +816,48 @@ public enum Task implements Serializable {
 
                 Document df = new Document("pubkey", pubkeyHash).append("type", "$");
                 if (!has(s, "lists", df)) insert(s, "lists", df.append("status", encountered.getValue()));
-
-                if (prioritizeAllPubkeys()) {
-                    schedule(s, CHECK_NEW.withDelay(100));
-                } else {
-                    schedule(s, CHECK_NEW.withDelay(500));
-                }
-                return;
             }
 
-            Document df = getOne(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
-            if (df != null) {
+            // Phase 2: Process encountered full lists (if budget remains)
+            while (totalLoaded.get() < BATCH_SIZE) {
+                Document df = getOne(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
+                if (df == null) break;
+
                 final String pubkeyHash = df.getString("pubkey");
                 log.info("Optional full loading: {}", pubkeyHash);
 
                 String fullChecksums = buildChecksumFallbacks(s, pubkeyHash, "$");
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash, fullChecksums)) {
-                    stream.forEach(m -> {
-                        if (!m.isSuccess())
-                            throw new AbortingTaskException("Failed to download nanopub; aborting task...");
-                        loadNanopub(s, m.getNanopub(), pubkeyHash, "$");
+                    NanopubLoader.loadStreamInParallel(stream, np -> {
+                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                            loadNanopub(ws, np, pubkeyHash, "$");
+                            totalLoaded.incrementAndGet();
+                        }
                     });
                 }
 
                 set(s, "lists", df.append("status", loaded.getValue()));
-
-                if (prioritizeAllPubkeys()) {
-                    schedule(s, CHECK_NEW.withDelay(100));
-                    return;
-                }
             }
 
-            schedule(s, CHECK_NEW.withDelay(500));
+            if (totalLoaded.get() > 0) {
+                log.info("Optional load batch completed: {} nanopubs across multiple pubkeys", totalLoaded.get());
+            }
+
+            if (prioritizeAllPubkeys()) {
+                // Check if there are more pubkeys waiting to be processed
+                boolean moreWork = has(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()))
+                        || has(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
+                if (moreWork) {
+                    // Continue processing without a full CHECK_NEW cycle in between.
+                    // CHECK_NEW will run naturally once all encountered lists are processed.
+                    schedule(s, RUN_OPTIONAL_LOAD.withDelay(10));
+                } else {
+                    schedule(s, CHECK_NEW.withDelay(500));
+                }
+            } else {
+                // Throttled: yield to CHECK_NEW after each batch to prioritize approved pubkeys
+                schedule(s, CHECK_NEW.withDelay(500));
+            }
         }
 
     },
