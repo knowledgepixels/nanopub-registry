@@ -594,6 +594,33 @@ public class RegistryDB {
     }
 
     /**
+     * Builds a comma-separated list of checksums at geometric positions for a given list,
+     * for use with the afterChecksums parameter during peer sync.
+     * Returns checksums at positions: max, max-10, max-100, max-1000, max-10000, ...
+     * Returns null if the list has no entries.
+     */
+    public static String buildChecksumFallbacks(ClientSession mongoSession, String pubkeyHash, String typeHash) {
+        Document maxDoc = getMaxValueDocument(mongoSession, "listEntries",
+                new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
+        if (maxDoc == null) return null;
+
+        long maxPosition = maxDoc.getLong("position");
+        StringBuilder sb = new StringBuilder();
+        sb.append(maxDoc.getString("checksum"));
+
+        for (long offset = 10; offset <= maxPosition; offset *= 10) {
+            long targetPos = maxPosition - offset;
+            Document entry = collection("listEntries").find(mongoSession,
+                    new Document("pubkey", pubkeyHash).append("type", typeHash)
+                            .append("position", targetPos)).first();
+            if (entry != null) {
+                sb.append(",").append(entry.getString("checksum"));
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
      * Returns the public key string of the Nanopub's signature, or null if not available or invalid.
      *
      * @param nanopub the nanopub to extract the public key from
