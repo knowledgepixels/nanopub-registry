@@ -34,6 +34,12 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static com.knowledgepixels.registry.RegistryDB.has;
@@ -88,6 +94,71 @@ public class NanopubLoader {
             } catch (MongoWriteException e) {
                 if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
             }
+        }
+    }
+
+    private static final int LOAD_PARALLELISM = Integer.parseInt(
+            Utils.getEnv("REGISTRY_LOAD_PARALLELISM", String.valueOf(Runtime.getRuntime().availableProcessors())));
+
+    /**
+     * Processes a stream of nanopubs in parallel using a thread pool.
+     * Each worker thread uses its own MongoDB ClientSession.
+     * Backpressure is applied via a semaphore to avoid unbounded memory growth.
+     *
+     * @param stream    the nanopub stream to process
+     * @param processor consumer that processes each nanopub (called with its own ClientSession)
+     */
+    public static void loadStreamInParallel(Stream<MaybeNanopub> stream, Consumer<Nanopub> processor) {
+        if (LOAD_PARALLELISM <= 1) {
+            // Fall back to sequential processing
+            stream.forEach(m -> {
+                if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
+                processor.accept(m.getNanopub());
+            });
+            return;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(LOAD_PARALLELISM);
+        Semaphore semaphore = new Semaphore(LOAD_PARALLELISM * 2);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        try {
+            stream.forEach(m -> {
+                if (error.get() != null) return;
+                if (!m.isSuccess()) {
+                    error.compareAndSet(null, new AbortingTaskException("Failed to download nanopub; aborting task..."));
+                    return;
+                }
+                Nanopub np = m.getNanopub();
+                try {
+                    semaphore.acquire();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    error.compareAndSet(null, e);
+                    return;
+                }
+                executor.submit(() -> {
+                    try {
+                        processor.accept(np);
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
+                    } finally {
+                        semaphore.release();
+                    }
+                });
+            });
+        } finally {
+            executor.shutdown();
+            try {
+                executor.awaitTermination(1, TimeUnit.HOURS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        if (error.get() != null) {
+            if (error.get() instanceof RuntimeException re) throw re;
+            throw new RuntimeException("Parallel loading failed", error.get());
         }
     }
 
