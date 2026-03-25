@@ -11,6 +11,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.CountOptions;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.UpdateOptions;
 import net.trustyuri.TrustyUriUtils;
 import org.bson.Document;
@@ -92,10 +94,10 @@ public class RegistryDB {
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
         try (ClientSession mongoSession = mongoClient.startSession()) {
-            if (isInitialized(mongoSession)) {
-                return;
+            if (!isInitialized(mongoSession)) {
+                IndexInitializer.initCollections(mongoSession);
             }
-            IndexInitializer.initCollections(mongoSession);
+            initNanopubCounter(mongoSession);
         }
     }
 
@@ -333,6 +335,35 @@ public class RegistryDB {
     }
 
     /**
+     * Initializes the nanopub counter document to the current maximum counter value
+     * in the nanopubs collection. Uses $max to ensure the counter is never decreased.
+     * Safe to call on every startup.
+     */
+    private static void initNanopubCounter(ClientSession mongoSession) {
+        Long maxCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
+        if (maxCounter == null) maxCounter = 0L;
+        collection("counters").updateOne(mongoSession,
+                new Document("_id", "nanopubs"),
+                new Document("$max", new Document("value", maxCounter)),
+                new UpdateOptions().upsert(true));
+        logger.info("Nanopub counter initialized to {}", maxCounter);
+    }
+
+    /**
+     * Atomically increments and returns the next nanopub counter value.
+     * Eliminates the read-then-write race condition that previously caused
+     * duplicate key errors on the counter index under concurrent load.
+     */
+    private static long getNextNanopubCounter(ClientSession mongoSession) {
+        Document result = collection("counters").findOneAndUpdate(
+                mongoSession,
+                new Document("_id", "nanopubs"),
+                new Document("$inc", new Document("value", 1L)),
+                new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
+        return result.getLong("value");
+    }
+
+    /**
      * Loads a nanopublication into the database.
      *
      * @param mongoSession the MongoDB client session
@@ -399,8 +430,6 @@ public class RegistryDB {
         if (has(mongoSession, Collection.NANOPUBS.toString(), ac)) {
             logger.debug("Already loaded: {}", nanopub.getUri());
         } else {
-            Long counter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
-            if (counter == null) counter = 0l;
             String nanopubString;
             byte[] jellyContent;
             try {
@@ -410,22 +439,33 @@ public class RegistryDB {
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
-            collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("counter", counter + 1).append("pubkey", ph).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
+            long counter = getNextNanopubCounter(mongoSession);
+            boolean inserted = false;
+            try {
+                collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("counter", counter).append("pubkey", ph).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
+                inserted = true;
+            } catch (MongoWriteException e) {
+                if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
+                // Another thread inserted this nanopub concurrently — safe to skip
+                logger.debug("Already loaded (concurrent): {}", nanopub.getUri());
+            }
 
-            for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
-                String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
-                if (invalidatedAc == null) continue;  // This should never happen; checking here just to be sure
+            if (inserted) {
+                for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
+                    String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+                    if (invalidatedAc == null) continue;  // This should never happen; checking here just to be sure
 
-                // Add this nanopub also to all lists of invalidated nanopubs:
-                collection("invalidations").insertOne(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc));
-                MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph)).cursor();
-                while (invalidatedEntries.hasNext()) {
-                    Document invalidatedEntry = invalidatedEntries.next();
-                    addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"));
+                    // Add this nanopub also to all lists of invalidated nanopubs:
+                    collection("invalidations").insertOne(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc));
+                    MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph)).cursor();
+                    while (invalidatedEntries.hasNext()) {
+                        Document invalidatedEntry = invalidatedEntries.next();
+                        addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"));
+                    }
+
+                    collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
+                    collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
                 }
-
-                collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
-                collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
             }
         }
 
@@ -477,18 +517,31 @@ public class RegistryDB {
         if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
             logger.debug("Already listed: {}", nanopub.getUri());
         } else {
-
-            Document doc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
-            long position;
-            String checksum;
-            if (doc == null) {
-                position = 0l;
-                checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
-            } else {
-                position = doc.getLong("position") + 1;
-                checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
+            for (int attempt = 0; ; attempt++) {
+                Document doc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
+                long position;
+                String checksum;
+                if (doc == null) {
+                    position = 0l;
+                    checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
+                } else {
+                    position = doc.getLong("position") + 1;
+                    checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), doc.getString("checksum"));
+                }
+                try {
+                    collection("listEntries").insertOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("position", position).append("np", ac).append("checksum", checksum).append("invalidated", false));
+                    break;
+                } catch (MongoWriteException e) {
+                    if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
+                    if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+                        break; // Already listed by concurrent thread
+                    }
+                    // Position collision — retry with updated position
+                    if (attempt >= 100) {
+                        throw new RuntimeException("Failed to insert list entry after " + (attempt + 1) + " attempts");
+                    }
+                }
             }
-            collection("listEntries").insertOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("position", position).append("np", ac).append("checksum", checksum).append("invalidated", false));
         }
     }
 
