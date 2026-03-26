@@ -409,8 +409,9 @@ public enum Task implements Serializable {
                     insert(s, "lists", introList);
                 }
 
-                String coreIntroChecksums = buildChecksumFallbacks(s, pubkeyHash, INTRO_TYPE_HASH);
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash, coreIntroChecksums)) {
+                // No checksum skip in LOAD_CORE: the endorsement extraction logic (below) needs to
+                // see every nanopub to populate endorsements_loading, which is rebuilt from scratch each UPDATE.
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash)) {
                     NanopubLoader.loadStreamInParallel(stream, np -> {
                         try (ClientSession ws = RegistryDB.getClient().startSession()) {
                             loadNanopub(ws, np, pubkeyHash, INTRO_TYPE);
@@ -429,8 +430,7 @@ public enum Task implements Serializable {
                     insert(s, "lists", endorseList);
                 }
 
-                String coreEndorseChecksums = buildChecksumFallbacks(s, pubkeyHash, ENDORSE_TYPE_HASH);
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash, coreEndorseChecksums)) {
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess())
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");
