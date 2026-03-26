@@ -1,3 +1,25 @@
+## [1.6.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.5.1...nanopub-registry-1.6.0) (2026-03-26)
+
+### Features
+
+* checksum-based skip for incremental per-pubkey list sync ([18d78ef](https://github.com/knowledgepixels/nanopub-registry/commit/18d78ef3c3019cad86f6038e962c9ffb6c66aa19))
+
+### Bug Fixes
+
+* eliminate duplicate key race conditions in nanopub and list entry insertion ([c2cfbf5](https://github.com/knowledgepixels/nanopub-registry/commit/c2cfbf51aafdee0348df277baddb62d954b7b06a))
+
+### Performance improvements
+
+* eliminate redundant signature verification in POST and peer sync paths ([d5db5b8](https://github.com/knowledgepixels/nanopub-registry/commit/d5db5b8d817242b9b19073c1534c0a33da868711)), closes [#87](https://github.com/knowledgepixels/nanopub-registry/issues/87)
+* optimize DB operations for replication speed ([14c5414](https://github.com/knowledgepixels/nanopub-registry/commit/14c5414e47742e65449ff6ffd8576a2fc9076cef))
+* parallel stream loading, batched RUN_OPTIONAL_LOAD, skip idle discoverPubkeys ([566d783](https://github.com/knowledgepixels/nanopub-registry/commit/566d7831d5d51f80bb2aa4d31b1d017e314ee536))
+
+### General maintenance
+
+* Remove preliminary report pdf ([791cfde](https://github.com/knowledgepixels/nanopub-registry/commit/791cfde17b6f9b7ad0bc6689ba591c144ceb46b8))
+* setting next snapshot version [skip ci] ([18fdefb](https://github.com/knowledgepixels/nanopub-registry/commit/18fdefb55fbfcb316491ac614f6fda333e1b7c19))
+* Update .gitignore ([d12d6ee](https://github.com/knowledgepixels/nanopub-registry/commit/d12d6eeca0ec8e76aa7e915fc79f85c704a4ea03))
+
 ## [1.5.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.5.0...nanopub-registry-1.5.1) (2026-03-20)
 
 ### Bug Fixes
