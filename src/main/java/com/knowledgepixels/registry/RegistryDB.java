@@ -525,72 +525,8 @@ public class RegistryDB {
         if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
             logger.debug("Already listed: {}", nanopub.getUri());
         } else {
-            initListPositionIfNeeded(mongoSession, pubkeyHash, typeHash);
-
-            for (int attempt = 0; ; attempt++) {
-                // Atomically claim next position
-                Document updated = collection("lists").findOneAndUpdate(mongoSession,
-                        new Document("pubkey", pubkeyHash).append("type", typeHash),
-                        new Document("$inc", new Document("maxPosition", 1L)),
-                        new FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER));
-                long position = updated.getLong("maxPosition");
-
-                // Get checksum from previous entry by exact position lookup (O(1) index hit)
-                String checksum;
-                if (position == 0) {
-                    checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
-                } else {
-                    Document prevEntry = collection("listEntries").find(mongoSession,
-                            new Document("pubkey", pubkeyHash).append("type", typeHash)
-                                    .append("position", position - 1)).first();
-                    String prevChecksum = (prevEntry != null) ? prevEntry.getString("checksum") : null;
-                    if (prevChecksum == null) {
-                        // Rare: previous entry not yet inserted by concurrent thread; fall back to sorted query
-                        Document maxDoc = getMaxValueDocument(mongoSession, "listEntries",
-                                new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
-                        prevChecksum = (maxDoc != null) ? maxDoc.getString("checksum") : NanopubUtils.INIT_CHECKSUM;
-                    }
-                    checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), prevChecksum);
-                }
-
-                try {
-                    collection("listEntries").insertOne(mongoSession, new Document("pubkey", pubkeyHash)
-                            .append("type", typeHash).append("position", position).append("np", ac)
-                            .append("checksum", checksum).append("invalidated", false));
-                    break;
-                } catch (MongoWriteException e) {
-                    if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
-                    if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash)
-                            .append("type", typeHash).append("np", ac))) {
-                        break; // Already listed by concurrent thread
-                    }
-                    if (attempt >= 100) {
-                        throw new RuntimeException("Failed to insert list entry after " + (attempt + 1) + " attempts");
-                    }
-                }
-            }
+            ListEntryWriter.enqueue(pubkeyHash, typeHash, nanopub, ac);
         }
-    }
-
-    /**
-     * Lazily initializes the maxPosition field on a lists document for lists
-     * created before this field existed. Uses a one-time sorted query, then
-     * all subsequent calls use the atomic counter.
-     */
-    private static void initListPositionIfNeeded(ClientSession mongoSession, String pubkeyHash, String typeHash) {
-        Document listDoc = collection("lists").find(mongoSession,
-                new Document("pubkey", pubkeyHash).append("type", typeHash)).first();
-        if (listDoc == null || listDoc.get("maxPosition") != null) return;
-
-        Document maxDoc = getMaxValueDocument(mongoSession, "listEntries",
-                new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
-        long maxPos = (maxDoc != null) ? maxDoc.getLong("position") : -1L;
-
-        // Conditional update: only set if maxPosition still doesn't exist (race-safe)
-        collection("lists").updateOne(mongoSession,
-                new Document("pubkey", pubkeyHash).append("type", typeHash)
-                        .append("maxPosition", new Document("$exists", false)),
-                new Document("$set", new Document("maxPosition", maxPos)));
     }
 
     /**

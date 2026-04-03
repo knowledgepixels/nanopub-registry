@@ -125,6 +125,7 @@ public class MainVerticle extends AbstractVerticle {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 logger.info("Gracefully shutting down...");
+                ListEntryWriter.shutdown();
                 RegistryDB.getClient().close();
                 vertx.close().toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
                 logger.info("Graceful shutdown completed");
