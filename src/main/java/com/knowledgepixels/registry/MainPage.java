@@ -67,7 +67,8 @@ public class MainPage extends Page {
             println("<li><em>coverageTypes:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes") + "</li>");
             println("<li><em>coverageAgents:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents") + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
-            println("<li><em>loadCounter:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</li>");
+            println("<li><em>seqNum:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "</li>");
+            println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");
             println("<li><em>trustStateCounter:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter") + "</li>");
             Object lastTimeUpdate = getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
             if (lastTimeUpdate != null) {
@@ -101,7 +102,7 @@ public class MainPage extends Page {
             }
 
             println("<h3>Nanopubs</h3>");
-            println("<p>Count: " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</p>");
+            println("<p>Count: " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</p>");
             println("<p><a href=\"/nanopubs\">&gt; nanopubs</a></pi>");
             printHtmlFooter();
         }

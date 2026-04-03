@@ -16,6 +16,9 @@ import static com.knowledgepixels.registry.RegistryDB.*;
 public final class MetricsCollector {
 
     private final Logger logger = LoggerFactory.getLogger(MetricsCollector.class);
+    private final AtomicInteger seqNum = new AtomicInteger(0);
+    private final AtomicInteger nanopubCount = new AtomicInteger(0);
+    // TODO(transition): Remove loadCounter metric after dashboards updated
     private final AtomicInteger loadCounter = new AtomicInteger(0);
     private final AtomicInteger trustStateCounter = new AtomicInteger(0);
     private final AtomicInteger agentCount = new AtomicInteger(0);
@@ -25,6 +28,9 @@ public final class MetricsCollector {
 
     public MetricsCollector(MeterRegistry meterRegistry) {
         // Numeric metrics
+        Gauge.builder("registry.seqnum", seqNum, AtomicInteger::get).register(meterRegistry);
+        Gauge.builder("registry.nanopub.count", nanopubCount, AtomicInteger::get).register(meterRegistry);
+        // TODO(transition): Remove after dashboards updated
         Gauge.builder("registry.load.counter", loadCounter, AtomicInteger::get).register(meterRegistry);
         Gauge.builder("registry.trust.state.counter", trustStateCounter, AtomicInteger::get).register(meterRegistry);
         Gauge.builder("registry.agent.count", agentCount, AtomicInteger::get).register(meterRegistry);
@@ -44,8 +50,12 @@ public final class MetricsCollector {
     public void updateMetrics() {
         try (final var session = RegistryDB.getClient().startSession()) {
             // Update numeric metrics
-            extractMaximalIntegerValueFromField(session, Collection.NANOPUBS.toString(), "counter")
-                    .ifPresent(loadCounter::set);
+            extractMaximalIntegerValueFromField(session, Collection.NANOPUBS.toString(), "seqNum")
+                    .ifPresent(val -> {
+                        seqNum.set(val);
+                        loadCounter.set(val); // TODO(transition): Remove after dashboards updated
+                    });
+            nanopubCount.set((int) collection(Collection.NANOPUBS.toString()).estimatedDocumentCount());
 
             extractIntegerValueFromField(session, Collection.SERVER_INFO.toString(), "trustStateCounter")
                     .ifPresent(trustStateCounter::set);

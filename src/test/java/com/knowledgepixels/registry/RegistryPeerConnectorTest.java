@@ -126,6 +126,8 @@ class RegistryPeerConnectorTest {
             Document state = getPeerState(session, "https://peer.example.com/");
             assertNotNull(state);
             assertEquals(123L, state.getLong("setupId"));
+            assertEquals(42000L, state.getLong("seqNum"));
+            // TODO(transition): remove loadCounter assertion after all peers upgraded
             assertEquals(42000L, state.getLong("loadCounter"));
             assertNotNull(state.getLong("lastChecked"));
         }
@@ -136,6 +138,8 @@ class RegistryPeerConnectorTest {
             updatePeerState(session, "https://peer.example.com/", 123L, 200L);
 
             Document state = getPeerState(session, "https://peer.example.com/");
+            assertEquals(200L, state.getLong("seqNum"));
+            // TODO(transition): remove loadCounter assertion after all peers upgraded
             assertEquals(200L, state.getLong("loadCounter"));
             assertEquals(1, collection(Collection.PEER_STATE.toString()).countDocuments(session));
         }
@@ -150,13 +154,13 @@ class RegistryPeerConnectorTest {
         }
 
         @Test
-        void syncWithPeer_skipsWhenLoadCounterUnchanged() {
+        void syncWithPeer_skipsWhenSeqNumUnchanged() {
             updatePeerState(session, "https://peer.example.com/", 123L, 500L);
 
             syncWithPeer(session, "https://peer.example.com/", 123L, 500L);
 
             Document state = getPeerState(session, "https://peer.example.com/");
-            assertEquals(500L, state.getLong("loadCounter"));
+            assertEquals(500L, state.getLong("seqNum"));
         }
 
         @Test
@@ -255,8 +259,8 @@ class RegistryPeerConnectorTest {
 
             assertEquals(100L, state1.getLong("setupId"));
             assertEquals(200L, state2.getLong("setupId"));
-            assertEquals(500L, state1.getLong("loadCounter"));
-            assertEquals(600L, state2.getLong("loadCounter"));
+            assertEquals(500L, state1.getLong("seqNum"));
+            assertEquals(600L, state2.getLong("seqNum"));
         }
     }
 
@@ -266,6 +270,109 @@ class RegistryPeerConnectorTest {
         @Test
         void peerStateCollectionName() {
             assertEquals("peerState", Collection.PEER_STATE.toString());
+        }
+    }
+
+    // --- seqNum tests (write-first, expect to fail until implementation) ---
+
+    @Nested
+    class HeaderSeqNumTests {
+
+        private HttpResponse makeResponse(String... headers) {
+            HttpResponse resp = new BasicHttpResponse(new BasicStatusLine(HttpVersion.HTTP_1_1, 200, "OK"));
+            for (int i = 0; i < headers.length; i += 2) {
+                resp.setHeader(headers[i], headers[i + 1]);
+            }
+            return resp;
+        }
+
+        @Test
+        void getHeaderLong_readsSeqNumHeader() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-SeqNum", "5000");
+            assertEquals(5000L, getHeaderLong(resp, "Nanopub-Registry-SeqNum"));
+        }
+
+        @Test
+        void getHeaderLong_readsNanopubCountHeader() {
+            HttpResponse resp = makeResponse("Nanopub-Registry-Nanopub-Count", "4900");
+            assertEquals(4900L, getHeaderLong(resp, "Nanopub-Registry-Nanopub-Count"));
+        }
+    }
+
+    @Nested
+    @Testcontainers
+    class PeerStateSeqNumTests {
+
+        private FakeEnv fakeEnv;
+        private ClientSession session;
+
+        @Container
+        private final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0");
+
+        @BeforeEach
+        void setUp() throws Exception {
+            fakeEnv = TestUtils.setupFakeEnv();
+            TestUtils.setupDBEnv(mongoDBContainer, "nanopubRegistryTest");
+            TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
+            RegistryDB.init();
+            session = RegistryDB.getClient().startSession();
+        }
+
+        @AfterEach
+        void tearDown() throws Exception {
+            if (session != null) session.close();
+            TestUtils.cleanupDataDir();
+            fakeEnv.reset();
+        }
+
+        @Test
+        void updatePeerState_storesSeqNum() {
+            updatePeerState(session, "https://peer.example.com/", 123L, 42000L);
+
+            Document state = getPeerState(session, "https://peer.example.com/");
+            assertNotNull(state);
+            assertEquals(42000L, state.getLong("seqNum"), "peerState should store seqNum field");
+        }
+
+        @Test
+        void syncWithPeer_readsLegacyLoadCounterFromPeerState() {
+            // Manually insert a legacy peerState doc with "loadCounter" but no "seqNum"
+            collection(Collection.PEER_STATE.toString()).insertOne(session,
+                    new Document("_id", "https://legacy-peer.example.com/")
+                            .append("setupId", 100L)
+                            .append("loadCounter", 300L)
+                            .append("lastChecked", System.currentTimeMillis()));
+
+            // syncWithPeer should read the legacy loadCounter as baseline
+            // and skip sync since seqNum matches (300 == 300)
+            syncWithPeer(session, "https://legacy-peer.example.com/", 100L, 300L);
+
+            // After sync, peerState should now have the seqNum field
+            Document state = getPeerState(session, "https://legacy-peer.example.com/");
+            assertNotNull(state);
+            assertEquals(300L, state.getLong("seqNum"), "peerState should be migrated to seqNum");
+        }
+
+        @Test
+        void syncWithPeer_skipsWhenSeqNumUnchanged() {
+            updatePeerState(session, "https://peer.example.com/", 123L, 500L);
+
+            syncWithPeer(session, "https://peer.example.com/", 123L, 500L);
+
+            Document state = getPeerState(session, "https://peer.example.com/");
+            assertEquals(500L, state.getLong("seqNum"), "seqNum should remain unchanged");
+        }
+
+        @Test
+        void multiplePeers_trackedIndependentlyWithSeqNum() {
+            updatePeerState(session, "https://peer1.example.com/", 100L, 500L);
+            updatePeerState(session, "https://peer2.example.com/", 200L, 600L);
+
+            Document state1 = getPeerState(session, "https://peer1.example.com/");
+            Document state2 = getPeerState(session, "https://peer2.example.com/");
+
+            assertEquals(500L, state1.getLong("seqNum"));
+            assertEquals(600L, state2.getLong("seqNum"));
         }
     }
 }

@@ -33,7 +33,7 @@ class RegistryInfoTest {
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "trustStateCounter")).thenReturn(TRUST_STATE_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate")).thenReturn(LAST_TRUST_STATE_UPDATE);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "trustStateHash")).thenReturn(TRUST_STATE_HASH);
-            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "counter")).thenReturn(LOAD_COUNTER);
+            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(LOAD_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "status")).thenReturn(STATUS);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageTypes")).thenReturn(COVERAGE_TYPES);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageAgents")).thenReturn(COVERAGE_AGENTS);
@@ -68,6 +68,7 @@ class RegistryInfoTest {
                                   + "\"agentCount\":" + AGENT_COUNT + ","
                                   + "\"accountCount\":" + ACCOUNT_COUNT + ","
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
+                                  + "\"seqNum\":" + LOAD_COUNTER + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE
                                   + "}";
@@ -83,7 +84,7 @@ class RegistryInfoTest {
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "trustStateCounter")).thenReturn(TRUST_STATE_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate")).thenReturn(LAST_TRUST_STATE_UPDATE);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "trustStateHash")).thenReturn(TRUST_STATE_HASH);
-            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "counter")).thenReturn(LOAD_COUNTER);
+            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(LOAD_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "status")).thenReturn(STATUS);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageTypes")).thenReturn(COVERAGE_TYPES);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SERVER_INFO.toString(), "coverageAgents")).thenReturn(COVERAGE_AGENTS);
@@ -118,6 +119,7 @@ class RegistryInfoTest {
                                   + "\"agentCount\":" + AGENT_COUNT + ","
                                   + "\"accountCount\":" + ACCOUNT_COUNT + ","
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
+                                  + "\"seqNum\":" + LOAD_COUNTER + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE
                                   + "}";
