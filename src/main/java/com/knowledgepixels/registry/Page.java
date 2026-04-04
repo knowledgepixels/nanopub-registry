@@ -47,6 +47,10 @@ public abstract class Page {
         // value for afterCounter, not just a count. Sending the count would cause re-fetching.
         context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "");
         context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")));
+        String coveredTypes = CoverageFilter.getCoveredTypeHashesAsString();
+        if (coveredTypes != null) {
+            context.response().putHeader("Nanopub-Registry-Coverage-Types", coveredTypes);
+        }
 
         String r = context.request().path().substring(1);
         if (r.endsWith(".txt")) {
