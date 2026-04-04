@@ -146,6 +146,18 @@ class CoverageFilterTest {
     }
 
     @Test
+    void init_rejectsWhitespaceInConfig() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA , http://example.org/TypeB").build();
+        assertThrows(IllegalArgumentException.class, CoverageFilter::init);
+    }
+
+    @Test
+    void init_rejectsTrailingComma() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA,").build();
+        assertThrows(IllegalArgumentException.class, CoverageFilter::init);
+    }
+
+    @Test
     void getCoveredTypeHashesAsString_returnsCommaSeparated() {
         fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA").build();
         CoverageFilter.init();

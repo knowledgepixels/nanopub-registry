@@ -37,12 +37,13 @@ public final class CoverageFilter {
             coveredTypeHashes = null;
             logger.info("Coverage filter: all types covered (no restriction)");
         } else {
+            if (!config.matches("[^\\s,]+(,[^\\s,]+)*")) {
+                throw new IllegalArgumentException(
+                        "Invalid REGISTRY_COVERAGE_TYPES format: must be comma-separated URIs with no whitespace. Got: " + config);
+            }
             Set<String> hashes = new HashSet<>();
             for (String typeUri : config.split(",")) {
-                typeUri = typeUri.trim();
-                if (!typeUri.isEmpty()) {
-                    hashes.add(Utils.getHash(typeUri));
-                }
+                hashes.add(Utils.getHash(typeUri));
             }
             // Always include core types (intro, endorsement)
             hashes.add(NanopubLoader.INTRO_TYPE_HASH);
