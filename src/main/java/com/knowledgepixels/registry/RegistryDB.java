@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.List;
 
 import static com.mongodb.client.model.Indexes.ascending;
 
@@ -446,10 +447,16 @@ public class RegistryDB {
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
+            // Extract type hashes for cross-pubkey type queries
+            List<String> typeHashes = new ArrayList<>();
+            for (IRI t : NanopubUtils.getTypes(nanopub)) {
+                typeHashes.add(Utils.getTypeHash(mongoSession, t));
+            }
+
             long counter = getNextNanopubCounter(mongoSession);
             boolean inserted = false;
             try {
-                collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("counter", counter).append("pubkey", ph).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
+                collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("counter", counter).append("pubkey", ph).append("types", typeHashes).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
                 inserted = true;
             } catch (MongoWriteException e) {
                 if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;

@@ -696,4 +696,63 @@ class RegistryDBTest {
         assertEquals(EntryStatus.encountered.getValue(), listDoc.getString("status"));
     }
 
+    @Test
+    void loadNanopubVerifiedStoresTypes() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        assertNotNull(pubkey);
+
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
+        assertNotNull(doc);
+
+        // Verify types field is stored as a list
+        Object typesObj = doc.get("types");
+        assertNotNull(typesObj, "types field should be present");
+        assertInstanceOf(java.util.List.class, typesObj, "types should be a list");
+
+        @SuppressWarnings("unchecked")
+        java.util.List<String> types = (java.util.List<String>) typesObj;
+        // The test nanopub should have at least one type
+        // Each type should be a 64-char hex hash
+        for (String t : types) {
+            assertEquals(64, t.length(), "type hash should be 64 characters");
+        }
+    }
+
+    @Test
+    void loadNanopubTypesAreQueryableByIndex() throws MalformedNanopubException, IOException {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub nanopub = new NanopubImpl(file);
+        String pubkey = RegistryDB.getPubkey(nanopub);
+        RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null);
+
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
+        @SuppressWarnings("unchecked")
+        java.util.List<String> types = (java.util.List<String>) doc.get("types");
+
+        if (!types.isEmpty()) {
+            // Query by type hash — should find this nanopub
+            Document found = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session,
+                    new Document("types", types.get(0))).first();
+            assertNotNull(found, "Should find nanopub by type hash query");
+            assertEquals(ac, found.getString("_id"));
+        }
+
+        // Query by non-existent type — should return nothing
+        Document notFound = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session,
+                new Document("types", "0000000000000000000000000000000000000000000000000000000000000000")).first();
+        assertNull(notFound, "Should not find nanopub with non-existent type hash");
+    }
+
 }

@@ -31,6 +31,8 @@ public final class IndexInitializer {
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("fullId"), unique);
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, descending("counter"), unique);
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("pubkey"));
+        // Multikey index for cross-pubkey per-type queries (type-based sharding)
+        collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, compoundIndex(ascending("types"), ascending("counter")));
 
         collection("lists").createIndex(mongoSession, ascending("pubkey", "type"), unique);
         collection("lists").createIndex(mongoSession, ascending("pubkey", "type", "status"));
