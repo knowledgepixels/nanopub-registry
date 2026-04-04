@@ -90,8 +90,8 @@ Endpoints:
 - `GET /pubkeys` — all pubkey hashes (JSON)
 - `GET /agent/{agentId}` — agent info (JSON)
 - `GET /agents` — all agents (JSON)
-- `GET /nanopubs.jelly?afterCounter=X&type=Y` — nanopub stream (Jelly binary), optionally filtered by type hash
-- `GET /nanopubs.json?type=Y` — nanopub IDs (JSON), optionally filtered by type hash
+- `GET /nanopubs.jelly?afterCounter=X&types=A,B&pubkeys=C,D` — nanopub stream (Jelly binary), optionally filtered by type hashes and/or pubkey hashes (comma-separated for multiple values)
+- `GET /nanopubs.json?types=A,B&pubkeys=C,D` — nanopub IDs (JSON), optionally filtered by type hashes and/or pubkey hashes
 - `GET /np/{artifactCode}` — single nanopub (TriG, Jelly, JSON-LD, NQ, XML, or HTML)
 - `POST /` — submit a nanopub (TriG or other RDF format)
 

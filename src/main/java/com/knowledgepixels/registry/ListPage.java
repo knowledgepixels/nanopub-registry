@@ -315,7 +315,7 @@ public class ListPage extends Page {
             }
         } else if (req.equals("/nanopubs")) {
             if (TYPE_JELLY.equals(format)) {
-                // Return all nanopubs from after counter X (-1 by default), optionally filtered by type
+                // Return nanopubs after counter X, optionally filtered by types and/or pubkeys
                 long afterCounter;
                 try {
                     afterCounter = Long.parseLong(getParam("afterCounter", "-1"));
@@ -324,10 +324,7 @@ public class ListPage extends Page {
                     return;
                 }
                 Document filter = new Document("counter", new Document("$gt", afterCounter));
-                String typeFilter = getParam("type", null);
-                if (typeFilter != null) {
-                    filter.append("types", typeFilter);
-                }
+                applyNanopubFilters(filter);
                 var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(filter).sort(ascending("counter"))
                         // Only include the needed fields to save bandwidth to the DB
                         .projection(include("jelly", "counter"));
@@ -345,17 +342,16 @@ public class ListPage extends Page {
                 if (TYPE_JSON.equals(format)) {
                     Bson filter;
                     Bson sort;
-                    String typeFilter = getParam("type", null);
                     if ("id".equals(sortParam)) {
                         String afterId = getParam("after", "");
                         Document f = afterId.isEmpty() ? new Document() : new Document("_id", new Document("$gt", afterId));
-                        if (typeFilter != null) f.append("types", typeFilter);
+                        applyNanopubFilters(f);
                         filter = f;
                         sort = ascending("_id");
                     } else {
                         // sort=date (default): latest first, using indexed counter field
                         Document f = new Document();
-                        if (typeFilter != null) f.append("types", typeFilter);
+                        applyNanopubFilters(f);
                         filter = f;
                         sort = descending("counter");
                     }
@@ -434,6 +430,23 @@ public class ListPage extends Page {
             }
         } else {
             context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
+        }
+    }
+
+    /**
+     * Applies optional types and pubkeys filters from query params to a MongoDB filter document.
+     * Supports comma-separated values for multi-value filtering via $in.
+     */
+    private void applyNanopubFilters(Document filter) {
+        String typesParam = getParam("types", getParam("type", null));
+        if (typesParam != null) {
+            List<String> types = List.of(typesParam.split(","));
+            filter.append("types", types.size() == 1 ? types.get(0) : new Document("$in", types));
+        }
+        String pubkeysParam = getParam("pubkeys", getParam("pubkey", null));
+        if (pubkeysParam != null) {
+            List<String> pubkeys = List.of(pubkeysParam.split(","));
+            filter.append("pubkey", pubkeys.size() == 1 ? pubkeys.get(0) : new Document("$in", pubkeys));
         }
     }
 
