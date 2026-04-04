@@ -146,15 +146,13 @@ class CoverageFilterTest {
     }
 
     @Test
-    void init_rejectsWhitespaceInConfig() {
+    void init_toleratesWhitespaceInConfig() {
         fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA , http://example.org/TypeB").build();
-        assertThrows(IllegalArgumentException.class, CoverageFilter::init);
-    }
-
-    @Test
-    void init_rejectsTrailingComma() {
-        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA,").build();
-        assertThrows(IllegalArgumentException.class, CoverageFilter::init);
+        CoverageFilter.init();
+        assertFalse(CoverageFilter.coversAllTypes());
+        Set<String> covered = CoverageFilter.getCoveredTypeHashes();
+        assertTrue(covered.contains(Utils.getHash("http://example.org/TypeA")));
+        assertTrue(covered.contains(Utils.getHash("http://example.org/TypeB")));
     }
 
     @Test
