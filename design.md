@@ -77,8 +77,11 @@ All responses include the following headers:
 - `Nanopub-Registry-Trust-State-Counter` — incremented on trust state changes
 - `Nanopub-Registry-Last-Trust-State-Update` — ISO 8601 timestamp of last trust state update
 - `Nanopub-Registry-Trust-State-Hash` — SHA256 hash of the current trust state
-- `Nanopub-Registry-Load-Counter` — max counter value from nanopubs collection
+- `Nanopub-Registry-SeqNum` — max sequence number from nanopubs collection (monotonic cursor for sync, may have gaps)
+- `Nanopub-Registry-Nanopub-Count` — approximate number of nanopubs (via `estimatedDocumentCount`)
+- `Nanopub-Registry-Load-Counter` — same as SeqNum (transition compatibility for old peers)
 - `Nanopub-Registry-Test-Instance` — `true` if this is a test instance
+- `Nanopub-Registry-Coverage-Types` — comma-separated type hashes this registry covers (absent if all types covered)
 
 Endpoints:
 
@@ -115,24 +118,44 @@ See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
 The `CHECK_NEW` task invokes `RegistryPeerConnector.checkPeers()`, which iterates over peer registries (in random order) and synchronizes nanopubs. Per-peer state is tracked in the `peerState` collection.
 
 **Preparation:**
-- Track each peer's `setupId` and `loadCounter` in the `peerState` collection
-- `loadCounter` is the maximum counter value from the peer's nanopubs collection (increments per nanopub loaded)
+- Track each peer's `setupId` and `seqNum` in the `peerState` collection
+- `seqNum` is the maximum sequence number from the peer's nanopubs collection (monotonic, may have gaps due to batch allocation)
 - Peer URLs come from the `REGISTRY_PEER_URLS` environment variable
 
 **Per-peer sync steps:**
 
-1. Send HTTP HEAD request to peer URL; extract `Nanopub-Registry-Status`, `Nanopub-Registry-Setup-Id`, and `Nanopub-Registry-Load-Counter` from response headers.
+1. Send HTTP HEAD request to peer URL; extract `Nanopub-Registry-Status`, `Nanopub-Registry-Setup-Id`, and `Nanopub-Registry-SeqNum` (or `Nanopub-Registry-Load-Counter` for old peers) from response headers.
 2. Skip peers with non-ready status (only `ready` and `updating` are accepted).
 3. If `setupId` changed since last check, delete stored peer state and treat as new.
-4. If `loadCounter` is unchanged, skip (nothing new).
-5. **Incremental sync**: fetch recent nanopubs via `/nanopubs.jelly?afterCounter=X`.
+4. If `seqNum` is unchanged, skip (nothing new).
+5. **Incremental sync**: fetch recent nanopubs via `/nanopubs.jelly?afterSeqNum=X`. Nanopubs of uncovered types are filtered client-side.
 6. **Discover pubkeys**: fetch `/pubkeys.json` from the peer and create `encountered` intro lists for any unknown pubkeys, so they can be loaded later via `RUN_OPTIONAL_LOAD`.
-7. Update peer state with current `setupId` and `loadCounter`.
+7. Update peer state with current `setupId` and `seqNum`.
 
 **Not yet implemented optimizations:**
 - Per-pubkey/type position tracking for incremental sync (currently downloads full lists)
 - Checksum-based binary search to avoid downloading full lists when only a few nanopubs are new
 - Throttled loading for non-approved pubkeys during peer sync
+
+
+## Type-Based Coverage
+
+Registries can restrict which nanopub types they store via the `REGISTRY_COVERAGE_TYPES` environment variable (comma-separated type URIs). Core types (introductions, endorsements) are always covered regardless of the setting, since they are needed for trust path computation.
+
+When coverage is restricted:
+- **POST handler** rejects nanopubs whose types are not covered
+- **LOAD_FULL** and **RUN_OPTIONAL_LOAD** fetch per covered type from peers (with checksum-based skip-ahead), instead of fetching the `$` (all types) list
+- **Peer sync** (`loadRecentNanopubs`) filters uncovered nanopubs client-side
+- **`loadNanopubVerified`** only creates individual type lists for covered types when expanding `$`
+- The `$` list means "all covered types" — it always exists but only contains nanopubs of covered types
+- The `Nanopub-Registry-Coverage-Types` response header advertises coverage to peers
+
+Configuration example:
+```
+REGISTRY_COVERAGE_TYPES=http://example.org/TypeA,http://example.org/TypeB
+```
+
+When unset, all types are covered (default, no behavioral change).
 
 
 ## Data Structure
@@ -169,7 +192,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidatingNp^:RA..., invalidatingPubkey^:a83, invalidatedNp^:RA... }
       ...
     nanopubs:
-      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...', jelly:<binary> }
+      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', seqNum*:1423293, counter*:1423293, pubkey^:a83, content:'@prefix ...', jelly:<binary> }
       ...
     endorsements:
       { agent^:JohnDoe, pubkey^:a83, endorsedNanopub^:RA..., source^:RA..., status^:retrieved }
@@ -200,7 +223,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
     peerState:
-      { id#:'https://example.com/peer/', setupId:1332309348, loadCounter:42000, lastChecked:1710672000000 }
+      { id#:'https://example.com/peer/', setupId:1332309348, seqNum:42000, loadCounter:42000, lastChecked:1710672000000 }
       ...
     tasks:
       { notBefore^:1710672000000, action^:CHECK_NEW }
