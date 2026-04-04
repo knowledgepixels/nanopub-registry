@@ -90,6 +90,8 @@ Endpoints:
 - `GET /pubkeys` — all pubkey hashes (JSON)
 - `GET /agent/{agentId}` — agent info (JSON)
 - `GET /agents` — all agents (JSON)
+- `GET /nanopubs.jelly?afterCounter=X&type=Y` — nanopub stream (Jelly binary), optionally filtered by type hash
+- `GET /nanopubs.json?type=Y` — nanopub IDs (JSON), optionally filtered by type hash
 - `GET /np/{artifactCode}` — single nanopub (TriG, Jelly, JSON-LD, NQ, XML, or HTML)
 - `POST /` — submit a nanopub (TriG or other RDF format)
 
@@ -169,7 +171,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { invalidatingNp^:RA..., invalidatingPubkey^:a83, invalidatedNp^:RA... }
       ...
     nanopubs:
-      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, content:'@prefix ...', jelly:<binary> }
+      { id#:RA..., fullId*:'https://w3id.org/np/RA12...', counter*:1423293, pubkey^:a83, types^:[a7f3..., b2e1...], content:'@prefix ...', jelly:<binary> }
       ...
     endorsements:
       { agent^:JohnDoe, pubkey^:a83, endorsedNanopub^:RA..., source^:RA..., status^:retrieved }
