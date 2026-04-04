@@ -737,38 +737,21 @@ public enum Task implements Serializable {
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
-                    long startTime = System.nanoTime();
-                    AtomicLong totalLoaded = new AtomicLong(0);
-
-                    if (CoverageFilter.coversAllTypes()) {
-                        // No type restriction: load all types via "$"
-                        String checksums = buildChecksumFallbacks(s, ph, "$");
-                        try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
-                            NanopubLoader.loadStreamInParallel(stream, np -> {
-                                try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                    loadNanopub(ws, np, ph, "$");
-                                    totalLoaded.incrementAndGet();
-                                }
-                            });
-                        }
-                    } else {
-                        // Type-restricted: load each covered type separately
-                        for (String typeHash : CoverageFilter.getCoveredTypeHashes()) {
-                            String checksums = buildChecksumFallbacks(s, ph, typeHash);
-                            try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, ph, checksums)) {
-                                NanopubLoader.loadStreamInParallel(stream, np -> {
-                                    try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                        loadNanopub(ws, np, ph, typeHash);
-                                        totalLoaded.incrementAndGet();
-                                    }
-                                });
+                    String checksums = buildChecksumFallbacks(s, ph, "$");
+                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
+                        long startTime = System.nanoTime();
+                        AtomicLong loaded = new AtomicLong(0);
+                        NanopubLoader.loadStreamInParallel(stream, np -> {
+                            if (!CoverageFilter.isCovered(np)) return;
+                            try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                loadNanopub(ws, np, ph, "$");
+                                loaded.incrementAndGet();
                             }
-                        }
+                        });
+                        double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
+                        log.info("Loaded {} nanopubs in {}s, {} np/s",
+                                loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
                     }
-
-                    double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-                    log.info("Loaded {} nanopubs in {}s, {} np/s",
-                            totalLoaded.get(), timeSeconds, String.format("%.2f", totalLoaded.get() / timeSeconds));
                 }
 
                 Document l = getOne(s, "lists", new Document().append("pubkey", ph).append("type", "$"));
@@ -844,30 +827,15 @@ public enum Task implements Serializable {
                 final String pubkeyHash = df.getString("pubkey");
                 log.info("Optional full loading: {}", pubkeyHash);
 
-                if (CoverageFilter.coversAllTypes()) {
-                    // No type restriction: load all types via "$"
-                    String fullChecksums = buildChecksumFallbacks(s, pubkeyHash, "$");
-                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash, fullChecksums)) {
-                        NanopubLoader.loadStreamInParallel(stream, np -> {
-                            try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                loadNanopub(ws, np, pubkeyHash, "$");
-                                totalLoaded.incrementAndGet();
-                            }
-                        });
-                    }
-                } else {
-                    // Type-restricted: load each covered type separately
-                    for (String typeHash : CoverageFilter.getCoveredTypeHashes()) {
-                        String checksums = buildChecksumFallbacks(s, pubkeyHash, typeHash);
-                        try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, pubkeyHash, checksums)) {
-                            NanopubLoader.loadStreamInParallel(stream, np -> {
-                                try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                    loadNanopub(ws, np, pubkeyHash, typeHash);
-                                    totalLoaded.incrementAndGet();
-                                }
-                            });
+                String fullChecksums = buildChecksumFallbacks(s, pubkeyHash, "$");
+                try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash, fullChecksums)) {
+                    NanopubLoader.loadStreamInParallel(stream, np -> {
+                        if (!CoverageFilter.isCovered(np)) return;
+                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                            loadNanopub(ws, np, pubkeyHash, "$");
+                            totalLoaded.incrementAndGet();
                         }
-                    }
+                    });
                 }
 
                 set(s, "lists", df.append("status", loaded.getValue()));
