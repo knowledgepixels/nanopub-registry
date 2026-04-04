@@ -24,6 +24,8 @@ public class RegistryInfo implements Serializable {
     private Long agentCount;
     private Long accountCount;
     private Long nanopubCount;
+    private Long seqNum;
+    // TODO(transition): Remove loadCounter after all peers upgraded
     private Long loadCounter;
     private Boolean isTestInstance;
 
@@ -35,7 +37,9 @@ public class RegistryInfo implements Serializable {
         ri.trustStateCounter = (Long) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter");
         ri.lastTrustStateUpdate = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
         ri.trustStateHash = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash");
-        ri.loadCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
+        ri.seqNum = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum");
+        // TODO(transition): Remove loadCounter after all peers upgraded
+        ri.loadCounter = ri.seqNum;
         ri.status = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
         ri.coverageTypes = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes");
         ri.coverageAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");

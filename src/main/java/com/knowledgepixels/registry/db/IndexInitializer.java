@@ -29,6 +29,8 @@ public final class IndexInitializer {
         collection(Collection.TASKS.toString()).createIndex(mongoSession, Indexes.descending("not-before"));
 
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("fullId"), unique);
+        collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, descending("seqNum"), unique);
+        // TODO(transition): Remove counter index after all peers upgraded
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, descending("counter"), unique);
         collection(Collection.NANOPUBS.toString()).createIndex(mongoSession, ascending("pubkey"));
 

@@ -69,38 +69,44 @@ public class RegistryPeerConnector {
         }
 
         Long peerSetupId = getHeaderLong(resp, "Nanopub-Registry-Setup-Id");
-        Long peerLoadCounter = getHeaderLong(resp, "Nanopub-Registry-Load-Counter");
-        if (peerSetupId == null || peerLoadCounter == null) {
-            log.info("Peer {} missing setupId or loadCounter headers", peerUrl);
+        // TODO(transition): Remove Load-Counter fallback after all peers upgraded
+        Long peerSeqNum = getHeaderLong(resp, "Nanopub-Registry-SeqNum");
+        if (peerSeqNum == null) {
+            peerSeqNum = getHeaderLong(resp, "Nanopub-Registry-Load-Counter");
+        }
+        if (peerSetupId == null || peerSeqNum == null) {
+            log.info("Peer {} missing setupId or seqNum headers", peerUrl);
             return;
         }
 
-        syncWithPeer(s, peerUrl, peerSetupId, peerLoadCounter);
+        syncWithPeer(s, peerUrl, peerSetupId, peerSeqNum);
     }
 
-    static void syncWithPeer(ClientSession s, String peerUrl, long peerSetupId, long peerLoadCounter) {
+    static void syncWithPeer(ClientSession s, String peerUrl, long peerSetupId, long peerSeqNum) {
         Document peerState = getPeerState(s, peerUrl);
         Long lastSetupId = peerState != null ? peerState.getLong("setupId") : null;
-        Long lastLoadCounter = peerState != null ? peerState.getLong("loadCounter") : null;
+        // TODO(transition): Remove loadCounter fallback after all peers upgraded
+        Long lastSeqNum = peerState != null ? peerState.getLong("seqNum") : null;
+        if (lastSeqNum == null && peerState != null) {
+            lastSeqNum = peerState.getLong("loadCounter");
+        }
 
         if (lastSetupId != null && !lastSetupId.equals(peerSetupId)) {
             log.info("Peer {} was reset (setupId changed), resetting tracking", peerUrl);
             deletePeerState(s, peerUrl);
-            lastLoadCounter = null;
+            lastSeqNum = null;
         }
 
-        long effectiveLoadCounter = lastLoadCounter != null ? lastLoadCounter : 0;
+        long effectiveSeqNum = lastSeqNum != null ? lastSeqNum : 0;
 
-        if (lastLoadCounter != null && lastLoadCounter.equals(peerLoadCounter)) {
-            log.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
-        } else if (lastLoadCounter != null) {
+        if (lastSeqNum != null && lastSeqNum.equals(peerSeqNum)) {
+            log.info("Peer {} has no new nanopubs (seqNum unchanged: {})", peerUrl, peerSeqNum);
+        } else if (lastSeqNum != null) {
             // Fetch all nanopubs added since our last known position.
-            // TODO Add per-pubkey afterCounter tracking for more targeted incremental sync
-            long delta = peerLoadCounter - lastLoadCounter;
-            log.info("Peer {} has {} new nanopubs, fetching recent", peerUrl, delta);
-            long lastReceived = loadRecentNanopubs(s, peerUrl, lastLoadCounter);
+            log.info("Peer {} has new nanopubs (seqNum {} -> {}), fetching recent", peerUrl, lastSeqNum, peerSeqNum);
+            long lastReceived = loadRecentNanopubs(s, peerUrl, lastSeqNum);
             if (lastReceived > 0) {
-                effectiveLoadCounter = lastReceived;
+                effectiveSeqNum = lastReceived;
             }
             // Only discover new pubkeys when the peer has new data
             discoverPubkeys(s, peerUrl);
@@ -108,15 +114,16 @@ public class RegistryPeerConnector {
             log.info("Peer {} is new, pubkey discovery will handle initial sync", peerUrl);
             discoverPubkeys(s, peerUrl);
         }
-        updatePeerState(s, peerUrl, peerSetupId, effectiveLoadCounter);
+        updatePeerState(s, peerUrl, peerSetupId, effectiveSeqNum);
     }
 
     /**
-     * Fetches nanopubs from a peer after the given counter.
-     * @return the counter of the last successfully received nanopub, or -1 if none were received
+     * Fetches nanopubs from a peer after the given seqNum.
+     * @return the seqNum of the last successfully received nanopub, or -1 if none were received
      */
-    private static long loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
-        String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
+    private static long loadRecentNanopubs(ClientSession s, String peerUrl, long afterSeqNum) {
+        // TODO(transition): Remove afterCounter param after all peers upgraded
+        String requestUrl = peerUrl + "nanopubs.jelly?afterSeqNum=" + afterSeqNum + "&afterCounter=" + afterSeqNum;
         log.info("Fetching recent nanopubs from: {}", requestUrl);
         AtomicLong lastReceivedCounter = new AtomicLong(-1);
         try {
@@ -188,12 +195,14 @@ public class RegistryPeerConnector {
         }
     }
 
-    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long loadCounter) {
+    static void updatePeerState(ClientSession s, String peerUrl, long setupId, long seqNum) {
         collection(Collection.PEER_STATE.toString()).updateOne(s,
                 new Document("_id", peerUrl),
                 new Document("$set", new Document("_id", peerUrl)
                         .append("setupId", setupId)
-                        .append("loadCounter", loadCounter)
+                        .append("seqNum", seqNum)
+                        // TODO(transition): Remove loadCounter after all peers upgraded
+                        .append("loadCounter", seqNum)
                         .append("lastChecked", System.currentTimeMillis())),
                 new com.mongodb.client.model.UpdateOptions().upsert(true));
     }

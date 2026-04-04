@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import com.mongodb.client.ClientSession;
+import com.mongodb.client.MongoCollection;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerRequest;
@@ -10,13 +11,22 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class PageTest {
 
+    @SuppressWarnings("unchecked")
+    private static void mockCollectionForEstimatedCount(MockedStatic<RegistryDB> registry) {
+        MongoCollection<?> mockCollection = mock(MongoCollection.class);
+        when(mockCollection.estimatedDocumentCount()).thenReturn(0L);
+        registry.when(() -> RegistryDB.collection(anyString())).thenReturn((MongoCollection) mockCollection);
+    }
+
     @Test
     void construct() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -36,7 +46,8 @@ class PageTest {
 
     @Test
     void getFullRequest() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -56,7 +67,8 @@ class PageTest {
 
     @Test
     void getContext() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -75,7 +87,8 @@ class PageTest {
 
     @Test
     void getPresentationFormatHTML() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -94,7 +107,8 @@ class PageTest {
 
     @Test
     void getPresentationFormatPlainText() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -114,7 +128,8 @@ class PageTest {
     @Test
     void getExtension() {
         String expectedExtension = ".trig";
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -133,7 +148,8 @@ class PageTest {
 
     @Test
     void getExtensionNull() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -152,7 +168,8 @@ class PageTest {
 
     @Test
     void getRequestString() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -183,7 +200,8 @@ class PageTest {
 
     @Test
     void hasArtifactCode() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -214,7 +232,8 @@ class PageTest {
 
     @Test
     void getArtifactCodeWhenExists() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -234,7 +253,8 @@ class PageTest {
 
     @Test
     void getArtifactCodeWhenNotExists() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -254,7 +274,8 @@ class PageTest {
 
     @Test
     void getParam() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -282,7 +303,8 @@ class PageTest {
 
     @Test
     void isEmpty() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -303,7 +325,8 @@ class PageTest {
 
     @Test
     void setCanonicalLink() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -335,7 +358,8 @@ class PageTest {
 
     @Test
     void setResponseContentType() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));
@@ -367,7 +391,8 @@ class PageTest {
 
     @Test
     void setResponseContentTypeWhenHTTPMethoIsHead() {
-        try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            mockCollectionForEstimatedCount(registry);
             ClientSession mongoSession = mock(ClientSession.class);
             RoutingContext context = mock(RoutingContext.class);
             when(context.response()).thenReturn(mock(HttpServerResponse.class));

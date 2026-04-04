@@ -315,16 +315,19 @@ public class ListPage extends Page {
             }
         } else if (req.equals("/nanopubs")) {
             if (TYPE_JELLY.equals(format)) {
-                // Return all nanopubs from after counter X (-1 by default)
-                long afterCounter;
+                // Return all nanopubs after seqNum X (-1 by default)
+                // TODO(transition): Remove afterCounter fallback after all peers upgraded
+                long afterSeqNum;
                 try {
-                    afterCounter = Long.parseLong(getParam("afterCounter", "-1"));
+                    afterSeqNum = Long.parseLong(getParam("afterSeqNum",
+                            getParam("afterCounter", "-1")));
                 } catch (NumberFormatException ex) {
-                    context.response().setStatusCode(400).setStatusMessage("Invalid afterCounter parameter.");
+                    context.response().setStatusCode(400).setStatusMessage("Invalid afterSeqNum parameter.");
                     return;
                 }
-                var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("counter", afterCounter)).sort(ascending("counter"))
-                        // Only include the needed fields to save bandwidth to the DB
+                var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("seqNum", afterSeqNum)).sort(ascending("seqNum"))
+                        // TODO(transition): Change "counter" to "seqNum" once nanopub-java library is updated
+                        // NanopubStream.fromMongoCursorWithCounter reads the hardcoded "counter" field
                         .projection(include("jelly", "counter"));
 
                 try (var result = pipeline.cursor()) {
@@ -345,9 +348,9 @@ public class ListPage extends Page {
                         filter = afterId.isEmpty() ? new Document() : gt("_id", afterId);
                         sort = ascending("_id");
                     } else {
-                        // sort=date (default): latest first, using indexed counter field
+                        // sort=date (default): latest first, using indexed seqNum field
                         filter = new Document();
-                        sort = descending("counter");
+                        sort = descending("seqNum");
                     }
                     try (MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession)
                             .filter(filter).sort(sort)
@@ -380,7 +383,7 @@ public class ListPage extends Page {
                     println("<h3>Latest Nanopubs (max. 1000)</h3>");
                     println("<ol>");
                     try (MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession)
-                            .sort(descending("counter")).limit(1000).cursor()) {
+                            .sort(descending("seqNum")).limit(1000).cursor()) {
                         while (c.hasNext()) {
                             String npId = c.next().getString("_id");
                             println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
