@@ -15,11 +15,11 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
  * Controls which pubkeys are allowed to publish nanopubs and what their quotas are.
  * Configured via REGISTRY_COVERAGE_AGENTS env var.
  *
- * Format: comma-separated entries, each being either:
+ * Format: whitespace-separated entries, each being either:
  * - "viaSetting" — include all agents approved by the trust network (with computed quotas)
  * - "pubkeyHash:quota" — include a specific pubkey with an explicit quota
  *
- * Example: viaSetting,abc123...def456:5000,789xyz...abc012:10000
+ * Example: viaSetting abc123...def456:5000 789xyz...abc012:10000
  *
  * When unset, defaults to viaSetting (all trusted agents, no restrictions).
  */
@@ -40,17 +40,16 @@ public final class AgentFilter {
         boolean via = false;
         Map<String, Integer> pubkeys = new HashMap<>();
 
-        for (String entry : config.split(",")) {
-            entry = entry.trim();
+        for (String entry : config.trim().split("\\s+")) {
             if (entry.isEmpty()) continue;
             if ("viaSetting".equals(entry)) {
                 via = true;
             } else if (entry.contains(":")) {
                 String[] parts = entry.split(":", 2);
-                String pubkeyHash = parts[0].trim();
+                String pubkeyHash = parts[0];
                 int quota;
                 try {
-                    quota = Integer.parseInt(parts[1].trim());
+                    quota = Integer.parseInt(parts[1]);
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException(
                             "Invalid quota in REGISTRY_COVERAGE_AGENTS: " + entry);

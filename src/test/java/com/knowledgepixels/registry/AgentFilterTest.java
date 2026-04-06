@@ -49,7 +49,7 @@ class AgentFilterTest {
 
     @Test
     void viaSettingPlusExplicitPubkeys() {
-        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting,abc123:5000,def456:10000").build();
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting abc123:5000 def456:10000").build();
         AgentFilter.init();
         assertTrue(AgentFilter.usesViaSetting());
         assertEquals(2, AgentFilter.getExplicitPubkeys().size());
@@ -59,7 +59,7 @@ class AgentFilterTest {
 
     @Test
     void explicitPubkeysOnlyNoViaSetting() {
-        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "abc123:100,def456:200").build();
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "abc123:100 def456:200").build();
         AgentFilter.init();
         assertFalse(AgentFilter.usesViaSetting());
         assertEquals(2, AgentFilter.getExplicitPubkeys().size());
@@ -78,8 +78,8 @@ class AgentFilterTest {
     }
 
     @Test
-    void toleratesWhitespace() {
-        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting , abc123:5000 , def456:10000").build();
+    void toleratesVariousWhitespace() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting  abc123:5000\tabc123:5000\ndef456:10000").build();
         AgentFilter.init();
         assertTrue(AgentFilter.usesViaSetting());
         assertEquals(5000, AgentFilter.getExplicitPubkeys().get("abc123"));
