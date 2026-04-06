@@ -737,19 +737,25 @@ public enum Task implements Serializable {
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
-                    String checksums = buildChecksumFallbacks(s, ph, "$");
-                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
-                        long startTime = System.nanoTime();
-                        AtomicLong loaded = new AtomicLong(0);
-                        NanopubLoader.loadStreamInParallel(stream, np -> {
-                            try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                loadNanopub(ws, np, ph, "$");
-                                loaded.incrementAndGet();
-                            }
-                        });
-                        double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-                        log.info("Loaded {} nanopubs in {}s, {} np/s",
-                                loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
+                    if (AgentFilter.isOverQuota(s, ph)) {
+                        log.info("Skipping pubkey {} (quota exceeded)", ph);
+                    } else {
+                        String checksums = buildChecksumFallbacks(s, ph, "$");
+                        try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
+                            long startTime = System.nanoTime();
+                            AtomicLong loaded = new AtomicLong(0);
+                            NanopubLoader.loadStreamInParallel(stream, np -> {
+                                try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                    if (!AgentFilter.isOverQuota(ws, ph)) {
+                                        loadNanopub(ws, np, ph, "$");
+                                        loaded.incrementAndGet();
+                                    }
+                                }
+                            });
+                            double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
+                            log.info("Loaded {} nanopubs in {}s, {} np/s",
+                                    loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
+                        }
                     }
                 }
 
@@ -912,9 +918,12 @@ public enum Task implements Serializable {
     private static final int MAX_TRUST_PATH_DEPTH = 10;
     private static final double MIN_TRUST_PATH_RATIO = 0.00000001;
     //private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
-    private static final int GLOBAL_QUOTA = 100000000;
-    private static final int MIN_USER_QUOTA = 100;
-    private static final int MAX_USER_QUOTA = 10000;
+    private static final int GLOBAL_QUOTA = Integer.parseInt(
+            Utils.getEnv("REGISTRY_GLOBAL_QUOTA", "1000000000"));
+    private static final int MIN_USER_QUOTA = Integer.parseInt(
+            Utils.getEnv("REGISTRY_MIN_USER_QUOTA", "1000"));
+    private static final int MAX_USER_QUOTA = Integer.parseInt(
+            Utils.getEnv("REGISTRY_MAX_USER_QUOTA", "100000"));
 
     private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
 
