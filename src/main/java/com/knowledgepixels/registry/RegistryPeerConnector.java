@@ -146,6 +146,9 @@ public class RegistryPeerConnector {
                             try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey != null) {
+                                    String pubkeyHash = Utils.getHash(pubkey);
+                                    if (!AgentFilter.isAllowed(workerSession, pubkeyHash)) return;
+                                    if (AgentFilter.isOverQuota(workerSession, pubkeyHash)) return;
                                     RegistryDB.loadNanopubVerified(workerSession, np, pubkey, null);
                                     NanopubLoader.simpleLoad(workerSession, np, pubkey);
                                 }

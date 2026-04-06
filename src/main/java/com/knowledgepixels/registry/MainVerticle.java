@@ -79,12 +79,18 @@ public class MainVerticle extends AbstractVerticle {
                             } else {
                                 logger.info("POST: new nanopub {}", ac);
 
-                                // TODO Run checks here whether we want to register this nanopub (considering quotas etc.)
-
                                 // Verify signature once, pass through to avoid redundant verification:
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey == null)
                                     throw new RuntimeException("Nanopublication not supported: " + np.getUri());
+
+                                // Check agent/quota restrictions
+                                String pubkeyHash = Utils.getHash(pubkey);
+                                if (!AgentFilter.isAllowed(s, pubkeyHash))
+                                    throw new RuntimeException("Pubkey not authorized on this registry: " + pubkeyHash);
+                                if (AgentFilter.isOverQuota(s, pubkeyHash))
+                                    throw new RuntimeException("Quota exceeded for pubkey: " + pubkeyHash);
+
                                 // Load to nanopub store:
                                 boolean success = RegistryDB.loadNanopubVerified(s, np, pubkey, null);
                                 if (!success)
@@ -111,6 +117,7 @@ public class MainVerticle extends AbstractVerticle {
         // INIT
         vertx.executeBlocking(() -> {
             logger.info("Starting DB initialization...");
+            AgentFilter.init();
             RegistryDB.init();
 
             new Thread(Task::runTasks).start();

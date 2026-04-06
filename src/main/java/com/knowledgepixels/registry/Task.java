@@ -737,19 +737,25 @@ public enum Task implements Serializable {
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
-                    String checksums = buildChecksumFallbacks(s, ph, "$");
-                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
-                        long startTime = System.nanoTime();
-                        AtomicLong loaded = new AtomicLong(0);
-                        NanopubLoader.loadStreamInParallel(stream, np -> {
-                            try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                loadNanopub(ws, np, ph, "$");
-                                loaded.incrementAndGet();
-                            }
-                        });
-                        double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-                        log.info("Loaded {} nanopubs in {}s, {} np/s",
-                                loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
+                    if (AgentFilter.isOverQuota(s, ph)) {
+                        log.info("Skipping pubkey {} (quota exceeded)", ph);
+                    } else {
+                        String checksums = buildChecksumFallbacks(s, ph, "$");
+                        try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
+                            long startTime = System.nanoTime();
+                            AtomicLong loaded = new AtomicLong(0);
+                            NanopubLoader.loadStreamInParallel(stream, np -> {
+                                try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                    if (!AgentFilter.isOverQuota(ws, ph)) {
+                                        loadNanopub(ws, np, ph, "$");
+                                        loaded.incrementAndGet();
+                                    }
+                                }
+                            });
+                            double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
+                            log.info("Loaded {} nanopubs in {}s, {} np/s",
+                                    loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
+                        }
                     }
                 }
 
