@@ -85,12 +85,14 @@ public class MainPage extends Page {
             println("<li><em>currentSetting:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
             println("</ul>");
 
-            println("<h3>Agents</h3>");
-            if (status.equals("launching") || status.equals("coreLoading")) {
-                println("<p><em>(loading...)</em></p>");
-            } else {
-                println("<p>Count: " + collection(Collection.AGENTS.toString()).countDocuments(mongoSession) + "</p>");
-                println("<p><a href=\"/agents\">&gt; agents</a></pi>");
+            if (!"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+                println("<h3>Agents</h3>");
+                if (status.equals("launching") || status.equals("coreLoading")) {
+                    println("<p><em>(loading...)</em></p>");
+                } else {
+                    println("<p>Count: " + collection(Collection.AGENTS.toString()).countDocuments(mongoSession) + "</p>");
+                    println("<p><a href=\"/agents\">&gt; agents</a></pi>");
+                }
             }
 
             println("<h3>Accounts</h3>");

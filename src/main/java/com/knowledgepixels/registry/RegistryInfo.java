@@ -45,7 +45,9 @@ public class RegistryInfo implements Serializable {
         ri.coverageAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");
         ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");
         ri.originalSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "original");
-        ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
+        if (!"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+            ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
+        }
         ri.accountCount = collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession);
         ri.nanopubCount = collection(Collection.NANOPUBS.toString()).countDocuments(mongoSession);
         ri.isTestInstance = isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance");

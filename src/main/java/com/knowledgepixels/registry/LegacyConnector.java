@@ -56,7 +56,7 @@ public class LegacyConnector {
                 while ((npUri = i.readLine()) != null) {
                     if (loadedCache.containsKey(npUri)) continue;
                     // TODO: Here we need to make sure to append to existing lists:
-                    NanopubLoader.simpleLoad(mongoSession, npUri);
+                    NanopubLoader.simpleLoad(mongoSession, npUri, false);
                     loadedCache.put(npUri, true);
                 }
             }

@@ -72,6 +72,11 @@ public final class AgentFilter {
         } else {
             logger.info("Agent filter: {} explicit pubkeys only", pubkeys.size());
         }
+
+        if (via && "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+            logger.warn("viaSetting is enabled but trust calculation is disabled — " +
+                    "no agents will be discovered via the trust network; only explicit pubkeys will work");
+        }
     }
 
     /**

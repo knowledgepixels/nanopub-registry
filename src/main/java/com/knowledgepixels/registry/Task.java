@@ -84,7 +84,8 @@ public enum Task implements Serializable {
             setValue(s, Collection.SETTING.toString(), "bootstrap-services", bootstrapServices);
 
             if (!"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
-                schedule(s, LOAD_FULL.withDelay(60 * 1000));
+                long fullLoadDelay = "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) ? 0 : 60 * 1000;
+                schedule(s, LOAD_FULL.withDelay(fullLoadDelay));
             }
 
             setServerStatus(s, coreLoading);
@@ -105,6 +106,22 @@ public enum Task implements Serializable {
             }
 
             IndexInitializer.initLoadingCollections(s);
+
+            if ("false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+                log.info("Trust calculation disabled; skipping to FINALIZE_TRUST_STATE");
+                for (String pubkeyHash : AgentFilter.getExplicitPubkeys().keySet()) {
+                    Document account = new Document("agent", "")
+                            .append("pubkey", pubkeyHash)
+                            .append("status", toLoad.getValue())
+                            .append("depth", 0);
+                    if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
+                        insert(s, "accounts_loading", account);
+                        log.info("Seeded explicit pubkey as account: {}", pubkeyHash);
+                    }
+                }
+                schedule(s, FINALIZE_TRUST_STATE);
+                return;
+            }
 
             // since this may take long, we start with postfix "_loading"
             // and only at completion it's changed to trustPath, endorsements, accounts
@@ -720,8 +737,9 @@ public enum Task implements Serializable {
 
             ServerStatus status = getServerStatus(s);
             if (status != coreReady && status != ready && status != updating) {
+                long retryDelay = "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) ? 100 : 60 * 1000;
                 log.info("Server currently not ready; checking again later");
-                schedule(s, LOAD_FULL.withDelay(60 * 1000));
+                schedule(s, LOAD_FULL.withDelay(retryDelay));
                 return;
             }
 
@@ -737,6 +755,12 @@ public enum Task implements Serializable {
             } else {
                 final String ph = a.getString("pubkey");
                 if (!ph.equals("$")) {
+                    if (!AgentFilter.isAllowed(s, ph)) {
+                        log.info("Skipping pubkey {} (not covered by agent filter)", ph);
+                        set(s, Collection.ACCOUNTS.toString(), a.append("status", skipped.getValue()));
+                        schedule(s, LOAD_FULL.withDelay(100));
+                        return;
+                    }
                     if (AgentFilter.isOverQuota(s, ph)) {
                         log.info("Skipping pubkey {} (quota exceeded)", ph);
                     } else {
@@ -781,6 +805,11 @@ public enum Task implements Serializable {
                 Utils.getEnv("REGISTRY_OPTIONAL_LOAD_BATCH_SIZE", "100"));
 
         public void run(ClientSession s, Document taskDoc) {
+            if ("false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"))) {
+                schedule(s, CHECK_NEW.withDelay(500));
+                return;
+            }
+
             AtomicLong totalLoaded = new AtomicLong(0);
 
             // Phase 1: Process encountered intro lists (core loading)
