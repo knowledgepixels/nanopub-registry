@@ -658,12 +658,17 @@ class RegistryDBTest {
     @Test
     void simpleLoadWithVerifiedPubkeyCreatesListEntries() throws MalformedNanopubException, IOException {
         RegistryDB.init();
+        AgentFilter.init();
         ClientSession session = RegistryDB.getClient().startSession();
 
         File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(file);
         String pubkey = RegistryDB.getPubkey(nanopub);
         String pubkeyHash = Utils.getHash(pubkey);
+
+        // Seed account so AgentFilter allows this pubkey
+        RegistryDB.collection(Collection.ACCOUNTS.toString()).insertOne(session,
+                new Document("pubkey", pubkeyHash).append("status", "loaded").append("quota", 10000));
 
         // Store the nanopub first
         RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null);
@@ -679,12 +684,17 @@ class RegistryDBTest {
     @Test
     void simpleLoadWithVerifiedPubkeyMatchesSimpleLoad() throws MalformedNanopubException, IOException {
         RegistryDB.init();
+        AgentFilter.init();
         ClientSession session = RegistryDB.getClient().startSession();
 
         File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(file);
         String pubkey = RegistryDB.getPubkey(nanopub);
         String pubkeyHash = Utils.getHash(pubkey);
+
+        // Seed account so AgentFilter allows this pubkey
+        RegistryDB.collection(Collection.ACCOUNTS.toString()).insertOne(session,
+                new Document("pubkey", pubkeyHash).append("status", "loaded").append("quota", 10000));
 
         // Store via verified path then simpleLoad with pubkey
         RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null);
