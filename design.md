@@ -107,7 +107,9 @@ Tasks are scheduled and executed sequentially from a `tasks` collection. The mai
 2. `LOAD_DECLARATIONS` → `EXPAND_TRUST_PATHS` → `LOAD_CORE` — iteratively load core nanopubs and build the trust network
 3. `FINISH_ITERATION` — repeats step 2 until no more changes
 4. `CALCULATE_TRUST_SCORES` → `AGGREGATE_AGENTS` → `ASSIGN_PUBKEYS` → `DETERMINE_UPDATES` → `FINALIZE_TRUST_STATE` → `RELEASE_DATA` — compute trust scores and quotas, swap in new data
-5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`
+
+Steps 2–4 can be skipped with `REGISTRY_ENABLE_TRUST_CALCULATION=false`, which makes `INIT_COLLECTIONS` jump straight to `FINALIZE_TRUST_STATE`. Useful when only explicit `REGISTRY_COVERAGE_AGENTS` pubkeys are needed.
+5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`. Optional loading can be disabled with `REGISTRY_ENABLE_OPTIONAL_LOAD=false`
 6. `UPDATE` (hourly) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
 
 See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).

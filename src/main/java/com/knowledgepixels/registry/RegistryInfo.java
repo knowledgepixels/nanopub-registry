@@ -28,6 +28,8 @@ public class RegistryInfo implements Serializable {
     // TODO(transition): Remove loadCounter after all peers upgraded
     private Long loadCounter;
     private Boolean isTestInstance;
+    private Boolean optionalLoadEnabled;
+    private Boolean trustCalculationEnabled;
 
     private static final Gson gson = new Gson();
 
@@ -45,10 +47,14 @@ public class RegistryInfo implements Serializable {
         ri.coverageAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");
         ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");
         ri.originalSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "original");
-        ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
+        if (!"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+            ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
+        }
         ri.accountCount = collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession);
         ri.nanopubCount = collection(Collection.NANOPUBS.toString()).countDocuments(mongoSession);
         ri.isTestInstance = isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance");
+        ri.optionalLoadEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"));
+        ri.trustCalculationEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"));
         return ri;
     }
 

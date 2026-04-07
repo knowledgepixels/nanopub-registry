@@ -66,6 +66,8 @@ public class MainPage extends Page {
             println("<li><em>setupId:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") + "</li>");
             println("<li><em>coverageTypes:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes") + "</li>");
             println("<li><em>coverageAgents:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents") + "</li>");
+            println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD")) + "</li>");
+            println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
             println("<li><em>seqNum:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "</li>");
             println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");
@@ -85,12 +87,14 @@ public class MainPage extends Page {
             println("<li><em>currentSetting:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
             println("</ul>");
 
-            println("<h3>Agents</h3>");
-            if (status.equals("launching") || status.equals("coreLoading")) {
-                println("<p><em>(loading...)</em></p>");
-            } else {
-                println("<p>Count: " + collection(Collection.AGENTS.toString()).countDocuments(mongoSession) + "</p>");
-                println("<p><a href=\"/agents\">&gt; agents</a></pi>");
+            if (!"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+                println("<h3>Agents</h3>");
+                if (status.equals("launching") || status.equals("coreLoading")) {
+                    println("<p><em>(loading...)</em></p>");
+                } else {
+                    println("<p>Count: " + collection(Collection.AGENTS.toString()).countDocuments(mongoSession) + "</p>");
+                    println("<p><a href=\"/agents\">&gt; agents</a></pi>");
+                }
             }
 
             println("<h3>Accounts</h3>");

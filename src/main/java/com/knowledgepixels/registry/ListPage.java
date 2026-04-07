@@ -171,7 +171,8 @@ public class ListPage extends Page {
                     if (type.equals("$")) {
                         println("(all types)");
                     } else {
-                        println("(type " + unhash(type) + ")");
+                        String typeUri = unhash(type);
+                        println("(type " + (typeUri != null ? typeUri : type) + ")");
                     }
                     println("</li>");
                 }
@@ -205,7 +206,9 @@ public class ListPage extends Page {
                             println("<li>");
                             println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
                             String a = d.getString("agent");
-                            print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+                            if (a != null && !a.isBlank()) {
+                                print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+                            }
                             print(", status: " + d.get("status"));
                             print(", depth: " + d.get("depth"));
                             if (d.get("pathCount") != null) {

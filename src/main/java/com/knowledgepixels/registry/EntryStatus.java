@@ -74,7 +74,11 @@ public enum EntryStatus {
     /**
      * accounts-loading
      */
-    contested;
+    contested,
+    /**
+     * accounts — quota reached, not all nanopubs loaded
+     */
+    capped;
 
     // The code is inspired by: https://www.mongodb.com/community/forums/t/cannot-store-java-enum-values-in-mongodb/99719/3
     // It's not really necessary right now, since we call getValue by hand,

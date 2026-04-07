@@ -70,7 +70,9 @@ class RegistryInfoTest {
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
                                   + "\"seqNum\":" + LOAD_COUNTER + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
-                                  + "\"isTestInstance\":" + IS_TEST_INSTANCE
+                                  + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
+                                  + "\"optionalLoadEnabled\":true,"
+                                  + "\"trustCalculationEnabled\":true"
                                   + "}";
             assertEquals(expectedJson, registryInfo.asJson());
         }
@@ -121,7 +123,9 @@ class RegistryInfoTest {
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
                                   + "\"seqNum\":" + LOAD_COUNTER + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
-                                  + "\"isTestInstance\":" + IS_TEST_INSTANCE
+                                  + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
+                                  + "\"optionalLoadEnabled\":true,"
+                                  + "\"trustCalculationEnabled\":true"
                                   + "}";
             assertEquals(expectedJson, registryInfo.asJson());
         }

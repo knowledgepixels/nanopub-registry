@@ -62,7 +62,21 @@ public class NanopubLoader {
     //      3. Full load: load to all lists (initialize if needed)
 
     public static void simpleLoad(ClientSession mongoSession, String nanopubId) {
-        simpleLoad(mongoSession, retrieveNanopub(mongoSession, nanopubId));
+        simpleLoad(mongoSession, nanopubId, true);
+    }
+
+    public static void simpleLoad(ClientSession mongoSession, String nanopubId, boolean persistOnRetrieve) {
+        if (persistOnRetrieve) {
+            simpleLoad(mongoSession, retrieveNanopub(mongoSession, nanopubId));
+        } else {
+            Nanopub np = retrieveLocalNanopub(mongoSession, nanopubId);
+            if (np == null) {
+                np = getNanopub(nanopubId);
+            }
+            if (np != null) {
+                simpleLoad(mongoSession, np);
+            }
+        }
     }
 
     public static void simpleLoad(ClientSession mongoSession, Nanopub np) {
@@ -80,6 +94,8 @@ public class NanopubLoader {
      */
     public static void simpleLoad(ClientSession mongoSession, Nanopub np, String verifiedPubkey) {
         String pubkeyHash = Utils.getHash(verifiedPubkey);
+        if (!AgentFilter.isAllowed(mongoSession, pubkeyHash)) return;
+        if (AgentFilter.isOverQuota(mongoSession, pubkeyHash)) return;
         // TODO Do we need to load anything else here, into the other DB collections?
         if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, "$");

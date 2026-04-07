@@ -10,6 +10,8 @@ services:
 #     - REGISTRY_PERFORM_FULL_LOAD=false
 #     - REGISTRY_PRIORITIZE_ALL_PUBKEYS=true  # Load all discovered pubkeys at high priority, not just trust-approved ones
 #                                            # (all pubkeys are loaded eventually; this flag removes the throttling)
+#     - REGISTRY_ENABLE_OPTIONAL_LOAD=false  # Disable loading nanopubs for non-approved pubkeys (discovered via peers)
+#     - REGISTRY_ENABLE_TRUST_CALCULATION=false  # Skip trust path calculation (use with explicit REGISTRY_COVERAGE_AGENTS)
 #     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
 #     - REGISTRY_SETTING_FILE=/data/registry.trig
 #     - REGISTRY_SERVICE_URL=https://your.public.registry.url.com/
