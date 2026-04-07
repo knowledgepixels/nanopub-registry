@@ -312,7 +312,9 @@ public enum Task implements Serializable {
                         double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
                         insert(s, "trustPaths_loading", pd.append("ratio", newRatio));
                     }
-                    set(s, "trustPaths_loading", trustPath.append("type", "primary"));
+                    // Retain only 10% of the ratio — the other 90% was distributed to children
+                    double retainedRatio = trustPath.getDouble("ratio") * 0.1;
+                    set(s, "trustPaths_loading", trustPath.append("type", "primary").append("ratio", retainedRatio));
                     set(s, "accounts_loading", d.append("status", expanded.getValue()));
                 }
                 schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
