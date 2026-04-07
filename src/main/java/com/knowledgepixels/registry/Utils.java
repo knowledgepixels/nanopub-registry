@@ -240,7 +240,7 @@ public class Utils {
             String envPeerUrls = getEnv("REGISTRY_PEER_URLS", "");
             String thisRegistryUrl = getEnv("REGISTRY_SERVICE_URL", "");
             if (!envPeerUrls.isEmpty()) {
-                for (String peerUrl : envPeerUrls.split(";")) {
+                for (String peerUrl : envPeerUrls.trim().split("\\s+")) {
                     if (thisRegistryUrl.equals(peerUrl)) {
                         continue;
                     }
