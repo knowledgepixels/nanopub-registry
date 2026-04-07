@@ -332,7 +332,9 @@ public enum Task implements Serializable {
                         double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
                         insert(s, "trustPaths_loading", pd.append("ratio", newRatio));
                     }
-                    set(s, "trustPaths_loading", trustPath.append("type", "primary"));
+                    // Retain only 10% of the ratio — the other 90% was distributed to children
+                    double retainedRatio = trustPath.getDouble("ratio") * 0.1;
+                    set(s, "trustPaths_loading", trustPath.append("type", "primary").append("ratio", retainedRatio));
                     set(s, "accounts_loading", d.append("status", expanded.getValue()));
                 }
                 schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
@@ -769,22 +771,29 @@ public enum Task implements Serializable {
                         log.info("Skipping pubkey {} (quota exceeded)", ph);
                         quotaReached = true;
                     } else {
-                        String checksums = buildChecksumFallbacks(s, ph, "$");
-                        try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
-                            long startTime = System.nanoTime();
-                            AtomicLong loaded = new AtomicLong(0);
-                            NanopubLoader.loadStreamInParallel(stream, np -> {
-                                try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                                    if (!AgentFilter.isOverQuota(ws, ph)) {
-                                        loadNanopub(ws, np, ph, "$");
-                                        loaded.incrementAndGet();
+                        long startTime = System.nanoTime();
+                        AtomicLong totalLoaded = new AtomicLong(0);
+
+                        // Load per covered type (or "$" if no restriction) with checksum skip-ahead
+                        for (String typeHash : getLoadTypeHashes(s, ph)) {
+                            String checksums = buildChecksumFallbacks(s, ph, typeHash);
+                            try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, ph, checksums)) {
+                                NanopubLoader.loadStreamInParallel(stream, np -> {
+                                    if (!CoverageFilter.isCovered(np)) return;
+                                    try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                        if (!AgentFilter.isOverQuota(ws, ph)) {
+                                            loadNanopub(ws, np, ph, "$");
+                                            totalLoaded.incrementAndGet();
+                                        }
                                     }
-                                }
-                            });
-                            double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-                            log.info("Loaded {} nanopubs in {}s, {} np/s",
-                                    loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
+                                });
+                            }
                         }
+
+                        double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
+                        log.info("Loaded {} nanopubs in {}s, {} np/s",
+                                totalLoaded.get(), timeSeconds, String.format("%.2f", totalLoaded.get() / timeSeconds));
+
                         if (AgentFilter.isOverQuota(s, ph)) {
                             quotaReached = true;
                         }
@@ -874,14 +883,18 @@ public enum Task implements Serializable {
                 final String pubkeyHash = df.getString("pubkey");
                 log.info("Optional full loading: {}", pubkeyHash);
 
-                String fullChecksums = buildChecksumFallbacks(s, pubkeyHash, "$");
-                try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", pubkeyHash, fullChecksums)) {
-                    NanopubLoader.loadStreamInParallel(stream, np -> {
-                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
-                            loadNanopub(ws, np, pubkeyHash, "$");
-                            totalLoaded.incrementAndGet();
-                        }
-                    });
+                // Load per covered type (or "$" if no restriction) with checksum skip-ahead
+                for (String typeHash : getLoadTypeHashes(s, pubkeyHash)) {
+                    String checksums = buildChecksumFallbacks(s, pubkeyHash, typeHash);
+                    try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, pubkeyHash, checksums)) {
+                        NanopubLoader.loadStreamInParallel(stream, np -> {
+                            if (!CoverageFilter.isCovered(np)) return;
+                            try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                loadNanopub(ws, np, pubkeyHash, "$");
+                                totalLoaded.incrementAndGet();
+                            }
+                        });
+                    }
                 }
 
                 set(s, "lists", df.append("status", loaded.getValue()));
@@ -954,6 +967,24 @@ public enum Task implements Serializable {
 
     private static boolean prioritizeAllPubkeys() {
         return "true".equals(System.getenv("REGISTRY_PRIORITIZE_ALL_PUBKEYS"));
+    }
+
+    /**
+     * Returns the type hashes to load for a given pubkey. When coverage is unrestricted,
+     * returns just "$" (all types in one request). When restricted, returns each covered
+     * type hash for per-type fetching with checksum skip-ahead.
+     *
+     * TODO: Fetching "$" from peers with type restrictions will only return their covered
+     * types, not all types. To get full coverage, we'd need to fetch per-type from such peers.
+     * Additionally, checksum-based skip-ahead won't work correctly against such peers, because
+     * their "$" list has different checksums due to the differing type subset. This means full
+     * re-downloads on every cycle. Per-type fetching would solve both issues.
+     */
+    private static java.util.List<String> getLoadTypeHashes(ClientSession s, String pubkeyHash) {
+        if (CoverageFilter.coversAllTypes()) {
+            return java.util.List.of("$");
+        }
+        return java.util.List.copyOf(CoverageFilter.getCoveredTypeHashes());
     }
 
     // TODO Move these to setting:

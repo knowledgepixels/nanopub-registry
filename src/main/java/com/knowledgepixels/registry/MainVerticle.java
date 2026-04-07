@@ -79,6 +79,11 @@ public class MainVerticle extends AbstractVerticle {
                             } else {
                                 logger.info("POST: new nanopub {}", ac);
 
+                                // Check if this nanopub's types are covered by this registry
+                                if (!CoverageFilter.isCovered(np)) {
+                                    throw new RuntimeException("Nanopub types not covered by this registry: " + np.getUri());
+                                }
+
                                 // Verify signature once, pass through to avoid redundant verification:
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey == null)
@@ -117,6 +122,7 @@ public class MainVerticle extends AbstractVerticle {
         // INIT
         vertx.executeBlocking(() -> {
             logger.info("Starting DB initialization...");
+            CoverageFilter.init();
             AgentFilter.init();
             RegistryDB.init();
 

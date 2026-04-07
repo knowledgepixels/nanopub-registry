@@ -143,6 +143,7 @@ public class RegistryPeerConnector {
                             }
                         }),
                         np -> {
+                            if (!CoverageFilter.isCovered(np)) return;
                             try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey != null) {

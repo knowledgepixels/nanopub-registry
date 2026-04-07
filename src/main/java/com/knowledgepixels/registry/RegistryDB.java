@@ -510,7 +510,10 @@ public class RegistryDB {
                 addToList(mongoSession, nanopub, pubkeyHash, Utils.getTypeHash(mongoSession, type));
                 if (type.equals("$")) {
                     for (IRI t : NanopubUtils.getTypes(nanopub)) {
-                        addToList(mongoSession, nanopub, pubkeyHash, Utils.getTypeHash(mongoSession, t));
+                        String th = Utils.getTypeHash(mongoSession, t);
+                        if (CoverageFilter.isCoveredType(th)) {
+                            addToList(mongoSession, nanopub, pubkeyHash, th);
+                        }
                     }
                 }
             }
