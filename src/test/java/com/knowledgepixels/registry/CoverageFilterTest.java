@@ -62,7 +62,7 @@ class CoverageFilterTest {
 
     @Test
     void restrictedCoverage_multipleTypes() {
-        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA,http://example.org/TypeB").build();
+        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA http://example.org/TypeB").build();
         CoverageFilter.init();
 
         Set<String> covered = CoverageFilter.getCoveredTypeHashes();
@@ -147,7 +147,7 @@ class CoverageFilterTest {
 
     @Test
     void init_toleratesWhitespaceInConfig() {
-        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA , http://example.org/TypeB").build();
+        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA  http://example.org/TypeB").build();
         CoverageFilter.init();
         assertFalse(CoverageFilter.coversAllTypes());
         Set<String> covered = CoverageFilter.getCoveredTypeHashes();

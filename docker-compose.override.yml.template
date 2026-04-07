@@ -6,7 +6,7 @@ services:
       - REGISTRY_COVERAGE_TYPES=all
       - REGISTRY_COVERAGE_AGENTS=viaSetting
 #     - REGISTRY_SERVICE_URL=https://url.of.this.registry.com/
-      - REGISTRY_PEER_URLS=https://registry.petapico.org/;https://registry.knowledgepixels.com/
+      - REGISTRY_PEER_URLS=https://registry.petapico.org/ https://registry.knowledgepixels.com/
 #     - REGISTRY_PERFORM_FULL_LOAD=false
 #     - REGISTRY_PRIORITIZE_ALL_PUBKEYS=true  # Load all discovered pubkeys at high priority, not just trust-approved ones
 #                                            # (all pubkeys are loaded eventually; this flag removes the throttling)

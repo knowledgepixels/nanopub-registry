@@ -140,7 +140,7 @@ The `CHECK_NEW` task invokes `RegistryPeerConnector.checkPeers()`, which iterate
 
 ## Type-Based Coverage
 
-Registries can restrict which nanopub types they store via the `REGISTRY_COVERAGE_TYPES` environment variable (comma-separated type URIs). Core types (introductions, endorsements) are always covered regardless of the setting, since they are needed for trust path computation.
+Registries can restrict which nanopub types they store via the `REGISTRY_COVERAGE_TYPES` environment variable (whitespace-separated type URIs). Core types (introductions, endorsements) are always covered regardless of the setting, since they are needed for trust path computation.
 
 When coverage is restricted:
 - **POST handler** rejects nanopubs whose types are not covered
@@ -152,7 +152,7 @@ When coverage is restricted:
 
 Configuration example:
 ```
-REGISTRY_COVERAGE_TYPES=http://example.org/TypeA,http://example.org/TypeB
+REGISTRY_COVERAGE_TYPES=http://example.org/TypeA http://example.org/TypeB
 ```
 
 When unset, all types are covered (default, no behavioral change).

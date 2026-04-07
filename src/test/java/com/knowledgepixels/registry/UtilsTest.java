@@ -215,7 +215,7 @@ class UtilsTest {
 
     @Test
     void getPeerUrlsWithNotEmptyPeerUrlsVariable() {
-        fakeEnv.addVariable("REGISTRY_PEER_URLS", "https://registry.nanodash.net/;https://registry.knowledgepixels.com/")
+        fakeEnv.addVariable("REGISTRY_PEER_URLS", "https://registry.nanodash.net/ https://registry.knowledgepixels.com/")
                 .addVariable("REGISTRY_SERVICE_URL", "https://registry.petapico.org/")
                 .build();
 

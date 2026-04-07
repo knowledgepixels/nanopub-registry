@@ -28,7 +28,7 @@ public final class CoverageFilter {
 
     /**
      * Initializes the coverage filter from the REGISTRY_COVERAGE_TYPES env var.
-     * Format: comma-separated type URIs (e.g. "http://example.org/TypeA,http://example.org/TypeB").
+     * Format: whitespace-separated type URIs (e.g. "http://example.org/TypeA http://example.org/TypeB").
      * If unset or empty, all types are covered.
      */
     public static void init() {
@@ -38,8 +38,7 @@ public final class CoverageFilter {
             logger.info("Coverage filter: all types covered (no restriction)");
         } else {
             Set<String> hashes = new HashSet<>();
-            for (String typeUri : config.split(",")) {
-                typeUri = typeUri.trim();
+            for (String typeUri : config.trim().split("\\s+")) {
                 if (!typeUri.isEmpty()) {
                     hashes.add(Utils.getHash(typeUri));
                 }
