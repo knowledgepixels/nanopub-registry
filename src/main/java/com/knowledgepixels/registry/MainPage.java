@@ -66,6 +66,8 @@ public class MainPage extends Page {
             println("<li><em>setupId:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") + "</li>");
             println("<li><em>coverageTypes:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes") + "</li>");
             println("<li><em>coverageAgents:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents") + "</li>");
+            println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD")) + "</li>");
+            println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
             println("<li><em>seqNum:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "</li>");
             println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");
