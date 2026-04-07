@@ -922,6 +922,12 @@ public enum Task implements Serializable {
      * Returns the type hashes to load for a given pubkey. When coverage is unrestricted,
      * returns just "$" (all types in one request). When restricted, returns each covered
      * type hash for per-type fetching with checksum skip-ahead.
+     *
+     * TODO: Fetching "$" from peers with type restrictions will only return their covered
+     * types, not all types. To get full coverage, we'd need to fetch per-type from such peers.
+     * Additionally, checksum-based skip-ahead won't work correctly against such peers, because
+     * their "$" list has different checksums due to the differing type subset. This means full
+     * re-downloads on every cycle. Per-type fetching would solve both issues.
      */
     private static java.util.List<String> getLoadTypeHashes(ClientSession s, String pubkeyHash) {
         if (CoverageFilter.coversAllTypes()) {
