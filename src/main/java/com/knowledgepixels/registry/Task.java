@@ -109,11 +109,14 @@ public enum Task implements Serializable {
 
             if ("false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
                 log.info("Trust calculation disabled; skipping to FINALIZE_TRUST_STATE");
-                for (String pubkeyHash : AgentFilter.getExplicitPubkeys().keySet()) {
+                for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
+                    String pubkeyHash = entry.getKey();
+                    int quota = entry.getValue();
                     Document account = new Document("agent", "")
                             .append("pubkey", pubkeyHash)
                             .append("status", toLoad.getValue())
-                            .append("depth", 0);
+                            .append("depth", 0)
+                            .append("quota", quota);
                     if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
                         insert(s, "accounts_loading", account);
                         log.info("Seeded explicit pubkey as account: {}", pubkeyHash);
@@ -754,6 +757,7 @@ public enum Task implements Serializable {
                 schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
             } else {
                 final String ph = a.getString("pubkey");
+                boolean quotaReached = false;
                 if (!ph.equals("$")) {
                     if (!AgentFilter.isAllowed(s, ph)) {
                         log.info("Skipping pubkey {} (not covered by agent filter)", ph);
@@ -763,6 +767,7 @@ public enum Task implements Serializable {
                     }
                     if (AgentFilter.isOverQuota(s, ph)) {
                         log.info("Skipping pubkey {} (quota exceeded)", ph);
+                        quotaReached = true;
                     } else {
                         String checksums = buildChecksumFallbacks(s, ph, "$");
                         try (var stream = NanopubLoader.retrieveNanopubsFromPeers("$", ph, checksums)) {
@@ -780,12 +785,20 @@ public enum Task implements Serializable {
                             log.info("Loaded {} nanopubs in {}s, {} np/s",
                                     loaded.get(), timeSeconds, String.format("%.2f", loaded.get() / timeSeconds));
                         }
+                        if (AgentFilter.isOverQuota(s, ph)) {
+                            quotaReached = true;
+                        }
                     }
                 }
 
                 Document l = getOne(s, "lists", new Document().append("pubkey", ph).append("type", "$"));
                 if (l != null) set(s, "lists", l.append("status", loaded.getValue()));
-                set(s, Collection.ACCOUNTS.toString(), a.append("status", loaded.getValue()));
+                EntryStatus accountStatus = quotaReached ? capped : loaded;
+                int effectiveQuota = AgentFilter.getQuota(s, ph);
+                if (effectiveQuota >= 0) {
+                    a.append("quota", effectiveQuota);
+                }
+                set(s, Collection.ACCOUNTS.toString(), a.append("status", accountStatus.getValue()));
 
                 schedule(s, LOAD_FULL.withDelay(100));
             }
