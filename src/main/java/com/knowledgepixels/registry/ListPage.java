@@ -171,7 +171,8 @@ public class ListPage extends Page {
                     if (type.equals("$")) {
                         println("(all types)");
                     } else {
-                        println("(type " + unhash(type) + ")");
+                        String typeUri = unhash(type);
+                        println("(type " + (typeUri != null ? typeUri : type) + ")");
                     }
                     println("</li>");
                 }
