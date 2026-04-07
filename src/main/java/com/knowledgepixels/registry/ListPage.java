@@ -205,7 +205,9 @@ public class ListPage extends Page {
                             println("<li>");
                             println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
                             String a = d.getString("agent");
-                            print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+                            if (a != null && !a.isBlank()) {
+                                print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+                            }
                             print(", status: " + d.get("status"));
                             print(", depth: " + d.get("depth"));
                             if (d.get("pathCount") != null) {
