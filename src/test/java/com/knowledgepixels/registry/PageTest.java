@@ -48,8 +48,8 @@ class PageTest {
         registry.when(() -> RegistryDB.collection(Collection.NANOPUBS.toString())).thenReturn(nanopubsCollection);
         when(nanopubsCollection.estimatedDocumentCount()).thenReturn(0L);
 
-        // Mock getMaxValue(session, NANOPUBS, "seqNum") returning 0L
-        registry.when(() -> RegistryDB.getMaxValue(session, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(0L);
+        // Mock getMaxValue(session, NANOPUBS, "counter") returning 0L
+        registry.when(() -> RegistryDB.getMaxValue(session, Collection.NANOPUBS.toString(), "counter")).thenReturn(0L);
     }
 
     @Test

@@ -97,7 +97,7 @@ public class RegistryDB {
             if (!isInitialized(mongoSession)) {
                 IndexInitializer.initCollections(mongoSession);
             }
-            initSeqNumCounter(mongoSession);
+            initCounter(mongoSession);
         }
     }
 
@@ -338,55 +338,31 @@ public class RegistryDB {
         }
     }
 
-    private static final int SEQ_NUM_BATCH_SIZE = Integer.parseInt(
-            Utils.getEnv("REGISTRY_SEQ_NUM_BATCH_SIZE", "20"));
-
     /**
-     * Thread-local batch range for seqNum allocation: [nextToUse, endExclusive).
-     * Each thread claims a batch of SEQ_NUM_BATCH_SIZE sequence numbers from MongoDB,
-     * then hands them out locally with zero contention until the batch is exhausted.
-     */
-    private static final ThreadLocal<long[]> seqNumRange = new ThreadLocal<>();
-
-    /**
-     * Initializes the seqNum counter document to the current maximum seqNum value
-     * in the nanopubs collection. Also checks legacy "counter" field for migration.
+     * Initializes the counter document to the current maximum counter value
+     * in the nanopubs collection.
      * Uses $max to ensure the counter is never decreased. Safe to call on every startup.
      */
-    private static void initSeqNumCounter(ClientSession mongoSession) {
-        Long maxSeqNum = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum");
-        // TODO(transition): Remove counter fallback after all peers upgraded
+    private static void initCounter(ClientSession mongoSession) {
         Long maxCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
-        long effective = Math.max(
-                maxSeqNum != null ? maxSeqNum : 0L,
-                maxCounter != null ? maxCounter : 0L);
+        long effective = maxCounter != null ? maxCounter : 0L;
         collection("counters").updateOne(mongoSession,
                 new Document("_id", "nanopubs"),
                 new Document("$max", new Document("value", effective)),
                 new UpdateOptions().upsert(true));
-        logger.info("SeqNum counter initialized to {}", effective);
+        logger.info("Counter initialized to {}", effective);
     }
 
     /**
-     * Returns the next sequence number for a nanopub, using thread-local batch
-     * allocation to reduce MongoDB contention. Each thread claims SEQ_NUM_BATCH_SIZE
-     * numbers at once, then hands them out locally.
+     * Returns the next counter value for a nanopub via atomic increment.
      */
-    private static long getNextSeqNum(ClientSession mongoSession) {
-        long[] range = seqNumRange.get();
-        if (range != null && range[0] < range[1]) {
-            return range[0]++;
-        }
-        // Allocate a new batch from MongoDB
+    private static long getNextCounter(ClientSession mongoSession) {
         Document result = collection("counters").findOneAndUpdate(
                 mongoSession,
                 new Document("_id", "nanopubs"),
-                new Document("$inc", new Document("value", (long) SEQ_NUM_BATCH_SIZE)),
+                new Document("$inc", new Document("value", 1L)),
                 new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
-        long batchEnd = result.getLong("value");
-        long batchStart = batchEnd - SEQ_NUM_BATCH_SIZE + 1;
-        seqNumRange.set(new long[]{batchStart + 1, batchEnd + 1});
-        return batchStart;
+        return result.getLong("value");
     }
 
     /**
@@ -473,11 +449,10 @@ public class RegistryDB {
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
-            long seqNum = getNextSeqNum(mongoSession);
+            long counter = getNextCounter(mongoSession);
             boolean inserted = false;
             try {
-                // TODO(transition): Remove "counter" field after all peers upgraded
-                collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("seqNum", seqNum).append("counter", seqNum).append("pubkey", ph).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
+                collection(Collection.NANOPUBS.toString()).insertOne(mongoSession, new Document("_id", ac).append("fullId", nanopub.getUri().stringValue()).append("counter", counter).append("pubkey", ph).append("content", nanopubString).append("jelly", new Binary(jellyContent)));
                 inserted = true;
             } catch (MongoWriteException e) {
                 if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;

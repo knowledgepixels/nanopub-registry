@@ -605,11 +605,10 @@ class RegistryDBTest {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         assertTrue(RegistryDB.has(session, Collection.NANOPUBS.toString(), ac));
 
-        // Verify seqNum was assigned (and counter for transition compatibility)
+        // Verify counter was assigned
         Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
         assertNotNull(doc);
-        assertTrue(doc.getLong("seqNum") > 0);
-        assertEquals(doc.getLong("seqNum"), doc.getLong("counter")); // TODO(transition): remove counter check
+        assertTrue(doc.getLong("counter") > 0);
         assertEquals(Utils.getHash(pubkey), doc.getString("pubkey"));
     }
 
@@ -707,10 +706,8 @@ class RegistryDBTest {
         assertEquals(EntryStatus.encountered.getValue(), listDoc.getString("status"));
     }
 
-    // --- seqNum tests (write-first, expect to fail until implementation) ---
-
     @Test
-    void loadNanopubVerifiedStoresSeqNum() throws MalformedNanopubException, IOException {
+    void loadNanopubVerifiedStoresCounter() throws MalformedNanopubException, IOException {
         RegistryDB.init();
         ClientSession session = RegistryDB.getClient().startSession();
 
@@ -723,13 +720,11 @@ class RegistryDBTest {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
         assertNotNull(doc);
-        assertTrue(doc.getLong("seqNum") > 0, "seqNum should be assigned and > 0");
-        // TODO(transition): verify counter field is also written with same value
-        assertEquals(doc.getLong("seqNum"), doc.getLong("counter"), "counter should match seqNum during transition");
+        assertTrue(doc.getLong("counter") > 0, "counter should be assigned and > 0");
     }
 
     @Test
-    void loadMultipleNanopubsAssignsUniqueSeqNums() throws MalformedNanopubException, IOException {
+    void loadMultipleNanopubsAssignsUniqueCounters() throws MalformedNanopubException, IOException {
         RegistryDB.init();
         ClientSession session = RegistryDB.getClient().startSession();
 
@@ -752,80 +747,30 @@ class RegistryDBTest {
         assertNotNull(doc1, "First nanopub should be stored");
         assertNotNull(doc2, "Second nanopub should be stored");
 
-        long seq1 = doc1.getLong("seqNum");
-        long seq2 = doc2.getLong("seqNum");
-        assertNotEquals(seq1, seq2, "seqNums must be unique");
-        assertTrue(seq2 > seq1, "seqNums should be monotonically increasing");
+        long counter1 = doc1.getLong("counter");
+        long counter2 = doc2.getLong("counter");
+        assertNotEquals(counter1, counter2, "counters must be unique");
+        assertTrue(counter2 > counter1, "counters should be monotonically increasing");
     }
 
     @Test
-    void seqNumsHaveGapsAcrossThreads() throws Exception {
-        RegistryDB.init();
-        // Clear the main thread's ThreadLocal to ensure fresh batch allocation
-        java.lang.reflect.Field tlField = RegistryDB.class.getDeclaredField("seqNumRange");
-        tlField.setAccessible(true);
-        ((ThreadLocal<?>) tlField.get(null)).remove();
-
-        File file1 = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
-        File file2 = NanopubTestSuite.getLatest().getByArtifactCode("RAjPRftIBK8ZbR2LausQpdsMbI39_eRe07AZwfHTsm2dY").getFirst().toFile();
-        Nanopub np1 = new NanopubImpl(file1);
-        Nanopub np2 = new NanopubImpl(file2);
-        String pubkey1 = RegistryDB.getPubkey(np1);
-        String pubkey2 = RegistryDB.getPubkey(np2);
-
-        // Load one nanopub on the main thread (claims first batch, uses slot 1)
-        try (ClientSession session = RegistryDB.getClient().startSession()) {
-            RegistryDB.loadNanopubVerified(session, np1, pubkey1, null);
-        }
-
-        // Load another nanopub on a different thread (should claim a new batch)
-        long[] otherSeqNum = new long[1];
-        Thread t = new Thread(() -> {
-            try (ClientSession session = RegistryDB.getClient().startSession()) {
-                RegistryDB.loadNanopubVerified(session, np2, pubkey2, null);
-                String ac = TrustyUriUtils.getArtifactCode(np2.getUri().stringValue());
-                Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
-                otherSeqNum[0] = doc.getLong("seqNum");
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        t.start();
-        t.join();
-
-        // With default batch size 20: main thread gets batch [1,20], other thread gets [21,40]
-        try (ClientSession session = RegistryDB.getClient().startSession()) {
-            String ac1 = TrustyUriUtils.getArtifactCode(np1.getUri().stringValue());
-            Document doc1 = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac1)).first();
-            long seq1 = doc1.getLong("seqNum");
-
-            assertTrue(otherSeqNum[0] > seq1 + 1, "seqNums from different threads should have gaps (batch allocation)");
-        }
-    }
-
-    @Test
-    void initSeqNumCounterRecoversFromExistingData() throws MalformedNanopubException, IOException, NoSuchFieldException, IllegalAccessException {
-        // First init and load to establish seqNum=50 in the DB
+    void initCounterRecoversFromExistingData() throws MalformedNanopubException, IOException, NoSuchFieldException, IllegalAccessException {
+        // First init and load to establish counter=50 in the DB
         RegistryDB.init();
         try (ClientSession session = RegistryDB.getClient().startSession()) {
-            // Insert a document directly with a high seqNum to simulate existing data
+            // Insert a document directly with a high counter to simulate existing data
             RegistryDB.collection(Collection.NANOPUBS.toString()).insertOne(session,
                     new Document("_id", "RAfakeArtifactCode00000000000000000000000000000")
                             .append("fullId", "http://example.org/fake")
-                            .append("seqNum", 50L)
                             .append("counter", 50L)
                             .append("pubkey", "fakepubkeyhash"));
         }
 
-        // Re-init (simulates restart) — should recover from max(seqNum)
+        // Re-init (simulates restart) — should recover from max(counter)
         TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
-        // Clear ThreadLocal to force new batch allocation after re-init
-        java.lang.reflect.Field tlField = RegistryDB.class.getDeclaredField("seqNumRange");
-        tlField.setAccessible(true);
-        ((ThreadLocal<?>) tlField.get(null)).remove();
         RegistryDB.init();
 
-        // Load a real nanopub — its seqNum should be > 50
+        // Load a real nanopub — its counter should be > 50
         try (ClientSession session = RegistryDB.getClient().startSession()) {
             File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
             Nanopub nanopub = new NanopubImpl(file);
@@ -834,40 +779,7 @@ class RegistryDBTest {
 
             String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
             Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
-            assertTrue(doc.getLong("seqNum") > 50, "seqNum should be > 50 after recovery from existing data");
-        }
-    }
-
-    @Test
-    void initSeqNumCounterRecoversFromLegacyCounterField() throws MalformedNanopubException, IOException, NoSuchFieldException, IllegalAccessException {
-        // Simulate a legacy database that only has "counter" field (no "seqNum")
-        RegistryDB.init();
-        try (ClientSession session = RegistryDB.getClient().startSession()) {
-            RegistryDB.collection(Collection.NANOPUBS.toString()).insertOne(session,
-                    new Document("_id", "RAfakeLegacyArtifactCode0000000000000000000000")
-                            .append("fullId", "http://example.org/legacy")
-                            .append("counter", 100L)
-                            .append("pubkey", "fakepubkeyhash"));
-            // Note: no "seqNum" field — this is a legacy document
-        }
-
-        // Re-init — should recover from max(counter) since seqNum is absent
-        TestUtils.clearStaticFields(RegistryDB.class, "mongoClient", "mongoDB");
-        // Clear ThreadLocal to force new batch allocation after re-init
-        java.lang.reflect.Field tlField = RegistryDB.class.getDeclaredField("seqNumRange");
-        tlField.setAccessible(true);
-        ((ThreadLocal<?>) tlField.get(null)).remove();
-        RegistryDB.init();
-
-        try (ClientSession session = RegistryDB.getClient().startSession()) {
-            File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
-            Nanopub nanopub = new NanopubImpl(file);
-            String pubkey = RegistryDB.getPubkey(nanopub);
-            RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null);
-
-            String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
-            Document doc = RegistryDB.collection(Collection.NANOPUBS.toString()).find(session, new Document("_id", ac)).first();
-            assertTrue(doc.getLong("seqNum") > 100, "seqNum should be > 100 after recovery from legacy counter field");
+            assertTrue(doc.getLong("counter") > 50, "counter should be > 50 after recovery from existing data");
         }
     }
 
