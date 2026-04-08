@@ -50,10 +50,10 @@ public class MainPage extends Page {
         if ("application/json".equals(format)) {
             println(RegistryInfo.getLocal(mongoSession).asJson());
         } else {
-            String status = getValue(mongoSession, Collection.SERVER_INFO.toString(), "status").toString();
+            String status = serverInfo.get("status") != null ? serverInfo.get("status").toString() : "launching";
             printHtmlHeader("Nanopub Registry");
             println("<h1>Nanopub Registry</h1>");
-            if (isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")) {
+            if (serverInfo.get("testInstance") != null && (Boolean) serverInfo.get("testInstance")) {
                 println("<p style=\"color: red\">This is a test instance.</p>");
             }
             println("<h3>Formats</h3>");
@@ -63,22 +63,22 @@ public class MainPage extends Page {
             println("</p>");
             println("<h3>Server</h3>");
             println("<ul>");
-            println("<li><em>setupId:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") + "</li>");
-            println("<li><em>coverageTypes:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes") + "</li>");
-            println("<li><em>coverageAgents:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents") + "</li>");
+            println("<li><em>setupId:</em> " + serverInfo.get("setupId") + "</li>");
+            println("<li><em>coverageTypes:</em> " + (serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes") : "all") + "</li>");
+            println("<li><em>coverageAgents:</em> " + (serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents") : "viaSetting") + "</li>");
             println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD")) + "</li>");
             println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
             println("<li><em>seqNum:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "</li>");
             println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");
-            println("<li><em>trustStateCounter:</em> " + getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter") + "</li>");
-            Object lastTimeUpdate = getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
+            println("<li><em>trustStateCounter:</em> " + serverInfo.get("trustStateCounter") + "</li>");
+            Object lastTimeUpdate = serverInfo.get("lastTrustStateUpdate");
             if (lastTimeUpdate != null) {
                 println("<li><em>lastTrustStateUpdate:</em> " + lastTimeUpdate.toString().replaceFirst("\\.[^.]*$", "") + "</li>");
             } else {
                 println("<li><em>lastTrustStateUpdate:</em> null</li>");
             }
-            Object trustStateHash = getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash");
+            Object trustStateHash = serverInfo.get("trustStateHash");
             if (trustStateHash != null) trustStateHash = trustStateHash.toString().substring(0, 10);
             println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");
             String oSetting = getValue(mongoSession, Collection.SETTING.toString(), "original").toString();

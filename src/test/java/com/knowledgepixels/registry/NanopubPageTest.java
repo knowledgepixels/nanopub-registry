@@ -115,11 +115,34 @@ class NanopubPageTest {
         dbMock.when(RegistryDB::getClient).thenReturn(mongoClient);
         when(mongoClient.startSession()).thenReturn(session);
 
+        MongoCollection<Document> serverInfoCollection = mock(MongoCollection.class);
+        FindIterable<Document> serverInfoFindIterable = mock(FindIterable.class);
+        dbMock.when(() -> RegistryDB.collection(Collection.SERVER_INFO.toString())).thenReturn(serverInfoCollection);
+        java.util.List<Document> serverInfoDocs = java.util.List.of(
+                new Document("_id", "status").append("value", "ready"),
+                new Document("_id", "setupId").append("value", 1L),
+                new Document("_id", "trustStateCounter").append("value", 0L),
+                new Document("_id", "lastTrustStateUpdate").append("value", ""),
+                new Document("_id", "trustStateHash").append("value", ""),
+                new Document("_id", "testInstance").append("value", false)
+        );
+        when(serverInfoCollection.find(session)).thenReturn(serverInfoFindIterable);
+        when(serverInfoFindIterable.iterator()).thenAnswer(invocation -> {
+            java.util.Iterator<Document> it = serverInfoDocs.iterator();
+            com.mongodb.client.MongoCursor<Document> cursor = mock(com.mongodb.client.MongoCursor.class);
+            when(cursor.hasNext()).thenAnswer(inv -> it.hasNext());
+            when(cursor.next()).thenAnswer(inv -> it.next());
+            return cursor;
+        });
+        when(serverInfoFindIterable.spliterator()).thenAnswer(invocation -> serverInfoDocs.spliterator());
+
         MongoCollection<Document> collection = mock(MongoCollection.class);
         FindIterable<Document> findIterable = mock(FindIterable.class);
         dbMock.when(() -> RegistryDB.collection(Collection.NANOPUBS.toString())).thenReturn(collection);
         when(collection.find(any(Document.class))).thenReturn(findIterable);
         when(findIterable.first()).thenReturn(npDoc);
+        when(collection.estimatedDocumentCount()).thenReturn(0L);
+        dbMock.when(() -> RegistryDB.getMaxValue(session, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(0L);
 
         RoutingContext context = mock(RoutingContext.class);
         HttpServerRequest request = mock(HttpServerRequest.class);

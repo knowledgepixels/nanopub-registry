@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
 import com.mongodb.client.ClientSession;
+import org.bson.Document;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.commons.lang.StringEscapeUtils;
@@ -17,6 +18,7 @@ public abstract class Page {
 
     private RoutingContext context;
     protected ClientSession mongoSession;
+    protected Document serverInfo;
 
     private String presentationFormat;
     private String extension;
@@ -33,24 +35,24 @@ public abstract class Page {
         this.context = context;
         context.response().setChunked(true);
 
-        // TODO See whether we can cache these better on our side. Not sure how efficient the MongoDB caching is for these
-        //      kinds of DB queries...
-        context.response().putHeader("Nanopub-Registry-Status", getValue(mongoSession, Collection.SERVER_INFO.toString(), "status") + "");
-        context.response().putHeader("Nanopub-Registry-Setup-Id", getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") + "");
-        context.response().putHeader("Nanopub-Registry-Trust-State-Counter", getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter") + "");
-        context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate") + "");
-        context.response().putHeader("Nanopub-Registry-Trust-State-Hash", getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash") + "");
-        context.response().putHeader("Nanopub-Registry-SeqNum", getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "");
+        // Fetch all serverInfo key-value pairs in one query instead of separate getValue calls
+        serverInfo = new Document();
+        for (Document d : collection(Collection.SERVER_INFO.toString()).find(mongoSession)) {
+            serverInfo.put(d.getString("_id"), d.get("value"));
+        }
+        context.response().putHeader("Nanopub-Registry-Status", serverInfo.get("status") + "");
+        context.response().putHeader("Nanopub-Registry-Setup-Id", serverInfo.get("setupId") + "");
+        context.response().putHeader("Nanopub-Registry-Trust-State-Counter", serverInfo.get("trustStateCounter") + "");
+        context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", serverInfo.get("lastTrustStateUpdate") + "");
+        context.response().putHeader("Nanopub-Registry-Trust-State-Hash", serverInfo.get("trustStateHash") + "");
+        Object maxSeqNum = getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum");
+        context.response().putHeader("Nanopub-Registry-SeqNum", maxSeqNum + "");
         context.response().putHeader("Nanopub-Registry-Nanopub-Count", collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "");
         // TODO(transition): Remove after all peers upgraded
-        // Must send max(seqNum) here, not document count — old peers use Load-Counter as a cursor
-        // value for afterCounter, not just a count. Sending the count would cause re-fetching.
-        context.response().putHeader("Nanopub-Registry-Load-Counter", getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "");
-        context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")));
-        String coveredTypes = CoverageFilter.getCoveredTypeHashesAsString();
-        if (coveredTypes != null) {
-            context.response().putHeader("Nanopub-Registry-Coverage-Types", coveredTypes);
-        }
+        context.response().putHeader("Nanopub-Registry-Load-Counter", maxSeqNum + "");
+        context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(serverInfo.get("testInstance") != null && (Boolean) serverInfo.get("testInstance")));
+        context.response().putHeader("Nanopub-Registry-Coverage-Types", serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes").toString() : "all");
+        context.response().putHeader("Nanopub-Registry-Coverage-Agents", serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents").toString() : "viaSetting");
 
         String r = context.request().path().substring(1);
         if (r.endsWith(".txt")) {

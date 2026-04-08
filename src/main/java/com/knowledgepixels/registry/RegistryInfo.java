@@ -2,6 +2,7 @@ package com.knowledgepixels.registry;
 
 import com.google.gson.Gson;
 import com.mongodb.client.ClientSession;
+import org.bson.Document;
 
 import java.io.Serializable;
 
@@ -35,16 +36,20 @@ public class RegistryInfo implements Serializable {
 
     public static RegistryInfo getLocal(ClientSession mongoSession) {
         RegistryInfo ri = new RegistryInfo();
-        ri.setupId = (Long) getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId");
-        ri.trustStateCounter = (Long) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter");
-        ri.lastTrustStateUpdate = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
-        ri.trustStateHash = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash");
+        Document si = new Document();
+        for (Document d : collection(Collection.SERVER_INFO.toString()).find(mongoSession)) {
+            si.put(d.getString("_id"), d.get("value"));
+        }
+        ri.setupId = (Long) si.get("setupId");
+        ri.trustStateCounter = (Long) si.get("trustStateCounter");
+        ri.lastTrustStateUpdate = (String) si.get("lastTrustStateUpdate");
+        ri.trustStateHash = (String) si.get("trustStateHash");
         ri.seqNum = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum");
         // TODO(transition): Remove loadCounter after all peers upgraded
         ri.loadCounter = ri.seqNum;
-        ri.status = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
-        ri.coverageTypes = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageTypes");
-        ri.coverageAgents = (String) getValue(mongoSession, Collection.SERVER_INFO.toString(), "coverageAgents");
+        ri.status = (String) si.get("status");
+        ri.coverageTypes = si.get("coverageTypes") != null ? (String) si.get("coverageTypes") : "all";
+        ri.coverageAgents = si.get("coverageAgents") != null ? (String) si.get("coverageAgents") : "viaSetting";
         ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");
         ri.originalSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "original");
         if (!"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
@@ -52,7 +57,7 @@ public class RegistryInfo implements Serializable {
         }
         ri.accountCount = collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession);
         ri.nanopubCount = collection(Collection.NANOPUBS.toString()).countDocuments(mongoSession);
-        ri.isTestInstance = isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance");
+        ri.isTestInstance = si.get("testInstance") != null && (Boolean) si.get("testInstance");
         ri.optionalLoadEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"));
         ri.trustCalculationEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"));
         return ri;
