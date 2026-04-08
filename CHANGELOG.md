@@ -1,3 +1,13 @@
+## [1.7.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.7.0...nanopub-registry-1.7.1) (2026-04-08)
+
+### Bug Fixes
+
+* support "all" as value for REGISTRY_COVERAGE_TYPES ([54faf1b](https://github.com/knowledgepixels/nanopub-registry/commit/54faf1be761e210b11b20379e5bff50588a49bce))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([e5172c6](https://github.com/knowledgepixels/nanopub-registry/commit/e5172c61a5a0a35759ebeaafb692950ab4f54e29))
+
 ## [1.7.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.6.0...nanopub-registry-1.7.0) (2026-04-08)
 
 ### Features
