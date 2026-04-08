@@ -1,3 +1,21 @@
+## [1.8.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.7.2...nanopub-registry-1.8.0) (2026-04-08)
+
+### Features
+
+* add REGISTRY_ENFORCE_QUOTA env var, defaulting to false ([f359f23](https://github.com/knowledgepixels/nanopub-registry/commit/f359f235735acb67c4241142a5579301e2593687))
+
+### Performance improvements
+
+* batch serverInfo queries and add coverage headers ([689a63b](https://github.com/knowledgepixels/nanopub-registry/commit/689a63b391e56694bf69aec0f000c5c38bd73bb7))
+
+### Revert previous changes
+
+* remove seqNum batch allocation, go back to atomic counter ([03ec4a0](https://github.com/knowledgepixels/nanopub-registry/commit/03ec4a0370c6cd4e34a4e2881e040daced9ca978)), closes [#91](https://github.com/knowledgepixels/nanopub-registry/issues/91)
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([2aebb97](https://github.com/knowledgepixels/nanopub-registry/commit/2aebb97954b4b56bc3a8d1a5bbd59f41923daa34))
+
 ## [1.7.2](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.7.1...nanopub-registry-1.7.2) (2026-04-08)
 
 ### Bug Fixes
