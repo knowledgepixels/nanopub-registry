@@ -69,7 +69,7 @@ public class MainPage extends Page {
             println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD")) + "</li>");
             println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
-            println("<li><em>seqNum:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum") + "</li>");
+            println("<li><em>loadCounter:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</li>");
             println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");
             println("<li><em>trustStateCounter:</em> " + serverInfo.get("trustStateCounter") + "</li>");
             Object lastTimeUpdate = serverInfo.get("lastTrustStateUpdate");

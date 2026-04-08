@@ -142,7 +142,7 @@ class NanopubPageTest {
         when(collection.find(any(Document.class))).thenReturn(findIterable);
         when(findIterable.first()).thenReturn(npDoc);
         when(collection.estimatedDocumentCount()).thenReturn(0L);
-        dbMock.when(() -> RegistryDB.getMaxValue(session, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(0L);
+        dbMock.when(() -> RegistryDB.getMaxValue(session, Collection.NANOPUBS.toString(), "counter")).thenReturn(0L);
 
         RoutingContext context = mock(RoutingContext.class);
         HttpServerRequest request = mock(HttpServerRequest.class);
