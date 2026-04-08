@@ -1,3 +1,46 @@
+## [1.7.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.6.0...nanopub-registry-1.7.0) (2026-04-08)
+
+### Features
+
+* add capped status for quota-reached accounts, store effective quota ([57be4d5](https://github.com/knowledgepixels/nanopub-registry/commit/57be4d5ff573e99c5391cd08e90b13da4dda3e37))
+* add env vars to disable optional loading and trust calculation ([778a954](https://github.com/knowledgepixels/nanopub-registry/commit/778a954407e354149db397dc7014f5304292bd59))
+* enforce agent/pubkey quota restrictions ([aef8d60](https://github.com/knowledgepixels/nanopub-registry/commit/aef8d601d1ee75d72bf8d54edebb4170a0f8b74b))
+* enforce type coverage restrictions across all loading paths ([6719d17](https://github.com/knowledgepixels/nanopub-registry/commit/6719d171b4d77e94eecdd9b5c89fda4106327cb3))
+* expose optionalLoadEnabled and trustCalculationEnabled in UI and API ([62b475f](https://github.com/knowledgepixels/nanopub-registry/commit/62b475fba5470f2af1a0d1efabca5782112ee5cf))
+* make quota constants configurable via env vars ([0d71a50](https://github.com/knowledgepixels/nanopub-registry/commit/0d71a504964b91eb201c931cea3c3195e5c61bfe))
+* show nanopub count per account on list pages ([9e9b9b7](https://github.com/knowledgepixels/nanopub-registry/commit/9e9b9b7336b59e05bc53e6be6c24094458446b91))
+
+### Bug Fixes
+
+* disable checksum skip in LOAD_CORE to preserve endorsement extraction ([0be57ff](https://github.com/knowledgepixels/nanopub-registry/commit/0be57ff1eb143768752d477e85ae5141b37eeda9))
+* reject whitespace in REGISTRY_COVERAGE_TYPES config ([78e8ebf](https://github.com/knowledgepixels/nanopub-registry/commit/78e8ebf832374fb18eb5ccc25c8a023a356ada8b))
+* remove AgentFilter checks from simpleLoad and peer sync loading ([7d30bb9](https://github.com/knowledgepixels/nanopub-registry/commit/7d30bb92f05cf90fb14343d7c993707444ff08df))
+* retain only 10% of trust ratio when expanding trust paths ([07b1607](https://github.com/knowledgepixels/nanopub-registry/commit/07b1607d7645b97494e5f2348caff56017c5a371))
+* seed AgentFilter in simpleLoad tests to match new filter behavior ([ee020f3](https://github.com/knowledgepixels/nanopub-registry/commit/ee020f3e7b4032e171ed3b9555b99ade62b6f2b5))
+* show type hash instead of null when unhash lookup fails ([53d2d64](https://github.com/knowledgepixels/nanopub-registry/commit/53d2d64fb8e834b00507f4ddba162e1f4edf7e7e))
+* skip agent link rendering for accounts with blank agent field ([7cae2d7](https://github.com/knowledgepixels/nanopub-registry/commit/7cae2d7d3577bdc0fe62527995f37d6e4a635c12))
+* strict API param validation, tolerant env var parsing ([5081e7b](https://github.com/knowledgepixels/nanopub-registry/commit/5081e7b7d1bf8b0e8bb073bbb6011b2b093e3612))
+
+### Documentation
+
+* add TODO about "$" list fetching from type-restricted peers ([a69a213](https://github.com/knowledgepixels/nanopub-registry/commit/a69a21375cecf4279a12c88741973fd52666e029))
+* update design doc for seqNum rename and type-based coverage ([88ff001](https://github.com/knowledgepixels/nanopub-registry/commit/88ff001103bb0c9c6431962f5438a69a93d75573))
+
+### Performance improvements
+
+* batch seqNum allocation to reduce global counter contention ([286ff99](https://github.com/knowledgepixels/nanopub-registry/commit/286ff993903207c4e6afac6b3ffdf75ed59eec62))
+* per-type fetching in LOAD_FULL and RUN_OPTIONAL_LOAD when restricted ([fdeee85](https://github.com/knowledgepixels/nanopub-registry/commit/fdeee853e2365ed5fe4cd3f592fd16d658c220d2))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([82c3b46](https://github.com/knowledgepixels/nanopub-registry/commit/82c3b46f8ebbd413f5d8b4d9dfe8c1327fcd0d95))
+
+### Refactoring
+
+* simplify coverage enforcement — $ means all covered types ([072b9e1](https://github.com/knowledgepixels/nanopub-registry/commit/072b9e1fd2895beff63a4e252568bd38afd5e010))
+* use whitespace as separator for REGISTRY_PEER_URLS and REGISTRY_COVERAGE_TYPES ([f61ad77](https://github.com/knowledgepixels/nanopub-registry/commit/f61ad7760c882037889b33f28f622e731fa54a8c))
+* use whitespace instead of comma as separator for REGISTRY_COVERAGE_AGENTS ([76dd382](https://github.com/knowledgepixels/nanopub-registry/commit/76dd382ce6995bce17b881e7e5c34f89adc24c56))
+
 ## [1.6.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.5.1...nanopub-registry-1.6.0) (2026-03-26)
 
 ### Features
