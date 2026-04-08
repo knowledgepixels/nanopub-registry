@@ -94,8 +94,6 @@ public class NanopubLoader {
      */
     public static void simpleLoad(ClientSession mongoSession, Nanopub np, String verifiedPubkey) {
         String pubkeyHash = Utils.getHash(verifiedPubkey);
-        if (!AgentFilter.isAllowed(mongoSession, pubkeyHash)) return;
-        if (AgentFilter.isOverQuota(mongoSession, pubkeyHash)) return;
         // TODO Do we need to load anything else here, into the other DB collections?
         if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, "$");
