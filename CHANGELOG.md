@@ -1,3 +1,13 @@
+## [1.7.2](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.7.1...nanopub-registry-1.7.2) (2026-04-08)
+
+### Bug Fixes
+
+* use counter field for jelly endpoint compatibility with old nanopubs ([9d5fb00](https://github.com/knowledgepixels/nanopub-registry/commit/9d5fb0017d8012ac7c75bd8ee43a9cde6f9703d4))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([1c59dc2](https://github.com/knowledgepixels/nanopub-registry/commit/1c59dc2f2dcb193cbc21e2dd77280b7d0e7a5580))
+
 ## [1.7.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.7.0...nanopub-registry-1.7.1) (2026-04-08)
 
 ### Bug Fixes
