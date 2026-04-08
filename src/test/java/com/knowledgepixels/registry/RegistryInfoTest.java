@@ -29,7 +29,7 @@ class RegistryInfoTest {
     void getLocal() {
         ClientSession mockSession = mock(ClientSession.class);
         try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
-            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(LOAD_COUNTER);
+            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "counter")).thenReturn(LOAD_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "current")).thenReturn(CURRENT_SETTING);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "original")).thenReturn(ORIGINAL_SETTING);
 
@@ -82,7 +82,6 @@ class RegistryInfoTest {
                                   + "\"agentCount\":" + AGENT_COUNT + ","
                                   + "\"accountCount\":" + ACCOUNT_COUNT + ","
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
-                                  + "\"seqNum\":" + LOAD_COUNTER + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
                                   + "\"optionalLoadEnabled\":true,"
@@ -96,7 +95,7 @@ class RegistryInfoTest {
     void asJson() {
         ClientSession mockSession = mock(ClientSession.class);
         try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
-            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "seqNum")).thenReturn(LOAD_COUNTER);
+            registry.when(() -> RegistryDB.getMaxValue(mockSession, Collection.NANOPUBS.toString(), "counter")).thenReturn(LOAD_COUNTER);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "current")).thenReturn(CURRENT_SETTING);
             registry.when(() -> RegistryDB.getValue(mockSession, Collection.SETTING.toString(), "original")).thenReturn(ORIGINAL_SETTING);
 
@@ -149,7 +148,6 @@ class RegistryInfoTest {
                                   + "\"agentCount\":" + AGENT_COUNT + ","
                                   + "\"accountCount\":" + ACCOUNT_COUNT + ","
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
-                                  + "\"seqNum\":" + LOAD_COUNTER + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
                                   + "\"optionalLoadEnabled\":true,"

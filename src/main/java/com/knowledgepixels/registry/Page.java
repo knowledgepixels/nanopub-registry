@@ -45,11 +45,9 @@ public abstract class Page {
         context.response().putHeader("Nanopub-Registry-Trust-State-Counter", serverInfo.get("trustStateCounter") + "");
         context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", serverInfo.get("lastTrustStateUpdate") + "");
         context.response().putHeader("Nanopub-Registry-Trust-State-Hash", serverInfo.get("trustStateHash") + "");
-        Object maxSeqNum = getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "seqNum");
-        context.response().putHeader("Nanopub-Registry-SeqNum", maxSeqNum + "");
+        long committedCounter = RegistryDB.getCommittedCounter(mongoSession);
+        context.response().putHeader("Nanopub-Registry-Load-Counter", committedCounter + "");
         context.response().putHeader("Nanopub-Registry-Nanopub-Count", collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "");
-        // TODO(transition): Remove after all peers upgraded
-        context.response().putHeader("Nanopub-Registry-Load-Counter", maxSeqNum + "");
         context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(serverInfo.get("testInstance") != null && (Boolean) serverInfo.get("testInstance")));
         context.response().putHeader("Nanopub-Registry-Coverage-Types", serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes").toString() : "all");
         context.response().putHeader("Nanopub-Registry-Coverage-Agents", serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents").toString() : "viaSetting");

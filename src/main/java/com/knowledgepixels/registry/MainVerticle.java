@@ -102,6 +102,8 @@ public class MainVerticle extends AbstractVerticle {
                                     throw new RuntimeException("Nanopublication not supported: " + np.getUri());
                                 // Load to lists, if applicable:
                                 NanopubLoader.simpleLoad(s, np, pubkey);
+                                // Make the new nanopub immediately visible to peers:
+                                RegistryDB.updateCommittedCounter(s);
                             }
                         }
                     }

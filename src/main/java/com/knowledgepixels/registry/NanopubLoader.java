@@ -129,6 +129,9 @@ public class NanopubLoader {
                 if (!m.isSuccess()) throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                 processor.accept(m.getNanopub());
             });
+            try (ClientSession s = RegistryDB.getClient().startSession()) {
+                RegistryDB.updateCommittedCounter(s);
+            }
             return;
         }
 
@@ -173,6 +176,11 @@ public class NanopubLoader {
         if (error.get() != null) {
             if (error.get() instanceof RuntimeException re) throw re;
             throw new RuntimeException("Parallel loading failed", error.get());
+        }
+
+        // Update committed counter now that all workers have finished inserting
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
+            RegistryDB.updateCommittedCounter(s);
         }
     }
 
