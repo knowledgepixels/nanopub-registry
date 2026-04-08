@@ -337,8 +337,9 @@ public class ListPage extends Page {
                     context.response().setStatusCode(400).setStatusMessage("Invalid afterSeqNum parameter.");
                     return;
                 }
-                var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("seqNum", afterSeqNum)).sort(ascending("seqNum"))
-                        // TODO(transition): Change "counter" to "seqNum" once nanopub-java library is updated
+                // TODO(transition): Use "seqNum" once all nanopubs have it and nanopub-java library is updated.
+                // Old nanopubs may only have "counter", so we filter/sort by "counter" for compatibility.
+                var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("counter", afterSeqNum)).sort(ascending("counter"))
                         // NanopubStream.fromMongoCursorWithCounter reads the hardcoded "counter" field
                         .projection(include("jelly", "counter"));
 
