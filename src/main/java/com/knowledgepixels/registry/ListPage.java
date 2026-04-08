@@ -217,6 +217,11 @@ public class ListPage extends Page {
                             if (d.get("ratio") != null) {
                                 print(", ratio: " + df8.format(d.get("ratio")));
                             }
+                            Document dollarList = RegistryDB.getOne(mongoSession, "lists",
+                                    new Document("pubkey", pubkey).append("type", "$"));
+                            if (dollarList != null && dollarList.get("maxPosition") != null) {
+                                print(", count: " + (dollarList.getLong("maxPosition") + 1));
+                            }
                             if (d.get("quota") != null) {
                                 print(", quota: " + d.get("quota"));
                             }
@@ -281,7 +286,11 @@ public class ListPage extends Page {
                     //				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
                     //				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
                     //				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
-                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a> (" + d.get("status") + "), " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
+                    Document dollarList = RegistryDB.getOne(mongoSession, "lists",
+                            new Document("pubkey", pubkey).append("type", "$"));
+                    long npCount = (dollarList != null && dollarList.get("maxPosition") != null)
+                            ? dollarList.getLong("maxPosition") + 1 : 0;
+                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a> (" + d.get("status") + "), " + "count " + npCount + ", " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
                 }
                 println("</ul>");
                 printHtmlFooter();
