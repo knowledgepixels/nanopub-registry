@@ -33,7 +33,7 @@ public final class CoverageFilter {
      */
     public static void init() {
         String config = Utils.getEnv("REGISTRY_COVERAGE_TYPES", null);
-        if (config == null || config.isBlank()) {
+        if (config == null || config.isBlank() || "all".equalsIgnoreCase(config.trim())) {
             coveredTypeHashes = null;
             logger.info("Coverage filter: all types covered (no restriction)");
         } else {
