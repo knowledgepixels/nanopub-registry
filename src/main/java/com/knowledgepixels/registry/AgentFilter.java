@@ -28,6 +28,7 @@ public final class AgentFilter {
     private static final Logger logger = LoggerFactory.getLogger(AgentFilter.class);
 
     private static volatile boolean viaSetting = true;
+    private static volatile boolean enforceQuota = false;
     private static volatile Map<String, Integer> explicitPubkeys = Collections.emptyMap();
 
     private AgentFilter() {}
@@ -63,6 +64,7 @@ public final class AgentFilter {
         }
 
         viaSetting = via;
+        enforceQuota = "true".equals(System.getenv("REGISTRY_ENFORCE_QUOTA"));
         explicitPubkeys = Collections.unmodifiableMap(pubkeys);
 
         if (via && pubkeys.isEmpty()) {
@@ -124,16 +126,19 @@ public final class AgentFilter {
 
     /**
      * Returns true if the given pubkey is allowed to publish (has a quota >= 0).
+     * Always returns true if quota enforcement is disabled.
      */
     public static boolean isAllowed(ClientSession session, String pubkeyHash) {
+        if (!enforceQuota) return true;
         return getQuota(session, pubkeyHash) >= 0;
     }
 
     /**
      * Returns true if the given pubkey has exceeded its quota.
-     * Checks the current nanopub count for this pubkey against its quota.
+     * Always returns false if quota enforcement is disabled.
      */
     public static boolean isOverQuota(ClientSession session, String pubkeyHash) {
+        if (!enforceQuota) return false;
         int quota = getQuota(session, pubkeyHash);
         if (quota < 0) return true; // not allowed at all
 
