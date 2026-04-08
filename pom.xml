@@ -6,7 +6,7 @@
 
   <groupId>com.knowledgepixels</groupId>
   <artifactId>nanopub-registry</artifactId>
-  <version>1.7.1-SNAPSHOT</version>
+  <version>1.7.2-SNAPSHOT</version>
   <name>nanopub-registry</name>
   <url>https://github.com/knowledgepixels/nanopub-registry</url>
 
