@@ -898,6 +898,27 @@ public enum Task implements Serializable {
                 }
 
                 set(s, "lists", df.append("status", loaded.getValue()));
+
+                // Backfill nanopubs stored locally during the transitional period (i.e. before
+                // the $ list was loaded). Such nanopubs were stored in the nanopubs collection by
+                // simpleLoad() but never added to listEntries; add them to the $ list now.
+                log.info("Backfilling locally stored nanopubs for pubkey: {}", pubkeyHash);
+                try (MongoCursor<Document> npCursor = collection(Collection.NANOPUBS.toString())
+                        .find(s, new Document("pubkey", pubkeyHash)).cursor()) {
+                    while (npCursor.hasNext()) {
+                        String fullId = npCursor.next().getString("fullId");
+                        if (fullId == null) continue;
+                        try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                            Nanopub np = NanopubLoader.retrieveLocalNanopub(ws, fullId);
+                            if (np != null && CoverageFilter.isCovered(np)) {
+                                loadNanopub(ws, np, pubkeyHash, "$");
+                                totalLoaded.incrementAndGet();
+                            }
+                        } catch (Exception ex) {
+                            log.info("Error backfilling nanopub {}: {}", fullId, ex.getMessage());
+                        }
+                    }
+                }
             }
 
             if (totalLoaded.get() > 0) {

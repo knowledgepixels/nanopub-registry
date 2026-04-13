@@ -99,14 +99,20 @@ public class NanopubLoader {
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, "$");
         } else if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
-        } else if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
-            // Unknown pubkey: create encountered intro list so RUN_OPTIONAL_LOAD picks it up
-            try {
-                insert(mongoSession, "lists", new Document("pubkey", pubkeyHash)
-                        .append("type", INTRO_TYPE_HASH)
-                        .append("status", EntryStatus.encountered.getValue()));
-            } catch (MongoWriteException e) {
-                if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
+        } else {
+            // Pubkey not yet loaded (unknown or in transitional "encountered" state): store the
+            // nanopub in the nanopubs collection so it is not lost. RUN_OPTIONAL_LOAD will add it
+            // to the appropriate lists once the pubkey's intro/endorse have been fetched.
+            RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, null);
+            if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
+                // Unknown pubkey: create encountered intro list so RUN_OPTIONAL_LOAD picks it up
+                try {
+                    insert(mongoSession, "lists", new Document("pubkey", pubkeyHash)
+                            .append("type", INTRO_TYPE_HASH)
+                            .append("status", EntryStatus.encountered.getValue()));
+                } catch (MongoWriteException e) {
+                    if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
+                }
             }
         }
     }
