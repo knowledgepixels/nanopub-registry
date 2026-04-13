@@ -1,3 +1,13 @@
+## [1.8.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.8.0...nanopub-registry-1.8.1) (2026-04-13)
+
+### Bug Fixes
+
+* store and backfill nanopubs from encountered pubkeys ([#100](https://github.com/knowledgepixels/nanopub-registry/issues/100)) ([dee1277](https://github.com/knowledgepixels/nanopub-registry/commit/dee1277aee4254ee02b5d3d5991ba17bb0aec9cb))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([99c1b86](https://github.com/knowledgepixels/nanopub-registry/commit/99c1b86b11d51f8d20c9b168889aac5974da20d2))
+
 ## [1.8.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.7.2...nanopub-registry-1.8.0) (2026-04-08)
 
 ### Features
