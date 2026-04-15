@@ -688,6 +688,9 @@ public enum Task implements Serializable {
     },
 
     RELEASE_DATA {
+
+        private static final int TRUST_STATE_SNAPSHOT_RETENTION = 100;
+
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
 
@@ -735,6 +738,24 @@ public enum Task implements Serializable {
                         new Document("_id", newTrustStateHash),
                         snapshot,
                         new ReplaceOptions().upsert(true));
+
+                // Prune beyond retention: collect _ids of snapshots past the Nth most recent, delete them.
+                // trustStateCounter is monotonically increasing (see increaseStateCounter above), so ordering is well-defined.
+                List<Object> toPrune = new ArrayList<>();
+                try (MongoCursor<Document> stale = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
+                        .find(s)
+                        .sort(descending("trustStateCounter"))
+                        .skip(TRUST_STATE_SNAPSHOT_RETENTION)
+                        .projection(new Document("_id", 1))
+                        .cursor()) {
+                    while (stale.hasNext()) {
+                        toPrune.add(stale.next().get("_id"));
+                    }
+                }
+                if (!toPrune.isEmpty()) {
+                    collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).deleteMany(
+                            s, new Document("_id", new Document("$in", toPrune)));
+                }
             }
 
             if (status == coreLoading) {
