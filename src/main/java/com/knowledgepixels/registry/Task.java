@@ -5,6 +5,7 @@ import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.ReplaceOptions;
 import net.trustyuri.TrustyUriUtils;
 import org.apache.commons.lang.Validate;
 import org.bson.Document;
@@ -702,11 +703,38 @@ public enum Task implements Serializable {
             if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
                 increaseStateCounter(s);
                 setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
+                Object trustStateCounter = getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter");
                 insert(s, "debug_trustPaths", new Document()
                         .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
                         .append("trustStateHash", newTrustStateHash)
-                        .append("trustStateCounter", getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter"))
+                        .append("trustStateCounter", trustStateCounter)
                 );
+
+                // Structured hash-keyed snapshot for consumer mirroring (#107).
+                // Reads the accounts collection just renamed from accounts_loading above (:697).
+                List<Document> snapshotAccounts = new ArrayList<>();
+                for (Document a : collection(Collection.ACCOUNTS.toString()).find(s)) {
+                    String pubkey = a.getString("pubkey");
+                    if ("$".equals(pubkey)) continue;
+                    snapshotAccounts.add(new Document()
+                            .append("pubkey", pubkey)
+                            .append("agent", a.getString("agent"))
+                            .append("status", a.getString("status"))
+                            .append("depth", a.get("depth"))
+                            .append("pathCount", a.get("pathCount"))
+                            .append("ratio", a.get("ratio"))
+                            .append("quota", a.get("quota")));
+                }
+                Document snapshot = new Document()
+                        .append("_id", newTrustStateHash)
+                        .append("trustStateCounter", trustStateCounter)
+                        .append("createdAt", ZonedDateTime.now().toString())
+                        .append("accounts", snapshotAccounts);
+                collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).replaceOne(
+                        s,
+                        new Document("_id", newTrustStateHash),
+                        snapshot,
+                        new ReplaceOptions().upsert(true));
             }
 
             if (status == coreLoading) {
