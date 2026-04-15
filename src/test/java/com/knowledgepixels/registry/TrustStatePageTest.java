@@ -68,10 +68,10 @@ class TrustStatePageTest {
     }
 
     @Test
-    void returns400WhenExtensionIsNotJson() {
+    void returns400WhenExtensionIsUnsupported() {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
-            // .html request: extension != "json" → 400, no DB lookup
-            HttpServerResponse response = setupMocks(dbMock, "/trust-state/" + HASH + ".html", null);
+            // .xml is not in the supported set → 400 before any DB lookup
+            HttpServerResponse response = setupMocks(dbMock, "/trust-state/" + HASH + ".xml", null);
             verify(response).setStatusCode(400);
         }
     }
@@ -79,8 +79,8 @@ class TrustStatePageTest {
     @Test
     void returns400WhenPathMalformed() {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
-            // No hash segment at all: "/trust-state/.json" → empty hash fails the regex
-            HttpServerResponse response = setupMocks(dbMock, "/trust-state/.json", null);
+            // Hash contains disallowed character → doesn't match the regex, isn't the list path
+            HttpServerResponse response = setupMocks(dbMock, "/trust-state/bad!hash.json", null);
             verify(response).setStatusCode(400);
         }
     }

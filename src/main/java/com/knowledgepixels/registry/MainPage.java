@@ -108,6 +108,10 @@ public class MainPage extends Page {
             println("<h3>Nanopubs</h3>");
             println("<p>Count: " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</p>");
             println("<p><a href=\"/nanopubs\">&gt; nanopubs</a></pi>");
+
+            println("<h3>Trust State Snapshots</h3>");
+            println("<p>Count: " + collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(mongoSession) + "</p>");
+            println("<p><a href=\"/trust-state\">&gt; trust state snapshots</a></p>");
             printHtmlFooter();
         }
     }
