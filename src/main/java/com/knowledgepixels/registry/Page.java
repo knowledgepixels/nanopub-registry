@@ -40,6 +40,7 @@ public abstract class Page {
         for (Document d : collection(Collection.SERVER_INFO.toString()).find(mongoSession)) {
             serverInfo.put(d.getString("_id"), d.get("value"));
         }
+        context.response().putHeader("Nanopub-Registry-Version", Utils.getVersion());
         context.response().putHeader("Nanopub-Registry-Status", serverInfo.get("status") + "");
         context.response().putHeader("Nanopub-Registry-Setup-Id", serverInfo.get("setupId") + "");
         context.response().putHeader("Nanopub-Registry-Trust-State-Counter", serverInfo.get("trustStateCounter") + "");
