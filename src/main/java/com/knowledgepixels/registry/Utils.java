@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.net.URI;
@@ -44,6 +45,27 @@ public class Utils {
 
     private Utils() {
     }  // no instances allowed
+
+    private static volatile String version;
+
+    /**
+     * Returns the registry's version (from Maven at build time, via a filtered
+     * {@code version.properties} resource). Returns {@code "unknown"} if the
+     * resource is unavailable.
+     */
+    public static String getVersion() {
+        String v = version;
+        if (v != null) return v;
+        Properties p = new Properties();
+        try (InputStream in = Utils.class.getResourceAsStream("/version.properties")) {
+            if (in != null) p.load(in);
+        } catch (IOException ex) {
+            logger.warn("Could not read version.properties", ex);
+        }
+        v = p.getProperty("version", "unknown");
+        version = v;
+        return v;
+    }
 
     public static String getMimeType(RoutingContext context, String supported) {
         List<String> supportedList = Arrays.asList(StringUtils.split(supported, ','));
