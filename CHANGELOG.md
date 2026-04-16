@@ -1,3 +1,29 @@
+## [1.9.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.8.1...nanopub-registry-1.9.0) (2026-04-16)
+
+### Features
+
+* add HTML views for trust state snapshots ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([2773df3](https://github.com/knowledgepixels/nanopub-registry/commit/2773df33f1df39808239cf71e014dbd3fd1dbd71))
+* add TRUST_STATE_SNAPSHOTS collection enum entry ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([97f954c](https://github.com/knowledgepixels/nanopub-registry/commit/97f954c41a87ca0afc9ebcb79d343e95df906ff3))
+* add TrustStatePage serving /trust-state/<hash>.json ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([d4764d9](https://github.com/knowledgepixels/nanopub-registry/commit/d4764d9abf94e7e3ac37b13b753ab8d7769aa08a))
+* expose registry version in JSON and response headers ([a2562a2](https://github.com/knowledgepixels/nanopub-registry/commit/a2562a2f7871ce0491dbebc970c7d15249675ae8))
+* index trustStateSnapshots on trustStateCounter ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([ab2ff33](https://github.com/knowledgepixels/nanopub-registry/commit/ab2ff335960b1d354e56cdcfc2d60fa50b9ffb65))
+* prune trust state snapshots beyond retention N=100 ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([7474501](https://github.com/knowledgepixels/nanopub-registry/commit/7474501422b5be97126b6c32fdbc318beef929fe))
+* register route, add tests, document snapshot endpoint ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([eca0599](https://github.com/knowledgepixels/nanopub-registry/commit/eca0599e7a857576eb2cb6783169c278f5dc4473))
+* write structured trust state snapshots in RELEASE_DATA ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([84a926c](https://github.com/knowledgepixels/nanopub-registry/commit/84a926c548c0257acb608780293fa76bb3b30460))
+
+### Documentation
+
+* replace defunct trustyuri public instance with registry.nanodash.net ([daff6b4](https://github.com/knowledgepixels/nanopub-registry/commit/daff6b4f7d883cdc30f60f00ed6823156b2a3514))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([16d8e82](https://github.com/knowledgepixels/nanopub-registry/commit/16d8e8243a573975917039ae691ffc4aa27b3ef4))
+
+### Refactoring
+
+* consolidate UI terminology under 'trust state' ([#107](https://github.com/knowledgepixels/nanopub-registry/issues/107)) ([5dd576e](https://github.com/knowledgepixels/nanopub-registry/commit/5dd576e36dff48d87a034b0da7ce9f0bc767977e))
+* rename JSON version field to registryVersion ([9492202](https://github.com/knowledgepixels/nanopub-registry/commit/949220211253b4d26a553a848dff5458adfc2f98))
+
 ## [1.8.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.8.0...nanopub-registry-1.8.1) (2026-04-13)
 
 ### Bug Fixes
