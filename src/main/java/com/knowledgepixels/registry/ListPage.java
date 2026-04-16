@@ -153,7 +153,7 @@ public class ListPage extends Page {
             } else {
                 printHtmlHeader("Accounts for Pubkey " + getLabel(pubkey) + " - Nanopub Registry");
                 println("<h1>Accounts for Pubkey " + getLabel(pubkey) + "</h1>");
-                println("<p><a href=\"/list\">&lt; Account List</a></p>");
+                println("<p><a href=\"/list\">&lt; Current Trust State</a></p>");
                 println("<h3>Formats</h3>");
                 println("<p>");
                 println("<a href=\"/list/" + pubkey + ".json\">.json</a> |");
@@ -189,8 +189,8 @@ public class ListPage extends Page {
                     }
                     println("]");
                 } else {
-                    printHtmlHeader("Account List - Nanopub Registry");
-                    println("<h1>Account List</h1>");
+                    printHtmlHeader("Current Trust State - Nanopub Registry");
+                    println("<h1>Current Trust State</h1>");
                     println("<p><a href=\"/\">&lt; Home</a></p>");
                     println("<h3>Formats</h3>");
                     println("<p>");

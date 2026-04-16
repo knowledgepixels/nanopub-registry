@@ -98,15 +98,15 @@ public class TrustStatePage extends Page {
                 }
                 println("]");
             } else {
-                printHtmlHeader("Trust State Snapshots - Nanopub Registry");
-                println("<h1>Trust State Snapshots</h1>");
+                printHtmlHeader("Trust State History - Nanopub Registry");
+                println("<h1>Trust State History</h1>");
                 println("<p><a href=\"/\">&lt; Home</a></p>");
                 println("<h3>Formats</h3>");
                 println("<p>");
                 println("<a href=\"trust-state.json\">.json</a> |");
                 println("<a href=\"trust-state.json.txt\">.json.txt</a>");
                 println("</p>");
-                println("<h3>Retained Snapshots</h3>");
+                println("<h3>Past Trust States</h3>");
                 println("<ol>");
                 while (it.hasNext()) {
                     Document d = it.next();
@@ -148,8 +148,8 @@ public class TrustStatePage extends Page {
 
         // HTML detail view
         printHtmlHeader("Trust State " + getLabel(hash) + " - Nanopub Registry");
-        println("<h1>Trust State Snapshot</h1>");
-        println("<p><a href=\"/trust-state\">&lt; Snapshot List</a></p>");
+        println("<h1>Trust State <code>" + getLabel(hash) + "</code></h1>");
+        println("<p><a href=\"/trust-state\">&lt; Trust State History</a></p>");
         println("<h3>Formats</h3>");
         println("<p>");
         println("<a href=\"" + hash + ".json\">.json</a> |");

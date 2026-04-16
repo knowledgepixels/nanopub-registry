@@ -97,21 +97,21 @@ public class MainPage extends Page {
                 }
             }
 
-            println("<h3>Accounts</h3>");
+            println("<h3>Current Trust State</h3>");
             if (status.equals("launching") || status.equals("coreLoading")) {
                 println("<p><em>(loading...)</em></p>");
             } else {
-                println("<p>Count: " + collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession) + "</p>");
-                println("<p><a href=\"/list\">&gt; accounts</a></pi>");
+                println("<p>Accounts: " + collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession) + "</p>");
+                println("<p><a href=\"/list\">&gt; current trust state</a></pi>");
             }
+
+            println("<h3>Trust State History</h3>");
+            println("<p>Retained snapshots: " + collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(mongoSession) + "</p>");
+            println("<p><a href=\"/trust-state\">&gt; trust state history</a></p>");
 
             println("<h3>Nanopubs</h3>");
             println("<p>Count: " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</p>");
             println("<p><a href=\"/nanopubs\">&gt; nanopubs</a></pi>");
-
-            println("<h3>Trust State Snapshots</h3>");
-            println("<p>Count: " + collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(mongoSession) + "</p>");
-            println("<p><a href=\"/trust-state\">&gt; trust state snapshots</a></p>");
             printHtmlFooter();
         }
     }
