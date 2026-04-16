@@ -19,7 +19,7 @@ This code base is in beta phase.
 
 These are some currently running instances:
 
-- https://registry.np.trustyuri.net/
+- https://registry.nanodash.net/
 - https://registry.knowledgepixels.com/
 - https://registry.petapico.org/
 
