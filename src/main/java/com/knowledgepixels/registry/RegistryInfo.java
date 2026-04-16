@@ -13,7 +13,7 @@ public class RegistryInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private String version;
+    private String registryVersion;
     private Long setupId;
     private Long trustStateCounter;
     private String lastTrustStateUpdate;
@@ -39,7 +39,7 @@ public class RegistryInfo implements Serializable {
         for (Document d : collection(Collection.SERVER_INFO.toString()).find(mongoSession)) {
             si.put(d.getString("_id"), d.get("value"));
         }
-        ri.version = Utils.getVersion();
+        ri.registryVersion = Utils.getVersion();
         ri.setupId = (Long) si.get("setupId");
         ri.trustStateCounter = (Long) si.get("trustStateCounter");
         ri.lastTrustStateUpdate = (String) si.get("lastTrustStateUpdate");

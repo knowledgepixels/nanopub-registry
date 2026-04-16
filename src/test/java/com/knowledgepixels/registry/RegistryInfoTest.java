@@ -70,7 +70,7 @@ class RegistryInfoTest {
 
             RegistryInfo registryInfo = RegistryInfo.getLocal(mockSession);
             String expectedJson = "{"
-                                  + "\"version\":\"" + Utils.getVersion() + "\","
+                                  + "\"registryVersion\":\"" + Utils.getVersion() + "\","
                                   + "\"setupId\":" + SETUP_ID + ","
                                   + "\"trustStateCounter\":" + TRUST_STATE_COUNTER + ","
                                   + "\"lastTrustStateUpdate\":\"" + LAST_TRUST_STATE_UPDATE + "\","
@@ -137,7 +137,7 @@ class RegistryInfoTest {
 
             RegistryInfo registryInfo = RegistryInfo.getLocal(mockSession);
             String expectedJson = "{"
-                                  + "\"version\":\"" + Utils.getVersion() + "\","
+                                  + "\"registryVersion\":\"" + Utils.getVersion() + "\","
                                   + "\"setupId\":" + SETUP_ID + ","
                                   + "\"trustStateCounter\":" + TRUST_STATE_COUNTER + ","
                                   + "\"lastTrustStateUpdate\":\"" + LAST_TRUST_STATE_UPDATE + "\","
