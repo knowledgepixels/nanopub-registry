@@ -257,3 +257,34 @@ including those with their own primary paths, as long as they are not already pa
 
 These extended paths can themselves not be further extended.
 Therefore, each account can only append its endorsements to the location in its primary path.
+
+
+## Trust State Snapshots
+
+Downstream consumers (e.g. Nanopub Query) mirror the registry's trust state as immutable snapshots keyed by `trustStateHash`.
+To let them load a given trust state atomically and side-by-side with earlier states, the registry persists a structured snapshot each time the hash transitions.
+
+Snapshot writes happen inside `RELEASE_DATA` alongside the renames of the `_loading` collections.
+For each hash transition, a single document is upserted into the `trustStateSnapshots` collection:
+
+    trustStateSnapshots:
+      { _id:'<trustStateHash>', trustStateCounter:42, createdAt:'2026-04-15T...',
+        accounts: [ { pubkey, agent, status, depth, pathCount, ratio, quota }, ... ] }
+
+The `accounts` array omits the `$` sentinel and projects only fields that are outputs of the trust computation (volatile fields like the per-pubkey nanopub `count` are excluded).
+Retention is capped at the 100 most recent snapshots; older entries are pruned in the same task.
+
+Consumers read snapshots via:
+
+    GET /trust-state/<trustStateHash>.json
+
+which returns an envelope `{ trustStateHash, trustStateCounter, createdAt, accounts }` with `Cache-Control: public, immutable, max-age=31536000`.
+Returns `404` if the hash has been pruned or never existed.
+
+Change detection uses the existing `Nanopub-Registry-Trust-State-Hash` response header (set on every response).
+A typical consumer workflow:
+
+1. `HEAD /` → read `Nanopub-Registry-Trust-State-Hash`
+2. If the hash differs from the last seen, `GET /trust-state/<new_hash>.json` and load alongside the previous snapshot
+
+See also [TrustStatePage.java](src/main/java/com/knowledgepixels/registry/TrustStatePage.java) and the snapshot writer in [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`RELEASE_DATA`).

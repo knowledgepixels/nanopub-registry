@@ -49,6 +49,7 @@ class IndexInitializerTest {
         assertEquals(5, getNumberOfIndexes("invalidations"));
         assertEquals(8, getNumberOfIndexes("trustEdges"));
         assertEquals(3, getNumberOfIndexes("hashes"));
+        assertEquals(2, getNumberOfIndexes(Collection.TRUST_STATE_SNAPSHOTS.toString()));
     }
 
     @Test

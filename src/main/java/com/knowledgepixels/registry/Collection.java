@@ -7,6 +7,7 @@ public enum Collection {
     AGENTS("agents"),
     ACCOUNTS("accounts"),
     NANOPUBS("nanopubs"),
+    TRUST_STATE_SNAPSHOTS("trustStateSnapshots"),
 
     TASKS("tasks"),
     PEER_STATE("peerState");
