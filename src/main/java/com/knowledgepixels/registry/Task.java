@@ -85,8 +85,7 @@ public enum Task implements Serializable {
             setValue(s, Collection.SETTING.toString(), "bootstrap-services", bootstrapServices);
 
             if (!"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
-                long fullLoadDelay = "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) ? 0 : 60 * 1000;
-                schedule(s, LOAD_FULL.withDelay(fullLoadDelay));
+                schedule(s, LOAD_FULL);
             }
 
             setServerStatus(s, coreLoading);
@@ -204,9 +203,10 @@ public enum Task implements Serializable {
 
             int depth = taskDoc.getInteger("depth");
 
-            if (has(s, "endorsements_loading", new Document("status", toRetrieve.getValue()))) {
+            while (true) {
                 Document d = getOne(s, "endorsements_loading",
                         new DbEntryWrapper(toRetrieve).getDocument());
+                if (d == null) break;
 
                 IntroNanopub agentIntro = getAgentIntro(s, d.getString("endorsedNanopub"));
                 if (agentIntro != null) {
@@ -241,12 +241,8 @@ public enum Task implements Serializable {
                 } else {
                     set(s, "endorsements_loading", d.append("status", discarded.getValue()));
                 }
-
-                schedule(s, LOAD_DECLARATIONS.with("depth", depth));
-
-            } else {
-                schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
             }
+            schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
         }
 
         // At the end of this step, the key declarations in the agent
@@ -277,12 +273,12 @@ public enum Task implements Serializable {
 
             int depth = taskDoc.getInteger("depth");
 
-            Document d = getOne(s, "accounts_loading",
-                    new Document("status", visited.getValue())
-                            .append("depth", depth - 1)
-            );
-
-            if (d != null) {
+            while (true) {
+                Document d = getOne(s, "accounts_loading",
+                        new Document("status", visited.getValue())
+                                .append("depth", depth - 1)
+                );
+                if (d == null) break;
 
                 String agentId = d.getString("agent");
                 Validate.notNull(agentId);
@@ -303,29 +299,30 @@ public enum Task implements Serializable {
                     Map<String, Set<String>> pubkeySets = new HashMap<>();
                     String currentSetting = getValue(s, Collection.SETTING.toString(), "current").toString();
 
-                    MongoCursor<Document> edgeCursor = get(s, "trustEdges",
+                    try (MongoCursor<Document> edgeCursor = get(s, "trustEdges",
                             new Document("fromAgent", agentId)
                                     .append("fromPubkey", pubkeyHash)
                                     .append("invalidated", false)
-                    );
-                    while (edgeCursor.hasNext()) {
-                        Document e = edgeCursor.next();
+                    )) {
+                        while (edgeCursor.hasNext()) {
+                            Document e = edgeCursor.next();
 
-                        String agent = e.getString("toAgent");
-                        Validate.notNull(agent);
-                        String pubkey = e.getString("toPubkey");
-                        Validate.notNull(pubkey);
-                        String pathId = trustPath.getString("_id") + " " + agent + "|" + pubkey;
-                        newPaths.put(pathId,
-                                new Document("_id", pathId)
-                                        .append("sorthash", Utils.getHash(currentSetting + " " + pathId))
-                                        .append("agent", agent)
-                                        .append("pubkey", pubkey)
-                                        .append("depth", depth)
-                                        .append("type", "extended")
-                        );
-                        if (!pubkeySets.containsKey(agent)) pubkeySets.put(agent, new HashSet<>());
-                        pubkeySets.get(agent).add(pubkey);
+                            String agent = e.getString("toAgent");
+                            Validate.notNull(agent);
+                            String pubkey = e.getString("toPubkey");
+                            Validate.notNull(pubkey);
+                            String pathId = trustPath.getString("_id") + " " + agent + "|" + pubkey;
+                            newPaths.put(pathId,
+                                    new Document("_id", pathId)
+                                            .append("sorthash", Utils.getHash(currentSetting + " " + pathId))
+                                            .append("agent", agent)
+                                            .append("pubkey", pubkey)
+                                            .append("depth", depth)
+                                            .append("type", "extended")
+                            );
+                            if (!pubkeySets.containsKey(agent)) pubkeySets.put(agent, new HashSet<>());
+                            pubkeySets.get(agent).add(pubkey);
+                        }
                     }
                     for (String pathId : newPaths.keySet()) {
                         Document pd = newPaths.get(pathId);
@@ -338,13 +335,8 @@ public enum Task implements Serializable {
                     set(s, "trustPaths_loading", trustPath.append("type", "primary").append("ratio", retainedRatio));
                     set(s, "accounts_loading", d.append("status", expanded.getValue()));
                 }
-                schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
-
-            } else {
-
-                schedule(s, LOAD_CORE.with("depth", depth).append("load-count", 0));
-
             }
+            schedule(s, LOAD_CORE.with("depth", depth).append("load-count", 0));
 
         }
 
@@ -539,32 +531,32 @@ public enum Task implements Serializable {
 
         public void run(ClientSession s, Document taskDoc) {
 
-            Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
+            while (true) {
+                Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
+                if (d == null) break;
 
-            if (d == null) {
-                schedule(s, AGGREGATE_AGENTS);
-            } else {
                 double ratio = 0.0;
                 Map<String, Boolean> seenPathElements = new HashMap<>();
                 int pathCount = 0;
-                MongoCursor<Document> trustPaths = collection("trustPaths_loading").find(s,
+                try (MongoCursor<Document> trustPaths = collection("trustPaths_loading").find(s,
                         new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString())
-                ).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor();
-                while (trustPaths.hasNext()) {
-                    Document trustPath = trustPaths.next();
-                    ratio += trustPath.getDouble("ratio");
-                    boolean independentPath = true;
-                    String[] pathElements = trustPath.getString("_id").split(" ");
-                    // Iterate over path elements, ignoring first (root) and last (this agent/pubkey):
-                    for (int i = 1; i < pathElements.length - 1; i++) {
-                        String p = pathElements[i];
-                        if (seenPathElements.containsKey(p)) {
-                            independentPath = false;
-                            break;
+                ).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor()) {
+                    while (trustPaths.hasNext()) {
+                        Document trustPath = trustPaths.next();
+                        ratio += trustPath.getDouble("ratio");
+                        boolean independentPath = true;
+                        String[] pathElements = trustPath.getString("_id").split(" ");
+                        // Iterate over path elements, ignoring first (root) and last (this agent/pubkey):
+                        for (int i = 1; i < pathElements.length - 1; i++) {
+                            String p = pathElements[i];
+                            if (seenPathElements.containsKey(p)) {
+                                independentPath = false;
+                                break;
+                            }
+                            seenPathElements.put(p, true);
                         }
-                        seenPathElements.put(p, true);
+                        if (independentPath) pathCount += 1;
                     }
-                    if (independentPath) pathCount += 1;
                 }
                 double rawQuota = GLOBAL_QUOTA * ratio;
                 int quota = (int) rawQuota;
@@ -579,8 +571,8 @@ public enum Task implements Serializable {
                                 .append("pathCount", pathCount)
                                 .append("quota", quota)
                 );
-                schedule(s, CALCULATE_TRUST_SCORES);
             }
+            schedule(s, AGGREGATE_AGENTS);
 
         }
 
@@ -593,20 +585,21 @@ public enum Task implements Serializable {
 
         public void run(ClientSession s, Document taskDoc) {
 
-            Document a = getOne(s, "accounts_loading", new Document("status", processed.getValue()));
-            if (a == null) {
-                schedule(s, ASSIGN_PUBKEYS);
-            } else {
+            while (true) {
+                Document a = getOne(s, "accounts_loading", new Document("status", processed.getValue()));
+                if (a == null) break;
+
                 Document agentId = new Document("agent", a.get("agent").toString()).append("status", processed.getValue());
                 int count = 0;
                 int pathCountSum = 0;
                 double totalRatio = 0.0d;
-                MongoCursor<Document> agentAccounts = collection("accounts_loading").find(s, agentId).cursor();
-                while (agentAccounts.hasNext()) {
-                    Document d = agentAccounts.next();
-                    count++;
-                    pathCountSum += d.getInteger("pathCount");
-                    totalRatio += d.getDouble("ratio");
+                try (MongoCursor<Document> agentAccounts = collection("accounts_loading").find(s, agentId).cursor()) {
+                    while (agentAccounts.hasNext()) {
+                        Document d = agentAccounts.next();
+                        count++;
+                        pathCountSum += d.getInteger("pathCount");
+                        totalRatio += d.getDouble("ratio");
+                    }
                 }
                 collection("accounts_loading").updateMany(s, agentId, new Document("$set",
                         new DbEntryWrapper(aggregated).getDocument()));
@@ -615,8 +608,8 @@ public enum Task implements Serializable {
                                 .append("avgPathCount", (double) pathCountSum / count)
                                 .append("totalRatio", totalRatio)
                 );
-                schedule(s, AGGREGATE_AGENTS);
             }
+            schedule(s, ASSIGN_PUBKEYS);
 
         }
 
@@ -629,10 +622,10 @@ public enum Task implements Serializable {
 
         public void run(ClientSession s, Document taskDoc) {
 
-            Document a = getOne(s, "accounts_loading", new DbEntryWrapper(aggregated).getDocument());
-            if (a == null) {
-                schedule(s, DETERMINE_UPDATES);
-            } else {
+            while (true) {
+                Document a = getOne(s, "accounts_loading", new DbEntryWrapper(aggregated).getDocument());
+                if (a == null) break;
+
                 Document pubkeyId = new Document("pubkey", a.get("pubkey").toString());
                 if (collection("accounts_loading").countDocuments(s, pubkeyId) == 1) {
                     collection("accounts_loading").updateMany(s, pubkeyId,
@@ -642,8 +635,8 @@ public enum Task implements Serializable {
                     collection("accounts_loading").updateMany(s, pubkeyId, new Document("$set",
                             new DbEntryWrapper(contested).getDocument()));
                 }
-                schedule(s, ASSIGN_PUBKEYS);
             }
+            schedule(s, DETERMINE_UPDATES);
 
         }
 
@@ -791,9 +784,8 @@ public enum Task implements Serializable {
 
             ServerStatus status = getServerStatus(s);
             if (status != coreReady && status != ready && status != updating) {
-                long retryDelay = "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) ? 100 : 60 * 1000;
                 log.info("Server currently not ready; checking again later");
-                schedule(s, LOAD_FULL.withDelay(retryDelay));
+                schedule(s, LOAD_FULL.withDelay(1000));
                 return;
             }
 
