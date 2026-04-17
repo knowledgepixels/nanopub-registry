@@ -93,10 +93,13 @@ class TaskTest {
         assertEquals(ServerStatus.coreLoading.toString(), getValue(mongoSession, Collection.SERVER_INFO.toString(), "status"));
         List<Document> retrievedTasks = RegistryDB.collection(Collection.TASKS.toString())
                 .find(mongoSession)
-                .sort(Sorts.descending("not-before"))
                 .into(new ArrayList<>());
-        assertEquals(retrievedTasks.getFirst().getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
-        assertEquals(retrievedTasks.get(1).getString("action"), Task.INIT_COLLECTIONS.asDocument().getString("action"));
+        // LOAD_SETTING schedules both LOAD_FULL and INIT_COLLECTIONS with no delay;
+        // relative order between them is not significant — LOAD_FULL's status guard
+        // handles either execution order.
+        List<String> actions = retrievedTasks.stream().map(d -> d.getString("action")).toList();
+        assertTrue(actions.contains(Task.LOAD_FULL.name()));
+        assertTrue(actions.contains(Task.INIT_COLLECTIONS.name()));
     }
 
     @Test
@@ -116,8 +119,15 @@ class TaskTest {
                 .sort(Sorts.descending("not-before"))
                 .into(new ArrayList<>());
 
-        assertEquals(retrievedTasks.getFirst().getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
-        assertEquals(retrievedTasks.get(1).getString("action"), Task.LOAD_FULL.asDocument().getString("action"));
+        // LOAD_FULL ran while status was still launching/coreLoading, so it self-rescheduled
+        // with a 1s retry delay; that's the only task with a non-zero not-before, so it
+        // sorts first. The queue also still contains the LOAD_FULL scheduled earlier by
+        // LOAD_SETTING and INIT_COLLECTIONS (both at near-zero delay).
+        assertEquals(Task.LOAD_FULL.name(), retrievedTasks.getFirst().getString("action"));
+        List<String> actions = retrievedTasks.stream().map(d -> d.getString("action")).toList();
+        assertTrue(actions.contains(Task.INIT_COLLECTIONS.name()));
+        long loadFullCount = actions.stream().filter(a -> a.equals(Task.LOAD_FULL.name())).count();
+        assertTrue(loadFullCount >= 2);
     }
 
 }
