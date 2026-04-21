@@ -194,7 +194,7 @@ public class RegistryDB {
      * @return the value of the element, or null if not found
      */
     public static Object getValue(ClientSession mongoSession, String collection, String elementName) {
-        logger.info("Getting value of element '{}' from collection '{}'", elementName, collection);
+        logger.debug("Reading value of element '{}' from collection '{}'", elementName, collection);
         Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
         if (d == null) {
             return null;
@@ -341,7 +341,11 @@ public class RegistryDB {
         Long maxCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
         long effective = maxCounter != null ? maxCounter : 0L;
         collection("counters").updateOne(mongoSession, new Document("_id", "nanopubs"), new Document("$max", new Document("value", effective)), new UpdateOptions().upsert(true));
-        logger.info("Counter initialized to {}", effective);
+        if (maxCounter != null) {
+            logger.info("Nanopub counter resumed at {} (max found in DB)", effective);
+        } else {
+            logger.info("Nanopub counter initialized to 0 (no existing nanopubs found)");
+        }
     }
 
     /**
@@ -374,7 +378,7 @@ public class RegistryDB {
     public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
         String pubkey = getPubkey(nanopub);
         if (pubkey == null) {
-            logger.info("Ignoring invalid nanopub: {}", nanopub.getUri());
+            logger.warn("Ignoring nanopub {}: no valid public key / signature found", nanopub.getUri());
             return false;
         }
         return loadNanopubVerified(mongoSession, nanopub, pubkey, pubkeyHash, types);
@@ -503,7 +507,7 @@ public class RegistryDB {
                         addToList(mongoSession, inp, ph, Utils.getTypeHash(mongoSession, type));
                     }
                 } catch (RDF4JException | MalformedNanopubException ex) {
-                    ex.printStackTrace();
+                    logger.error("Failed to load invalidating nanopub {} for invalidation record; skipping", iac, ex);
                 }
             }
 
@@ -625,7 +629,7 @@ public class RegistryDB {
                 return el.getPublicKeyString();
             }
         } catch (MalformedCryptoElementException | GeneralSecurityException ex) {
-            logger.error("Error in checking the signature of the nanopub {}", nanopub.getUri());
+            logger.error("Failed to verify signature of nanopub {}: {}", nanopub.getUri(), ex.getMessage(), ex);
         }
         return null;
     }

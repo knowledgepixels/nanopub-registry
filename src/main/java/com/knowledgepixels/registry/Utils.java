@@ -55,10 +55,14 @@ public class Utils {
      */
     public static String getVersion() {
         String v = version;
-        if (v != null) return v;
+        if (v != null) {
+            return v;
+        }
         Properties p = new Properties();
         try (InputStream in = Utils.class.getResourceAsStream("/version.properties")) {
-            if (in != null) p.load(in);
+            if (in != null) {
+                p.load(in);
+            }
         } catch (IOException ex) {
             logger.warn("Could not read version.properties", ex);
         }
@@ -71,11 +75,13 @@ public class Utils {
         List<String> supportedList = Arrays.asList(StringUtils.split(supported, ','));
         String mimeType = supportedList.getFirst();
         String acceptHeader = context.request().getHeader("Accept");
-        if (acceptHeader == null) return mimeType;
+        if (acceptHeader == null) {
+            return mimeType;
+        }
         try {
             mimeType = MIMEParse.bestMatch(supportedList, acceptHeader);
         } catch (Exception ex) {
-            logger.error("Error parsing Accept header.", ex);
+            logger.error("Failed to parse Accept header '{}': {}", acceptHeader, ex.getMessage(), ex);
         }
         return mimeType;
     }
@@ -97,7 +103,9 @@ public class Utils {
     public static Set<IRI> getInvalidatedNanopubIds(Nanopub np) {
         Set<IRI> invalidatedNanopubs = new HashSet<>();
         for (Statement st : NanopubUtils.getStatements(np)) {
-            if (!(st.getObject() instanceof IRI)) continue;
+            if (!(st.getObject() instanceof IRI)) {
+                continue;
+            }
             Resource subject = st.getSubject();
             IRI predicate = st.getPredicate();
             if ((predicate.equals(NPX.RETRACTS) || predicate.equals(NPX.INVALIDATES)) || (predicate.equals(NPX.SUPERSEDES) && subject.equals(np.getUri()))) {
@@ -128,11 +136,11 @@ public class Utils {
      * @return the value of the environment variable, or the default value if not set
      */
     public static String getEnv(String name, String defaultValue) {
-        logger.info("Retrieving environment variable: {}", name);
+        logger.debug("Reading environment variable '{}'", name);
         String value = ENV_READER.getEnv(name);
         if (value == null) {
             value = defaultValue;
-            logger.info("The variable: {} is not set. Using default value: {}", name, defaultValue);
+            logger.debug("Environment variable '{}' not set; using default: '{}'", name, defaultValue);
         }
         return value;
     }
@@ -178,7 +186,9 @@ public class Utils {
      * @return true if the status indicates an unloaded entry, false otherwise
      */
     public static boolean isUnloadedStatus(String status) {
-        if (status.equals(EntryStatus.seen.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.seen.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
         return status.equals(EntryStatus.skipped.getValue());
     }
 
@@ -189,13 +199,27 @@ public class Utils {
      * @return true if the status indicates a core loaded entry, false otherwise
      */
     public static boolean isCoreLoadedStatus(String status) {
-        if (status.equals(EntryStatus.visited.getValue())) return true;  // only exists in "accounts_loading"?
-        if (status.equals(EntryStatus.expanded.getValue())) return true;  // only exists in "accounts_loading"?
-        if (status.equals(EntryStatus.processed.getValue())) return true;  // only exists in "accounts_loading"?
-        if (status.equals(EntryStatus.aggregated.getValue())) return true;  // only exists in "accounts_loading"?
-        if (status.equals(EntryStatus.approved.getValue())) return true;  // only exists in "accounts_loading"?
-        if (status.equals(EntryStatus.contested.getValue())) return true;
-        if (status.equals(EntryStatus.toLoad.getValue())) return true;  // only exists in "accounts_loading"?
+        if (status.equals(EntryStatus.visited.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
+        if (status.equals(EntryStatus.expanded.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
+        if (status.equals(EntryStatus.processed.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
+        if (status.equals(EntryStatus.aggregated.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
+        if (status.equals(EntryStatus.approved.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
+        if (status.equals(EntryStatus.contested.getValue())) {
+            return true;
+        }
+        if (status.equals(EntryStatus.toLoad.getValue())) {
+            return true;  // only exists in "accounts_loading"?
+        }
         return status.equals(EntryStatus.loaded.getValue());
     }
 
@@ -273,7 +297,7 @@ public class Utils {
                 try {
                     setting = getSetting();
                 } catch (MalformedNanopubException | IOException ex) {
-                    logger.error("Error loading registry setting: {}", ex.getMessage());
+                    logger.error("Failed to load registry setting from file", ex);
                     throw new RuntimeException(ex);
                 }
                 for (IRI iri : setting.getBootstrapServices()) {

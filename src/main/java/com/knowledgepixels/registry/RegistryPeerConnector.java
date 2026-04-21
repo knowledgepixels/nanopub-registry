@@ -9,7 +9,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.bson.Document;
-import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
 import org.nanopub.jelly.NanopubStream;
 import org.slf4j.Logger;
@@ -41,7 +40,7 @@ public class RegistryPeerConnector {
             try {
                 checkPeer(s, peerUrl);
             } catch (Exception ex) {
-                log.info("Error checking peer {}: {}", peerUrl, ex.getMessage());
+                log.warn("Failed to check peer {}: {}", peerUrl, ex.getMessage(), ex);
             }
         }
     }
@@ -53,7 +52,7 @@ public class RegistryPeerConnector {
         int httpStatus = resp.getStatusLine().getStatusCode();
         EntityUtils.consumeQuietly(resp.getEntity());
         if (httpStatus < 200 || httpStatus >= 300) {
-            log.info("Failed to reach peer {}: {}", peerUrl, httpStatus);
+            log.warn("Failed to reach peer {} (HTTP {}); skipping", peerUrl, httpStatus);
             return;
         }
 
@@ -64,14 +63,14 @@ public class RegistryPeerConnector {
 
         String status = getHeader(resp, "Nanopub-Registry-Status");
         if (!"ready".equals(status) && !"updating".equals(status)) {
-            log.info("Peer {} in non-ready state: {}", peerUrl, status);
+            log.warn("Skipping peer {}: registry status is '{}' (expected 'ready' or 'updating')", peerUrl, status);
             return;
         }
 
         Long peerSetupId = getHeaderLong(resp, "Nanopub-Registry-Setup-Id");
         Long peerLoadCounter = getHeaderLong(resp, "Nanopub-Registry-Load-Counter");
         if (peerSetupId == null || peerLoadCounter == null) {
-            log.info("Peer {} missing setupId or loadCounter headers", peerUrl);
+            log.warn("Skipping peer {}: missing required headers Nanopub-Registry-Setup-Id or Nanopub-Registry-Load-Counter", peerUrl);
             return;
         }
 
@@ -111,6 +110,7 @@ public class RegistryPeerConnector {
 
     /**
      * Fetches nanopubs from a peer after the given counter.
+     *
      * @return the counter of the last successfully received nanopub, or -1 if none were received
      */
     private static long loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
@@ -122,7 +122,7 @@ public class RegistryPeerConnector {
             int httpStatus = resp.getStatusLine().getStatusCode();
             if (httpStatus < 200 || httpStatus >= 300) {
                 EntityUtils.consumeQuietly(resp.getEntity());
-                log.info("Request failed: {} {}", requestUrl, httpStatus);
+                log.warn("Fetching recent nanopubs from {} failed (HTTP {}); skipping", requestUrl, httpStatus);
                 return -1;
             }
             try (InputStream is = resp.getEntity().getContent()) {
@@ -134,7 +134,9 @@ public class RegistryPeerConnector {
                             }
                         }),
                         np -> {
-                            if (!CoverageFilter.isCovered(np)) return;
+                            if (!CoverageFilter.isCovered(np)) {
+                                return;
+                            }
                             try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey != null) {
@@ -144,7 +146,7 @@ public class RegistryPeerConnector {
                         });
             }
         } catch (IOException ex) {
-            log.info("Failed to fetch recent nanopubs from {}: {}", peerUrl, ex.getMessage());
+            log.warn("Failed to fetch recent nanopubs from {}: {}", peerUrl, ex.getMessage(), ex);
         }
         log.info("Last received counter from {}: {}", peerUrl, lastReceivedCounter.get());
         return lastReceivedCounter.get();
@@ -163,7 +165,9 @@ public class RegistryPeerConnector {
                                 .append("type", NanopubLoader.INTRO_TYPE_HASH)
                                 .append("status", EntryStatus.encountered.getValue()));
                     } catch (MongoWriteException e) {
-                        if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) throw e;
+                        if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
+                            throw e;
+                        }
                     }
                     discovered++;
                 } else if (!has(s, "lists", new Document(filter).append("status", EntryStatus.loaded.getValue()))) {
@@ -175,7 +179,7 @@ public class RegistryPeerConnector {
             }
             log.info("Discovered {} new pubkeys from peer {}", discovered, peerUrl);
         } catch (Exception ex) {
-            log.info("Failed to discover pubkeys from {}: {}", peerUrl, ex.getMessage());
+            log.warn("Failed to discover pubkeys from {}: {}", peerUrl, ex.getMessage(), ex);
         }
     }
 
@@ -210,7 +214,9 @@ public class RegistryPeerConnector {
 
     static Long getHeaderLong(HttpResponse resp, String name) {
         String value = getHeader(resp, name);
-        if (value == null || "null".equals(value)) return null;
+        if (value == null || "null".equals(value)) {
+            return null;
+        }
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException ex) {
