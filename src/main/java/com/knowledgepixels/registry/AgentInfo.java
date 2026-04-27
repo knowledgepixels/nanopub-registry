@@ -12,6 +12,7 @@ public class AgentInfo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String agentId;
+    private String name;
     private Integer accountCount;
     private Double avgPathCount;
     private Double totalRatio;
@@ -22,6 +23,7 @@ public class AgentInfo implements Serializable {
         AgentInfo ri = new AgentInfo();
         ri.agentId = agentId;
         Document d = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
+        ri.name = d.getString("name");
         ri.accountCount = (Integer) d.get("accountCount");
         ri.avgPathCount = (Double) d.get("avgPathCount");
         ri.totalRatio = (Double) d.get("totalRatio");
