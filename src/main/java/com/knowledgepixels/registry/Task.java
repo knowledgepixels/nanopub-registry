@@ -12,6 +12,7 @@ import org.bson.Document;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Statement;
 import org.nanopub.Nanopub;
+import org.nanopub.SimpleTimestampPattern;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.index.NanopubIndex;
 import org.nanopub.extra.security.KeyDeclaration;
@@ -211,6 +212,11 @@ public enum Task implements Serializable {
                 IntroNanopub agentIntro = getAgentIntro(s, d.getString("endorsedNanopub"));
                 if (agentIntro != null) {
                     String agentId = agentIntro.getUser().stringValue();
+                    // foaf:name + dct:created of the intro nanopub. Same name applies to every
+                    // KeyDeclaration in the intro, so resolve once outside the inner loop.
+                    String introName = Utils.extractIntroName(agentIntro);
+                    Calendar introCreatedCal = SimpleTimestampPattern.getCreationTime(agentIntro.getNanopub());
+                    Date introCreatedAt = (introCreatedCal == null) ? null : introCreatedCal.getTime();
 
                     for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
                         String sourceAgent = d.getString("agent");
@@ -232,8 +238,24 @@ public enum Task implements Serializable {
                         }
 
                         Document agent = new Document("agent", agentId).append("pubkey", agentPubkey);
-                        if (!has(s, "accounts_loading", agent)) {
-                            insert(s, "accounts_loading", agent.append("status", seen.getValue()).append("depth", depth));
+                        Document existing = collection("accounts_loading").find(s, agent).first();
+                        if (existing == null) {
+                            insert(s, "accounts_loading", agent
+                                    .append("status", seen.getValue())
+                                    .append("depth", depth)
+                                    .append("name", introName)
+                                    .append("nameCreatedAt", introCreatedAt));
+                        } else if (introName != null) {
+                            // Per-(agent, pubkey) name policy: keep the name from the intro
+                            // with the latest dct:created. First write wins when no current
+                            // timestamp exists; otherwise compare and replace iff strictly newer.
+                            Date currentCreatedAt = existing.getDate("nameCreatedAt");
+                            if (currentCreatedAt == null
+                                    || (introCreatedAt != null && introCreatedAt.after(currentCreatedAt))) {
+                                set(s, "accounts_loading", existing
+                                        .append("name", introName)
+                                        .append("nameCreatedAt", introCreatedAt));
+                            }
                         }
                     }
 
@@ -715,6 +737,8 @@ public enum Task implements Serializable {
                     snapshotAccounts.add(new Document()
                             .append("pubkey", pubkey)
                             .append("agent", a.getString("agent"))
+                            .append("name", a.getString("name"))
+                            .append("nameCreatedAt", a.get("nameCreatedAt"))
                             .append("status", a.getString("status"))
                             .append("depth", a.get("depth"))
                             .append("pathCount", a.get("pathCount"))
@@ -1178,6 +1202,7 @@ public enum Task implements Serializable {
         loadNanopub(mongoSession, agentIntro.getNanopub());
         return agentIntro;
     }
+
 
     private static void setServerStatus(ClientSession mongoSession, ServerStatus status) {
         setValue(mongoSession, Collection.SERVER_INFO.toString(), "status", status.toString());
