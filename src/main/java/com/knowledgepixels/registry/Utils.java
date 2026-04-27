@@ -374,4 +374,26 @@ public class Utils {
         return g.fromJson(new InputStreamReader(new URI(url).toURL().openStream()), listType);
     }
 
+    /**
+     * Extracts the {@code foaf:name} literal asserted on the intro's user IRI.
+     * Returns {@code null} when the assertion declares no such name. When multiple
+     * {@code foaf:name} literals are asserted on the same agent, the lexicographic
+     * minimum is returned for deterministic behaviour across rebuilds.
+     */
+    public static String extractIntroName(org.nanopub.extra.setting.IntroNanopub agentIntro) {
+        IRI agentIri = agentIntro.getUser();
+        if (agentIri == null) return null;
+        String chosen = null;
+        for (Statement st : agentIntro.getNanopub().getAssertion()) {
+            if (!st.getSubject().equals(agentIri)) continue;
+            if (!st.getPredicate().equals(org.eclipse.rdf4j.model.vocabulary.FOAF.NAME)) continue;
+            if (!(st.getObject() instanceof org.eclipse.rdf4j.model.Literal)) continue;
+            String candidate = st.getObject().stringValue();
+            if (chosen == null || candidate.compareTo(chosen) < 0) {
+                chosen = candidate;
+            }
+        }
+        return chosen;
+    }
+
 }

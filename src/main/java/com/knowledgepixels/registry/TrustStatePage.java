@@ -176,10 +176,14 @@ public class TrustStatePage extends Page {
                 Document a = (Document) entry;
                 String pubkey = a.getString("pubkey");
                 String agent = a.getString("agent");
+                String name = a.getString("name");
                 println("<li>");
                 println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
                 if (agent != null && !agent.isBlank()) {
                     print(" by <a href=\"/agent?id=" + Utils.urlEncode(agent) + "\">" + Utils.getAgentLabel(agent) + "</a>");
+                    if (name != null && !name.isBlank()) {
+                        print(" (" + name + ")");
+                    }
                 }
                 print(", status: " + a.get("status"));
                 print(", depth: " + a.get("depth"));

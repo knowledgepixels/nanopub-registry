@@ -208,6 +208,10 @@ public class ListPage extends Page {
                             String a = d.getString("agent");
                             if (a != null && !a.isBlank()) {
                                 print(" by <a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>");
+                                String name = d.getString("name");
+                                if (name != null && !name.isBlank()) {
+                                    print(" (" + name + ")");
+                                }
                             }
                             print(", status: " + d.get("status"));
                             print(", depth: " + d.get("depth"));
@@ -239,8 +243,10 @@ public class ListPage extends Page {
                 print(AgentInfo.get(mongoSession, agentId).asJson());
             } else {
                 Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
-                printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
-                println("<h1>Agent " + Utils.getAgentLabel(agentId) + "</h1>");
+                String agentName = (agentDoc != null) ? agentDoc.getString("name") : null;
+                String headingSuffix = (agentName != null && !agentName.isBlank()) ? " (" + agentName + ")" : "";
+                printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + headingSuffix + " - Nanopub Registry");
+                println("<h1>Agent " + Utils.getAgentLabel(agentId) + headingSuffix + "</h1>");
                 println("<p><a href=\"/agents\">&lt; Agent List</a></p>");
                 println("<h3>Formats</h3>");
                 println("<p>");
@@ -251,6 +257,9 @@ public class ListPage extends Page {
                 println("<p><a href=\"" + agentId + "\"><code>" + agentId + "</code></a></p>");
                 println("<h3>Properties</h3>");
                 println("<ul>");
+                if (agentName != null && !agentName.isBlank()) {
+                    println("<li>Name: " + agentName + "</li>");
+                }
                 println("<li>Average path count: " + agentDoc.get("avgPathCount") + "</li>");
                 println("<li>Total ratio: " + agentDoc.get("totalRatio") + "</li>");
                 println("</ul>");
@@ -270,8 +279,11 @@ public class ListPage extends Page {
                 }
                 println("]");
             } else {
-                printHtmlHeader("Accounts of Agent " + Utils.getAgentLabel(agentId) + " - Nanopub Registry");
-                println("<h1>Accounts of Agent " + Utils.getAgentLabel(agentId) + "</h1>");
+                Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
+                String agentName = (agentDoc != null) ? agentDoc.getString("name") : null;
+                String headingSuffix = (agentName != null && !agentName.isBlank()) ? " (" + agentName + ")" : "";
+                printHtmlHeader("Accounts of Agent " + Utils.getAgentLabel(agentId) + headingSuffix + " - Nanopub Registry");
+                println("<h1>Accounts of Agent " + Utils.getAgentLabel(agentId) + headingSuffix + "</h1>");
                 println("<p><a href=\"/agent?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">&lt; Agent</a></p>");
                 println("<h3>Formats</h3>");
                 println("<p>");
@@ -290,7 +302,9 @@ public class ListPage extends Page {
                             new Document("pubkey", pubkey).append("type", "$"));
                     long npCount = (dollarList != null && dollarList.get("maxPosition") != null)
                             ? dollarList.getLong("maxPosition") + 1 : 0;
-                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a> (" + d.get("status") + "), " + "count " + npCount + ", " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
+                    String accountName = d.getString("name");
+                    String nameSuffix = (accountName != null && !accountName.isBlank()) ? " (" + accountName + ")" : "";
+                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>" + nameSuffix + " (" + d.get("status") + "), " + "count " + npCount + ", " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
                 }
                 println("</ul>");
                 printHtmlFooter();
@@ -320,7 +334,9 @@ public class ListPage extends Page {
                     if (d.get("agent").equals("$")) continue;
                     String a = d.getString("agent");
                     int accountCount = d.getInteger("accountCount");
-                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
+                    String name = d.getString("name");
+                    String nameSuffix = (name != null && !name.isBlank()) ? " (" + name + ")" : "";
+                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>" + nameSuffix + ", " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
                 }
                 println("</ol>");
                 printHtmlFooter();
