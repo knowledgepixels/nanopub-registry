@@ -615,12 +615,25 @@ public enum Task implements Serializable {
                 int count = 0;
                 int pathCountSum = 0;
                 double totalRatio = 0.0d;
+                // Canonical-name resolution across the agent's approved keys: pick the
+                // row with MAX(ratio); ties broken on lex-min name for determinism.
+                // Per-(agent, pubkey) name was already chosen by LOAD_ENDORSEMENTS as
+                // "latest declaring intro wins"; this layer just folds across keys.
+                String chosenName = null;
+                double chosenRatio = Double.NEGATIVE_INFINITY;
                 try (MongoCursor<Document> agentAccounts = collection("accounts_loading").find(s, agentId).cursor()) {
                     while (agentAccounts.hasNext()) {
                         Document d = agentAccounts.next();
                         count++;
                         pathCountSum += d.getInteger("pathCount");
-                        totalRatio += d.getDouble("ratio");
+                        double r = d.getDouble("ratio");
+                        totalRatio += r;
+                        String n = d.getString("name");
+                        if (n != null && (r > chosenRatio
+                                || (r == chosenRatio && (chosenName == null || n.compareTo(chosenName) < 0)))) {
+                            chosenName = n;
+                            chosenRatio = r;
+                        }
                     }
                 }
                 collection("accounts_loading").updateMany(s, agentId, new Document("$set",
@@ -629,6 +642,7 @@ public enum Task implements Serializable {
                         agentId.append("accountCount", count)
                                 .append("avgPathCount", (double) pathCountSum / count)
                                 .append("totalRatio", totalRatio)
+                                .append("name", chosenName)
                 );
             }
             schedule(s, ASSIGN_PUBKEYS);

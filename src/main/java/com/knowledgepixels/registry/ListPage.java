@@ -320,7 +320,9 @@ public class ListPage extends Page {
                     if (d.get("agent").equals("$")) continue;
                     String a = d.getString("agent");
                     int accountCount = d.getInteger("accountCount");
-                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>, " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
+                    String name = d.getString("name");
+                    String nameSuffix = (name != null && !name.isBlank()) ? " (" + name + ")" : "";
+                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>" + nameSuffix + ", " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
                 }
                 println("</ol>");
                 printHtmlFooter();
