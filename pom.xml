@@ -120,7 +120,7 @@
     <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-driver-sync</artifactId>
-      <version>4.10.0</version>
+      <version>4.11.5</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
