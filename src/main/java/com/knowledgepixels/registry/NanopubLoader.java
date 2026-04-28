@@ -300,7 +300,7 @@ public class NanopubLoader {
     private static Nanopub getNanopub(String uriOrArtifactCode) {
         List<String> peerUrls = new ArrayList<>(Utils.getPeerUrls());
         Collections.shuffle(peerUrls);
-        String ac = GetNanopub.getArtifactCode(uriOrArtifactCode);
+        String ac = GetNanopub.getArtifactCode(uriOrArtifactCode).toString();
         if (!ac.startsWith(RdfModule.MODULE_ID)) {
             throw new IllegalArgumentException("Not a trusty URI of type RA");
         }
