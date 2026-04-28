@@ -1089,7 +1089,7 @@ public enum Task implements Serializable {
 
     // TODO Move these to setting:
     private static final int MAX_TRUST_PATH_DEPTH = 10;
-    private static final double MIN_TRUST_PATH_RATIO = 0.00000001;
+    private static final double MIN_TRUST_PATH_RATIO = 0.0000000001;
     //private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
     private static final int GLOBAL_QUOTA = Integer.parseInt(
             Utils.getEnv("REGISTRY_GLOBAL_QUOTA", "1000000000"));
