@@ -64,6 +64,11 @@
   <dependencies>
     <dependency>
       <groupId>org.nanopub</groupId>
+      <artifactId>nanopub</artifactId>
+      <version>1.87.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.nanopub</groupId>
       <artifactId>nanopub-testsuite-connector</artifactId>
       <version>1.0.0</version>
       <scope>test</scope>
@@ -111,11 +116,6 @@
       <groupId>org.eclipse.rdf4j</groupId>
       <artifactId>rdf4j-rio-jsonld</artifactId>
       <version>${rdf4j.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.nanopub</groupId>
-      <artifactId>nanopub</artifactId>
-      <version>1.87.1</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
