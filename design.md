@@ -224,6 +224,14 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { id#:'BillSmith>d32 JoeBold>e83 AmyBaker>f02 JohnDoe>a83', depth^:4, agent^:JohnDoe, pubkey^:a83, ratio:0.00007 }
       { id#:'JohnDoe>d28', depth^:1, agent^:JohnDoe, pubkey^:d28, ratio:0.01 }
       ...
+      Note on ratio vs MIN_TRUST_PATH_RATIO: a path is born as `type:extended` at its full
+      ratio `(parent.ratio * 0.9) / nAgents / nPubkeys`, and the gate at `LOAD_CORE`
+      compares this value to `MIN_TRUST_PATH_RATIO`. After the next depth's
+      `EXPAND_TRUST_PATHS` runs, the same row is rewritten to `type:primary` with only 10%
+      of its ratio retained (the other 90% having been distributed to its children). The
+      stored `primary` ratio can therefore legitimately be up to 10x below
+      `MIN_TRUST_PATH_RATIO` without indicating a gate leak; the threshold is enforced on
+      the pre-retention extended value.
     peerState:
       { id#:'https://example.com/peer/', setupId:1332309348, seqNum:42000, loadCounter:42000, lastChecked:1710672000000 }
       ...
