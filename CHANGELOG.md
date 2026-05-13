@@ -1,3 +1,50 @@
+## [1.10.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.9.0...nanopub-registry-1.10.0) (2026-05-13)
+
+### Features
+
+* stamp foaf:name + dct:created of declaring intro on accounts ([ac3b547](https://github.com/knowledgepixels/nanopub-registry/commit/ac3b547ae6cdb7372837bd5235847bce959050d8))
+* surface agent name on /list, /agent, /agentAccounts pages and JSON ([609d740](https://github.com/knowledgepixels/nanopub-registry/commit/609d7409b825959263c279e78dec9753807cc567))
+* surface canonical agent name in /agents listing ([7b4fc27](https://github.com/knowledgepixels/nanopub-registry/commit/7b4fc273faff59b9500d22880ad3dfd392ce2848))
+
+### Dependency updates
+
+* **deps:** bump gson from 2.13.2 to 2.14.0 ([229bd9a](https://github.com/knowledgepixels/nanopub-registry/commit/229bd9ab24153aeef0a52a009ae99ca01af52acb))
+* **deps:** bump jelly-rdf4j and jelly-core-protos-google from 3.7.1 to 3.7.2 ([72284df](https://github.com/knowledgepixels/nanopub-registry/commit/72284df0cfff9a83576efca215033df7b894d542))
+* **deps:** bump maven-compiler-plugin from 3.11.0 to 3.15.0 ([0b5294f](https://github.com/knowledgepixels/nanopub-registry/commit/0b5294f07638a1b5528489e47d38362c2c835d31))
+* **deps:** bump mockito-core from 5.22.0 to 5.23.0 ([a0fc66b](https://github.com/knowledgepixels/nanopub-registry/commit/a0fc66bf23db7fddc1ad3caa334aca24957515a1))
+* **deps:** bump mongodb-driver-sync from 4.10.0 to 4.11.5 ([14205f6](https://github.com/knowledgepixels/nanopub-registry/commit/14205f63611becbffc44ac01c18d2c05ed726247))
+* **deps:** bump nanopub from 1.86.1 to 1.86.2 ([476d117](https://github.com/knowledgepixels/nanopub-registry/commit/476d11755e6751b5c58173b921064b0cf078f1b3))
+* **deps:** bump nanopub from 1.86.2 to 1.87.1 ([69ab744](https://github.com/knowledgepixels/nanopub-registry/commit/69ab744c1d4647684ba5cd954355d6f03d471666))
+* **deps:** bump rdf4j from 5.1.2 to 5.3.0 ([1298c56](https://github.com/knowledgepixels/nanopub-registry/commit/1298c564437017e021611327c02064fca73ab027))
+* **deps:** bump rdf4j from 5.3.0 to 5.3.1 ([47e1f19](https://github.com/knowledgepixels/nanopub-registry/commit/47e1f19f1a3345f5f99156e1489c99f8731f6832))
+* **deps:** bump testcontainers from 2.0.3 to 2.0.5 ([ca731a4](https://github.com/knowledgepixels/nanopub-registry/commit/ca731a410d4170902304f17f347b122deba7e250))
+* **deps:** bump vertx from 4.5.11 to 4.5.26 ([5be6414](https://github.com/knowledgepixels/nanopub-registry/commit/5be641473252cc12a90daeb3c47ad5d854567885))
+* **deps:** order nanopub before nanopub-testsuite-connector ([d96ae0d](https://github.com/knowledgepixels/nanopub-registry/commit/d96ae0dfba0c9e9473c66f5c4406397f7d83753e))
+* **deps:** update nanopub to 1.88.0 ([1caccd2](https://github.com/knowledgepixels/nanopub-registry/commit/1caccd2a6e9e224bc901732f33899f899596cada))
+
+### Bug Fixes
+
+* adapt to GetNanopub.getArtifactCode now returning ArtifactCode ([debd117](https://github.com/knowledgepixels/nanopub-registry/commit/debd117b2f8d55b30003c6cdf24bebcb6398adfd))
+
+### Documentation
+
+* **design:** clarify trustPaths.ratio vs MIN_TRUST_PATH_RATIO ([1e1f4dc](https://github.com/knowledgepixels/nanopub-registry/commit/1e1f4dc9b6ddbe2c8a9b0ef20aa2e3239356a32d))
+
+### Performance improvements
+
+* batch trust-state tasks and shorten post-core-load delays ([#102](https://github.com/knowledgepixels/nanopub-registry/issues/102)) ([03223c8](https://github.com/knowledgepixels/nanopub-registry/commit/03223c865cf107b3e05dfcdff1ae69faec79c090))
+
+### Tests
+
+* update TaskTest for removed LOAD_FULL initial delay ([454d4e3](https://github.com/knowledgepixels/nanopub-registry/commit/454d4e38b2cb7ce3527a24acdad6f203578932a8))
+
+### General maintenance
+
+* **logging:** enhance info error handling in Nanopub processing ([4b4f7c9](https://github.com/knowledgepixels/nanopub-registry/commit/4b4f7c9823c070c342ab2a3eb9eedbd11be66384))
+* **RegistryDB:** improve logging ([1f1368c](https://github.com/knowledgepixels/nanopub-registry/commit/1f1368cfffb3d533e73c8f9fc50f43e75867ab4b))
+* setting next snapshot version [skip ci] ([d16513b](https://github.com/knowledgepixels/nanopub-registry/commit/d16513b5d5b49bb2c327eca54ce7aff2eeadf58d))
+* **trust:** lower MIN_TRUST_PATH_RATIO from 1e-8 to 1e-10 ([2bd28da](https://github.com/knowledgepixels/nanopub-registry/commit/2bd28da6cd45ae326b2e69919deab69c85ee6bd6))
+
 ## [1.9.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.8.1...nanopub-registry-1.9.0) (2026-04-16)
 
 ### Features
