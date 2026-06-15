@@ -79,7 +79,7 @@ public class RegistryDB {
      */
     public static void init() {
         if (mongoClient != null) {
-            logger.info("RegistryDB already initialized");
+            logger.info("RegistryDB already initialized (database: {})", REGISTRY_DB_NAME);
             return;
         }
         final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
@@ -89,8 +89,12 @@ public class RegistryDB {
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
         try (ClientSession mongoSession = mongoClient.startSession()) {
+            logger.debug("MongoDB client session started for initialization");
             if (!isInitialized(mongoSession)) {
+                logger.info("Database '{}' not initialized; creating collections and indexes", REGISTRY_DB_NAME);
                 IndexInitializer.initCollections(mongoSession);
+            } else {
+                logger.debug("Database '{}' already has setupId", REGISTRY_DB_NAME);
             }
             initCounter(mongoSession);
         }
@@ -103,7 +107,9 @@ public class RegistryDB {
      * @return true if initialized, false otherwise
      */
     public static boolean isInitialized(ClientSession mongoSession) {
-        return getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") != null;
+        boolean initialized = getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") != null;
+        logger.debug("isInitialized check for database '{}': {}", REGISTRY_DB_NAME, initialized);
+        return initialized;
     }
 
     /**
@@ -129,7 +135,9 @@ public class RegistryDB {
      * @return true if the collection exists, false otherwise
      */
     public static boolean hasCollection(String collectionName) {
-        return mongoDB.listCollectionNames().into(new ArrayList<>()).contains(collectionName);
+        boolean exists = mongoDB.listCollectionNames().into(new ArrayList<>()).contains(collectionName);
+        logger.debug("Collection existence check for '{}': {}", collectionName, exists);
+        return exists;
     }
 
     /**
@@ -142,8 +150,10 @@ public class RegistryDB {
         if (cursor.hasNext()) {
             long counter = cursor.next().getLong("value");
             collection(Collection.SERVER_INFO.toString()).updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
+            logger.debug("Incremented trustStateCounter from {} to {}", counter, counter + 1);
         } else {
             collection(Collection.SERVER_INFO.toString()).insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0L));
+            logger.info("Initialized trustStateCounter to 0 in collection '{}'", Collection.SERVER_INFO);
         }
     }
 
@@ -170,7 +180,9 @@ public class RegistryDB {
      * @return true if at least one matching document exists, false otherwise
      */
     public static boolean has(ClientSession mongoSession, String collection, Bson find) {
-        return collection(collection).countDocuments(mongoSession, find, hasCountOptions) > 0;
+        boolean found = collection(collection).countDocuments(mongoSession, find, hasCountOptions) > 0;
+        logger.debug("Existence check in collection '{}' for filter {}: {}", collection, find, found);
+        return found;
     }
 
     /**
@@ -182,6 +194,7 @@ public class RegistryDB {
      * @return a MongoCursor for the matching documents
      */
     public static MongoCursor<Document> get(ClientSession mongoSession, String collection, Bson find) {
+        logger.trace("Querying collection '{}' with filter {}", collection, find);
         return collection(collection).find(mongoSession, find).cursor();
     }
 
@@ -197,9 +210,12 @@ public class RegistryDB {
         logger.debug("Reading value of element '{}' from collection '{}'", elementName, collection);
         Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
         if (d == null) {
+            logger.trace("Element '{}' not found in collection '{}'", elementName, collection);
             return null;
         }
-        return d.get("value");
+        Object value = d.get("value");
+        logger.debug("Found element '{}' in collection '{}' with value type {}", elementName, collection, value == null ? "null" : value.getClass().getSimpleName());
+        return value;
     }
 
     /**
@@ -213,9 +229,12 @@ public class RegistryDB {
     public static boolean isSet(ClientSession mongoSession, String collection, String elementName) {
         Document d = collection(collection).find(mongoSession, new Document("_id", elementName)).first();
         if (d == null) {
+            logger.trace("isSet: element '{}' not found in collection '{}'", elementName, collection);
             return false;
         }
-        return d.getBoolean("value");
+        Boolean val = d.getBoolean("value");
+        logger.debug("isSet: element '{}' in collection '{}' has boolean value {}", elementName, collection, val);
+        return val;
     }
 
     /**
@@ -227,6 +246,7 @@ public class RegistryDB {
      * @return the matching document, or null if not found
      */
     public static Document getOne(ClientSession mongoSession, String collection, Bson find) {
+        logger.trace("getOne from '{}' with filter {}", collection, find);
         return collection(collection).find(mongoSession, find).first();
     }
 
@@ -241,9 +261,12 @@ public class RegistryDB {
     public static Object getMaxValue(ClientSession mongoSession, String collection, String fieldName) {
         Document doc = collection(collection).find(mongoSession).projection(new Document(fieldName, 1)).sort(new Document(fieldName, -1)).first();
         if (doc == null) {
+            logger.trace("getMaxValue: no documents in collection '{}' for field '{}'", collection, fieldName);
             return null;
         }
-        return doc.get(fieldName);
+        Object val = doc.get(fieldName);
+        logger.debug("getMaxValue: collection '{}' field '{}' max = {}", collection, fieldName, val);
+        return val;
     }
 
     /**
@@ -256,6 +279,7 @@ public class RegistryDB {
      * @return the document with the maximum value of the specified field, or null if no matching documents exist
      */
     public static Document getMaxValueDocument(ClientSession mongoSession, String collection, Bson find, String fieldName) {
+        logger.trace("getMaxValueDocument in '{}' with filter {} for field '{}'", collection, find, fieldName);
         return collection(collection).find(mongoSession, find).sort(new Document(fieldName, -1)).first();
     }
 
@@ -271,6 +295,9 @@ public class RegistryDB {
         MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).cursor();
         if (cursor.hasNext()) {
             collection(collection).updateOne(mongoSession, find, new Document("$set", update));
+            logger.debug("Updated document with _id={} in collection '{}'", update.get("_id"), collection);
+        } else {
+            logger.debug("set: no existing document with _id={} in collection '{}'; update skipped", update.get("_id"), collection);
         }
     }
 
@@ -283,6 +310,7 @@ public class RegistryDB {
      */
     public static void insert(ClientSession mongoSession, String collection, Document doc) {
         collection(collection).insertOne(mongoSession, doc);
+        logger.debug("Inserted document into '{}' with _id={}", collection, doc.get("_id"));
     }
 
     /**
@@ -295,6 +323,7 @@ public class RegistryDB {
      * @param value        the value to set
      */
     public static void setValue(ClientSession mongoSession, String collection, String elementId, Object value) {
+        logger.debug("Setting value for element '{}' in collection '{}' (upsert)", elementId, collection);
         collection(collection).updateOne(mongoSession, new Document("_id", elementId), new Document("$set", new Document("value", value)), new UpdateOptions().upsert(true));
     }
 
@@ -309,11 +338,14 @@ public class RegistryDB {
         String hash = Utils.getHash(value);
         try {
             collection("hashes").updateOne(mongoSession, new Document("value", value), new Document("$setOnInsert", new Document("value", value).append("hash", hash)), new UpdateOptions().upsert(true));
+            logger.debug("Recorded hash for value (hash={})", hash);
         } catch (MongoWriteException e) {
             // Concurrent upsert race: another thread inserted the same hash — safe to ignore
             if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
+                logger.error("Failed to record hash for value (hash={}): {}", hash, e.getMessage(), e);
                 throw e;
             }
+            logger.debug("Concurrent insertion for hash {} detected; duplicate ignored", hash);
         }
     }
 
@@ -326,8 +358,11 @@ public class RegistryDB {
     public static String unhash(String hash) {
         try (var c = collection("hashes").find(new Document("hash", hash)).cursor()) {
             if (c.hasNext()) {
-                return c.next().getString("value");
+                String value = c.next().getString("value");
+                logger.debug("Unhash found value for hash {}", hash);
+                return value;
             }
+            logger.debug("Unhash: no value found for hash {}", hash);
             return null;
         }
     }
@@ -438,6 +473,7 @@ public class RegistryDB {
                 // Save the same thing in the Jelly format for faster loading
                 jellyContent = JellyUtils.writeNanopubForDB(nanopub);
             } catch (IOException ex) {
+                logger.error("Failed to serialize nanopub {}: {}", nanopub.getUri(), ex.getMessage(), ex);
                 throw new RuntimeException(ex);
             }
             long counter = getNextCounter(mongoSession);
@@ -448,6 +484,7 @@ public class RegistryDB {
                 logger.info("Loaded nanopub {} (counter: {}, pubkey hash: {})", nanopub.getUri(), counter, ph);
             } catch (MongoWriteException e) {
                 if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
+                    logger.error("Failed to insert nanopub {} (artifact {}): {}", nanopub.getUri(), ac, e.getMessage(), e);
                     throw e;
                 }
                 // Another thread inserted this nanopub concurrently — safe to skip
@@ -473,6 +510,7 @@ public class RegistryDB {
 
                     collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
                     collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
+                    logger.debug("Marked invalidated entries and trust edges for invalidated artifact {}", invalidatedAc);
                 }
             }
         }
@@ -497,6 +535,7 @@ public class RegistryDB {
             if (invalidations.hasNext()) {
                 collection("listEntries").updateMany(mongoSession, new Document("np", ac).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
                 collection("trustEdges").updateMany(mongoSession, new Document("source", ac), new Document("$set", new Document("invalidated", true)));
+                logger.debug("Marked existing list entries and trust edges for nanopub {} as invalidated due to invalidations", ac);
             }
             while (invalidations.hasNext()) {
                 String iac = invalidations.next().getString("invalidatingNp");
@@ -520,15 +559,18 @@ public class RegistryDB {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         try {
             insert(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", typeHash).append("maxPosition", -1L));
+            logger.debug("Ensured list document exists for pubkey={} type={}", pubkeyHash, typeHash);
         } catch (MongoWriteException e) {
             // Duplicate key error -- ignore it
             if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
+                logger.error("Failed to create list document for pubkey={} type={}: {}", pubkeyHash, typeHash, e.getMessage(), e);
                 throw e;
             }
+            logger.trace("List document already existed for pubkey={} type={}", pubkeyHash, typeHash);
         }
 
         if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
-            logger.debug("Already listed: {}", nanopub.getUri());
+            logger.debug("Already listed: nanopub {} (artifact {}) for pubkey={} type={}", nanopub.getUri(), ac, pubkeyHash, typeHash);
         } else {
             initListPositionIfNeeded(mongoSession, pubkeyHash, typeHash);
 
@@ -554,17 +596,22 @@ public class RegistryDB {
 
                 try {
                     collection("listEntries").insertOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("position", position).append("np", ac).append("checksum", checksum).append("invalidated", false));
+                    logger.debug("Inserted list entry: pubkey={} type={} np={} position={} checksum={}", pubkeyHash, typeHash, ac, position, checksum);
                     break;
                 } catch (MongoWriteException e) {
                     if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
+                        logger.error("Failed to insert list entry for pubkey={} type={} np={}: {}", pubkeyHash, typeHash, ac, e.getMessage(), e);
                         throw e;
                     }
                     if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+                        logger.debug("Concurrent insert detected and entry already exists for pubkey={} type={} np={}", pubkeyHash, typeHash, ac);
                         break; // Already listed by concurrent thread
                     }
                     if (attempt >= 100) {
+                        logger.error("Failed to insert list entry after {} attempts for pubkey={} type={} np={}", attempt + 1, pubkeyHash, typeHash, ac);
                         throw new RuntimeException("Failed to insert list entry after " + (attempt + 1) + " attempts");
                     }
+                    logger.debug("Retrying list entry insert (attempt {}) for pubkey={} type={} np={}", attempt + 1, pubkeyHash, typeHash, ac);
                 }
             }
         }
@@ -578,6 +625,7 @@ public class RegistryDB {
     private static void initListPositionIfNeeded(ClientSession mongoSession, String pubkeyHash, String typeHash) {
         Document listDoc = collection("lists").find(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash)).first();
         if (listDoc == null || listDoc.get("maxPosition") != null) {
+            logger.trace("initListPositionIfNeeded: no action needed for pubkey={} type={}", pubkeyHash, typeHash);
             return;
         }
 
@@ -586,6 +634,7 @@ public class RegistryDB {
 
         // Conditional update: only set if maxPosition still doesn't exist (race-safe)
         collection("lists").updateOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("maxPosition", new Document("$exists", false)), new Document("$set", new Document("maxPosition", maxPos)));
+        logger.debug("Initialized maxPosition={} for list pubkey={} type={}", maxPos, pubkeyHash, typeHash);
     }
 
     /**
@@ -597,6 +646,7 @@ public class RegistryDB {
     public static String buildChecksumFallbacks(ClientSession mongoSession, String pubkeyHash, String typeHash) {
         Document maxDoc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
         if (maxDoc == null) {
+            logger.debug("buildChecksumFallbacks: no entries for pubkey={} type={}", pubkeyHash, typeHash);
             return null;
         }
 
@@ -611,7 +661,9 @@ public class RegistryDB {
                 sb.append(",").append(entry.getString("checksum"));
             }
         }
-        return sb.toString();
+        String result = sb.toString();
+        logger.debug("buildChecksumFallbacks for pubkey={} type={} -> {}", pubkeyHash, typeHash, result);
+        return result;
     }
 
     /**
@@ -626,8 +678,10 @@ public class RegistryDB {
         try {
             el = SignatureUtils.getSignatureElement(nanopub);
             if (el != null && SignatureUtils.hasValidSignature(el) && el.getPublicKeyString() != null) {
+                logger.trace("Valid signature found for nanopub {}", nanopub.getUri());
                 return el.getPublicKeyString();
             }
+            logger.debug("No valid signature element or public key present for nanopub {}", nanopub.getUri());
         } catch (MalformedCryptoElementException | GeneralSecurityException ex) {
             logger.error("Failed to verify signature of nanopub {}: {}", nanopub.getUri(), ex.getMessage(), ex);
         }
@@ -648,7 +702,9 @@ public class RegistryDB {
             Document d = tp.next();
             s += d.getString("_id") + " (" + d.getString("type") + ")\n";
         }
-        return Utils.getHash(s);
+        String hash = Utils.getHash(s);
+        logger.debug("Calculated trust state hash: {}", hash);
+        return hash;
     }
 
 }
