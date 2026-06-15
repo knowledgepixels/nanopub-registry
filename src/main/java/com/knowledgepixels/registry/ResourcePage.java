@@ -20,9 +20,9 @@ public class ResourcePage extends Page {
             page = new ResourcePage(s, context, resourceName, resourceType);
             page.show();
         } catch (IOException ex) {
-            logger.info("IOException", ex);
-
+            logger.warn("Failed to show resource {} (type={}): {} ({})", resourceName, resourceType, ex.getMessage(), ex.getClass().getSimpleName(), ex);
         } finally {
+            logger.debug("Ending response for resource {} (type={})", resourceName, resourceType);
             context.response().end();
             // TODO Clean-up here?
         }
@@ -38,6 +38,7 @@ public class ResourcePage extends Page {
 
     public void show() throws IOException {
         setRespContentType(resourceType);
+        logger.debug("Preparing to serve resource {} (type={})", resourceName, resourceType);
         InputStream in = null;
         BufferOutputStream out = null;
         try {
@@ -45,9 +46,14 @@ public class ResourcePage extends Page {
             out = new BufferOutputStream();
             IOUtils.copy(in, out);
             getContext().response().write(out.getBuffer());
+            logger.info("Served resource {} (type={})", resourceName, resourceType);
         } finally {
-            if (in != null) in.close();
-            if (out != null) out.close();
+            if (in != null) {
+                in.close();
+            }
+            if (out != null) {
+                out.close();
+            }
         }
     }
 

@@ -1,17 +1,22 @@
 package com.knowledgepixels.registry;
 
 import com.mongodb.client.ClientSession;
-import org.bson.Document;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.commons.lang.StringEscapeUtils;
+import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
 
-import static com.knowledgepixels.registry.RegistryDB.*;
+import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
 
 public abstract class Page {
+
+    private static final Logger logger = LoggerFactory.getLogger(Page.class);
 
     protected static final DecimalFormat df8 = new DecimalFormat("0.00000000");
     protected static final DecimalFormat df1 = new DecimalFormat("0.0");
@@ -70,6 +75,12 @@ public abstract class Page {
         } else {
             requestString = r;
         }
+
+        logger.debug("Initialized Page for path={} requestString={} extension={} presentationFormat={}",
+                context.request().path(), requestString, extension, presentationFormat);
+        if (serverInfo.get("setupId") == null || serverInfo.get("status") == null) {
+            logger.warn("Server info incomplete for request {}: setupId={} status={}", getFullRequest(), serverInfo.get("setupId"), serverInfo.get("status"));
+        }
     }
 
     /**
@@ -97,6 +108,7 @@ public abstract class Page {
      */
     public void print(String s) {
         if (context.request().method() == HttpMethod.HEAD) {
+            logger.debug("Suppressing response body for HEAD request: {}", context.request().path());
             return;
         }
         context.response().write(s);
@@ -109,15 +121,17 @@ public abstract class Page {
      */
     public void setRespContentType(String contentType) {
         if (context.request().method() == HttpMethod.HEAD) {
+            logger.debug("Suppressing Content-Type header for HEAD request: {}", context.request().path());
             return;
         }
         context.response().putHeader("Content-Type", contentType);
+        logger.debug("Set Content-Type={} for request={}", contentType, context.request().path());
     }
 
     /**
      * Show the page.
      *
-     * @throws IOException
+     * @throws IOException If an I/O error occurs while showing the page.
      */
     protected abstract void show() throws IOException;
 
@@ -207,7 +221,9 @@ public abstract class Page {
      */
     public String getParam(String name, String defaultValue) {
         String value = context.request().getParam(name);
-        if (value == null) value = defaultValue;
+        if (value == null) {
+            value = defaultValue;
+        }
         return value;
     }
 
