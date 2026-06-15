@@ -25,7 +25,7 @@ public class LegacyConnector {
 
     private static final String[] serverUrls = {"https://np.knowledgepixels.com/", "http://server.np.dumontierlab.com/"};
 
-    private static final Logger log = LoggerFactory.getLogger(LegacyConnector.class);
+    private static final Logger logger = LoggerFactory.getLogger(LegacyConnector.class);
 
     // Just to make sure we don't need 1000+ DB requests each time we check for updates:
     private static Map<String, Boolean> loadedCache = new HashMap<>();
@@ -39,7 +39,7 @@ public class LegacyConnector {
     }
 
     private static String checkUrl(ClientSession mongoSession, String url) {
-        log.info("Checking legacy URL for new nanopubs: {}", url);
+        logger.info("Checking legacy URL for new nanopubs: {}", url);
         HttpGet get = new HttpGet(url);
         get.setHeader("Accept", "text/plain");
         HttpResponse resp = null;
@@ -62,7 +62,7 @@ public class LegacyConnector {
             }
         } catch (IOException ex) {
             if (resp != null) EntityUtils.consumeQuietly(resp.getEntity());
-            log.info("Request to {} was not successful: ", url, ex);
+            logger.info("Request to {} was not successful: ", url, ex);
         }
         return prev;
     }

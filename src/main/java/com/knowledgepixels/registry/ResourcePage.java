@@ -11,7 +11,7 @@ import java.io.InputStream;
 
 public class ResourcePage extends Page {
 
-    private static final Logger log = LoggerFactory.getLogger(ResourcePage.class);
+    private static final Logger logger = LoggerFactory.getLogger(ResourcePage.class);
 
     public static void show(RoutingContext context, String resourceName, String resourceType) {
         ResourcePage page;
@@ -20,7 +20,7 @@ public class ResourcePage extends Page {
             page = new ResourcePage(s, context, resourceName, resourceType);
             page.show();
         } catch (IOException ex) {
-            log.info("IOException", ex);
+            logger.info("IOException", ex);
 
         } finally {
             context.response().end();

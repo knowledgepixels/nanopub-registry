@@ -109,7 +109,7 @@ public enum Task implements Serializable {
             IndexInitializer.initLoadingCollections(s);
 
             if ("false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
-                log.info("Trust calculation disabled; skipping to FINALIZE_TRUST_STATE");
+                logger.info("Trust calculation disabled; skipping to FINALIZE_TRUST_STATE");
                 for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
                     String pubkeyHash = entry.getKey();
                     int quota = entry.getValue();
@@ -120,7 +120,7 @@ public enum Task implements Serializable {
                             .append("quota", quota);
                     if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
                         insert(s, "accounts_loading", account);
-                        log.info("Seeded explicit pubkey as account: {}", pubkeyHash);
+                        logger.info("Seeded explicit pubkey as account: {}", pubkeyHash);
                     }
                 }
                 schedule(s, FINALIZE_TRUST_STATE);
@@ -162,7 +162,7 @@ public enum Task implements Serializable {
                             .append("depth", 0)
             );
 
-            log.info("Starting iteration at depth 0");
+            logger.info("Starting iteration at depth 0");
             schedule(s, LOAD_DECLARATIONS.with("depth", 1));
         }
 
@@ -532,13 +532,13 @@ public enum Task implements Serializable {
             int loadCount = taskDoc.getInteger("load-count");
 
             if (loadCount == 0) {
-                log.info("No new cores loaded; finishing iteration");
+                logger.info("No new cores loaded; finishing iteration");
                 schedule(s, CALCULATE_TRUST_SCORES);
             } else if (depth == MAX_TRUST_PATH_DEPTH) {
-                log.info("Maximum depth reached: {}", depth);
+                logger.info("Maximum depth reached: {}", depth);
                 schedule(s, CALCULATE_TRUST_SCORES);
             } else {
-                log.info("Progressing iteration at depth {}", depth + 1);
+                logger.info("Progressing iteration at depth {}", depth + 1);
                 schedule(s, LOAD_DECLARATIONS.with("depth", depth + 1));
             }
 
@@ -808,7 +808,7 @@ public enum Task implements Serializable {
                 setServerStatus(s, updating);
                 schedule(s, INIT_COLLECTIONS);
             } else {
-                log.info("Postponing update; currently in status {}", status);
+                logger.info("Postponing update; currently in status {}", status);
                 schedule(s, UPDATE.withDelay(10 * 60 * 1000));
             }
 
@@ -822,32 +822,32 @@ public enum Task implements Serializable {
 
             ServerStatus status = getServerStatus(s);
             if (status != coreReady && status != ready && status != updating) {
-                log.info("Server currently not ready; checking again later");
+                logger.info("Server currently not ready; checking again later");
                 schedule(s, LOAD_FULL.withDelay(1000));
                 return;
             }
 
             Document a = getOne(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument());
             if (a == null) {
-                log.info("Nothing to load");
+                logger.info("Nothing to load");
                 if (status == coreReady) {
-                    log.info("Full load finished");
+                    logger.info("Full load finished");
                     setServerStatus(s, ready);
                 }
-                log.info("Scheduling optional loading checks");
+                logger.info("Scheduling optional loading checks");
                 schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
             } else {
                 final String ph = a.getString("pubkey");
                 boolean quotaReached = false;
                 if (!ph.equals("$")) {
                     if (!AgentFilter.isAllowed(s, ph)) {
-                        log.info("Skipping pubkey {} (not covered by agent filter)", ph);
+                        logger.info("Skipping pubkey {} (not covered by agent filter)", ph);
                         set(s, Collection.ACCOUNTS.toString(), a.append("status", skipped.getValue()));
                         schedule(s, LOAD_FULL.withDelay(100));
                         return;
                     }
                     if (AgentFilter.isOverQuota(s, ph)) {
-                        log.info("Skipping pubkey {} (quota exceeded)", ph);
+                        logger.info("Skipping pubkey {} (quota exceeded)", ph);
                         quotaReached = true;
                     } else {
                         long startTime = System.nanoTime();
@@ -870,7 +870,7 @@ public enum Task implements Serializable {
                         }
 
                         double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-                        log.info("Loaded {} nanopubs in {}s, {} np/s",
+                        logger.info("Loaded {} nanopubs in {}s, {} np/s",
                                 totalLoaded.get(), timeSeconds, String.format("%.2f", totalLoaded.get() / timeSeconds));
 
                         if (AgentFilter.isOverQuota(s, ph)) {
@@ -920,7 +920,7 @@ public enum Task implements Serializable {
 
                 final String pubkeyHash = di.getString("pubkey");
                 Validate.notNull(pubkeyHash);
-                log.info("Optional core loading: {}", pubkeyHash);
+                logger.info("Optional core loading: {}", pubkeyHash);
 
                 String introChecksums = buildChecksumFallbacks(s, pubkeyHash, INTRO_TYPE_HASH);
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(INTRO_TYPE_HASH, pubkeyHash, introChecksums)) {
@@ -960,7 +960,7 @@ public enum Task implements Serializable {
                 if (df == null) break;
 
                 final String pubkeyHash = df.getString("pubkey");
-                log.info("Optional full loading: {}", pubkeyHash);
+                logger.info("Optional full loading: {}", pubkeyHash);
 
                 // Load per covered type (or "$" if no restriction) with checksum skip-ahead
                 for (String typeHash : getLoadTypeHashes(s, pubkeyHash)) {
@@ -981,7 +981,7 @@ public enum Task implements Serializable {
                 // Backfill nanopubs stored locally during the transitional period (i.e. before
                 // the $ list was loaded). Such nanopubs were stored in the nanopubs collection by
                 // simpleLoad() but never added to listEntries; add them to the $ list now.
-                log.info("Backfilling locally stored nanopubs for pubkey: {}", pubkeyHash);
+                logger.info("Backfilling locally stored nanopubs for pubkey: {}", pubkeyHash);
                 try (MongoCursor<Document> npCursor = collection(Collection.NANOPUBS.toString())
                         .find(s, new Document("pubkey", pubkeyHash)).cursor()) {
                     while (npCursor.hasNext()) {
@@ -994,14 +994,14 @@ public enum Task implements Serializable {
                                 totalLoaded.incrementAndGet();
                             }
                         } catch (Exception ex) {
-                            log.info("Error backfilling nanopub {}: {}", fullId, ex.getMessage());
+                            logger.info("Error backfilling nanopub {}: {}", fullId, ex.getMessage());
                         }
                     }
                 }
             }
 
             if (totalLoaded.get() > 0) {
-                log.info("Optional load batch completed: {} nanopubs across multiple pubkeys", totalLoaded.get());
+                logger.info("Optional load batch completed: {} nanopubs across multiple pubkeys", totalLoaded.get());
             }
 
             if (prioritizeAllPubkeys()) {
@@ -1042,7 +1042,7 @@ public enum Task implements Serializable {
 
     };
 
-    private static final Logger log = LoggerFactory.getLogger(Task.class);
+    private static final Logger logger = LoggerFactory.getLogger(Task.class);
 
     public abstract void run(ClientSession s, Document taskDoc) throws Exception;
 
@@ -1126,18 +1126,18 @@ public enum Task implements Serializable {
                 long sleepTime = 10;
                 if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
                     Task task = valueOf(taskDoc.getString("action"));
-                    log.info("Running task: {}", task.name());
+                    logger.info("Running task: {}", task.name());
                     if (task.runAsTransaction()) {
                         try {
                             s.startTransaction();
-                            log.info("Transaction started");
+                            logger.info("Transaction started");
                             runTask(task, taskDoc);
                             s.commitTransaction();
-                            log.info("Transaction committed");
+                            logger.info("Transaction committed");
                         } catch (Exception ex) {
-                            log.info("Aborting transaction", ex);
+                            logger.info("Aborting transaction", ex);
                             abortTransaction(s, ex.getMessage());
-                            log.info("Transaction aborted");
+                            logger.info("Transaction aborted");
                             sleepTime = 1000;
                         } finally {
                             cleanTransactionWithRetry(s);
@@ -1146,7 +1146,7 @@ public enum Task implements Serializable {
                         try {
                             runTask(task, taskDoc);
                         } catch (Exception ex) {
-                            log.info("Transaction failed", ex);
+                            logger.info("Transaction failed", ex);
                         }
                     }
                 }
@@ -1161,12 +1161,12 @@ public enum Task implements Serializable {
 
     static void runTask(Task task, Document taskDoc) throws Exception {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
-            log.info("Executing task: {}", task.name());
+            logger.info("Executing task: {}", task.name());
             currentTaskName = task.name();
             currentTaskStartTime = System.currentTimeMillis();
             task.run(s, taskDoc);
             tasksCollection.deleteOne(s, eq("_id", taskDoc.get("_id")));
-            log.info("Task {} completed and removed from queue.", task.name());
+            logger.info("Task {} completed and removed from queue.", task.name());
         } finally {
             currentTaskName = null;
         }
@@ -1181,7 +1181,7 @@ public enum Task implements Serializable {
                 }
                 successful = true;
             } catch (Exception ex) {
-                log.info("Aborting transaction failed. ", ex);
+                logger.info("Aborting transaction failed. ", ex);
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException iex) {
@@ -1200,7 +1200,7 @@ public enum Task implements Serializable {
                 }
                 successful = true;
             } catch (Exception ex) {
-                log.info("Cleaning transaction failed. ", ex);
+                logger.info("Cleaning transaction failed. ", ex);
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException iex) {
@@ -1235,7 +1235,7 @@ public enum Task implements Serializable {
     }
 
     private static void schedule(ClientSession mongoSession, Document taskDoc) {
-        log.info("Scheduling task: {}", taskDoc.getString("action"));
+        logger.info("Scheduling task: {}", taskDoc.getString("action"));
         tasksCollection.insertOne(mongoSession, taskDoc);
     }
 

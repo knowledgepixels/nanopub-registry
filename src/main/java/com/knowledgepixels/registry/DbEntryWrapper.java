@@ -1,6 +1,8 @@
 package com.knowledgepixels.registry;
 
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Wrapper for a MongoDB Entry
@@ -17,6 +19,8 @@ public class DbEntryWrapper {
      */
     public static final String statusField = "status";
 
+    private static final Logger logger = LoggerFactory.getLogger(DbEntryWrapper.class);
+
     private final Document document;
 
     /**
@@ -26,6 +30,7 @@ public class DbEntryWrapper {
      */
     public DbEntryWrapper(EntryStatus status) {
         this.document = new Document(statusField, status.getValue());
+        logger.debug("Created DbEntryWrapper with status='{}'", status.getValue());
     }
 
     /**
