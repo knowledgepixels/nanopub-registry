@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -20,7 +19,9 @@ public final class CoverageFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(CoverageFilter.class);
 
-    /** Cached set of covered type hashes, or null if all types are covered. */
+    /**
+     * Cached set of covered type hashes, or null if all types are covered.
+     */
     private static volatile Set<String> coveredTypeHashes;
     private static volatile boolean initialized = false;
 
@@ -35,12 +36,14 @@ public final class CoverageFilter {
         String config = Utils.getEnv("REGISTRY_COVERAGE_TYPES", null);
         if (config == null || config.isBlank() || "all".equalsIgnoreCase(config.trim())) {
             coveredTypeHashes = null;
-            logger.info("Coverage filter: all types covered (no restriction)");
+            logger.info("Coverage filter initialized: all types covered (REGISTRY_COVERAGE_TYPES={})", config == null ? "null" : "\"" + config.trim() + "\"");
         } else {
             Set<String> hashes = new HashSet<>();
             for (String typeUri : config.trim().split("\\s+")) {
                 if (!typeUri.isEmpty()) {
-                    hashes.add(Utils.getHash(typeUri));
+                    String hash = Utils.getHash(typeUri);
+                    hashes.add(hash);
+                    logger.debug("Configured coverage type '{}' -> hash='{}'", typeUri, hash);
                 }
             }
             // Always include core types (intro, endorsement)
@@ -50,6 +53,7 @@ public final class CoverageFilter {
             logger.info("Coverage filter: {} types covered (including core types)", hashes.size());
         }
         initialized = true;
+        logger.debug("CoverageFilter.initialized set to true");
     }
 
     /**
@@ -71,7 +75,9 @@ public final class CoverageFilter {
      * HTTP headers, or null if all types are covered.
      */
     public static String getCoveredTypeHashesAsString() {
-        if (coveredTypeHashes == null) return null;
+        if (coveredTypeHashes == null) {
+            return null;
+        }
         return String.join(",", coveredTypeHashes);
     }
 
@@ -81,20 +87,33 @@ public final class CoverageFilter {
      * Core types (intro, endorsement) are always considered covered.
      */
     public static boolean isCovered(Nanopub nanopub) {
-        if (coveredTypeHashes == null) return true;
+        if (coveredTypeHashes == null) {
+            logger.trace("isCovered: all types allowed (no restriction)");
+            return true;
+        }
+
+        Set<IRI> types = NanopubUtils.getTypes(nanopub);
+        logger.trace("Checking coverage for nanopub: {} declared types", types.size());
 
         // Check nanopub's declared types
-        for (IRI type : NanopubUtils.getTypes(nanopub)) {
-            if (coveredTypeHashes.contains(Utils.getHash(type.stringValue()))) {
+        for (IRI type : types) {
+            String typeUri = type.stringValue();
+            String hash = Utils.getHash(typeUri);
+            if (coveredTypeHashes.contains(hash)) {
+                logger.debug("Nanopub accepted: found covered type '{}' with hash='{}'", typeUri, hash);
                 return true;
+            } else {
+                logger.trace("Type not covered: '{}' (hash='{}')", typeUri, hash);
             }
         }
 
         // Nanopubs with no declared types are accepted (they may be core infrastructure)
-        if (NanopubUtils.getTypes(nanopub).isEmpty()) {
+        if (types.isEmpty()) {
+            logger.debug("Nanopub has no declared types - accepted as covered");
             return true;
         }
 
+        logger.debug("Nanopub rejected: no covered types found");
         return false;
     }
 
@@ -102,8 +121,16 @@ public final class CoverageFilter {
      * Returns true if the given type hash is covered by this registry.
      */
     public static boolean isCoveredType(String typeHash) {
-        if (coveredTypeHashes == null) return true;
-        if ("$".equals(typeHash)) return true;
-        return coveredTypeHashes.contains(typeHash);
+        if (coveredTypeHashes == null) {
+            logger.trace("isCoveredType('{}'): all types allowed", typeHash);
+            return true;
+        }
+        if ("$".equals(typeHash)) {
+            logger.trace("isCoveredType('{}'): special core token accepted", typeHash);
+            return true;
+        }
+        boolean contains = coveredTypeHashes.contains(typeHash);
+        logger.debug("isCoveredType('{}') -> {}", typeHash, contains);
+        return contains;
     }
 }
