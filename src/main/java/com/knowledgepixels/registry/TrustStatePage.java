@@ -84,6 +84,7 @@ public class TrustStatePage extends Page {
             showList(format);
         } else if (req.matches("/trust-state/[A-Za-z0-9_\\-]+")) {
             String hash = req.substring("/trust-state/".length());
+            logger.debug("Resolved snapshot hash '{}' from request path", hash);
             showDetail(hash, format);
         } else {
             logger.warn("Invalid trust-state request path: {}", getFullRequest());
@@ -93,6 +94,7 @@ public class TrustStatePage extends Page {
 
     private void showList(String format) {
         int listed = 0;
+        logger.debug("Querying trust-state snapshots collection (format={})", format);
         // Metadata only — the accounts array is heavy and not needed in the index.
         try (MongoCursor<Document> it = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
                 .find(mongoSession)
@@ -144,6 +146,7 @@ public class TrustStatePage extends Page {
     }
 
     private void showDetail(String hash, String format) {
+        logger.debug("Looking up trust-state snapshot '{}'", hash);
         Document snapshot = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
                 .find(mongoSession, new Document("_id", hash)).first();
         if (snapshot == null) {
@@ -187,6 +190,7 @@ public class TrustStatePage extends Page {
         Object accountsObj = snapshot.get("accounts");
         int accountCount = (accountsObj instanceof List) ? ((List<?>) accountsObj).size() : 0;
         println("<li><em>accountCount:</em> " + accountCount + "</li>");
+        logger.debug("Snapshot {} has {} account entries (accountsObj type: {})", hash, accountCount, accountsObj == null ? "null" : accountsObj.getClass().getSimpleName());
         println("</ul>");
         println("<h3>Accounts</h3>");
         println("<ol>");
