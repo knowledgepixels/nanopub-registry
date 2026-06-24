@@ -853,34 +853,34 @@ public enum Task implements Serializable {
             }
 
             ServerStatus status = getServerStatus(s);
-            logger.debug("LOAD_FULL current server status={}", status);
+            logger.debug("Server status check for LOAD_FULL: status={}", status);
             if (status != coreReady && status != ready && status != updating) {
-                logger.info("Server not ready for full load (status={}); deferring", status);
+                logger.info("Server status={} is not eligible for full load (expected coreReady/ready/updating); deferring and retrying in 1000ms", status);
                 schedule(s, LOAD_FULL.withDelay(1000));
                 return;
             }
 
             Document a = getOne(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument());
             if (a == null) {
-                logger.info("Nothing to load");
+                logger.info("No accounts left with status={}; full load pass complete", toLoad);
                 if (status == coreReady) {
-                    logger.info("Full load finished");
+                    logger.info("Server status transitioning coreReady -> ready; full load finished");
                     setServerStatus(s, ready);
                 }
-                logger.info("Scheduling optional loading checks");
+                logger.info("Scheduling optional loading checks (RUN_OPTIONAL_LOAD) in 100ms");
                 schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
             } else {
                 final String ph = a.getString("pubkey");
                 boolean quotaReached = false;
                 if (!ph.equals("$")) {
                     if (!AgentFilter.isAllowed(s, ph)) {
-                        logger.info("Skipping pubkey {} (not covered by agent filter)", ph);
+                        logger.info("Pubkey {} is not covered by the agent filter; marking account as skipped", ph);
                         set(s, Collection.ACCOUNTS.toString(), a.append("status", skipped.getValue()));
                         schedule(s, LOAD_FULL.withDelay(100));
                         return;
                     }
                     if (AgentFilter.isOverQuota(s, ph)) {
-                        logger.info("Skipping pubkey {} (quota exceeded)", ph);
+                        logger.info("Pubkey {} is already over quota; skipping load, marking account as capped", ph);
                         quotaReached = true;
                     } else {
                         long startTime = System.nanoTime();
@@ -888,41 +888,54 @@ public enum Task implements Serializable {
 
                         // Load per covered type (or "$" if no restriction) with checksum skip-ahead
                         for (String typeHash : getLoadTypeHashes(s, ph)) {
+                            logger.debug("Pubkey {}: starting load for typeHash={}", ph, typeHash);
                             String checksums = buildChecksumFallbacks(s, ph, typeHash);
+                            logger.debug("Pubkey {}, typeHash={}: checksum fallbacks={}", ph, typeHash, checksums);
                             try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, ph, checksums)) {
                                 NanopubLoader.loadStreamInParallel(stream, np -> {
                                     if (!CoverageFilter.isCovered(np)) {
+                                        logger.debug("Pubkey {}: nanopub {} not covered; skipping", ph, np);
                                         return;
                                     }
                                     try (ClientSession ws = RegistryDB.getClient().startSession()) {
                                         if (!AgentFilter.isOverQuota(ws, ph)) {
                                             loadNanopub(ws, np, ph, "$");
                                             totalLoaded.incrementAndGet();
+                                        } else {
+                                            logger.debug("Pubkey {} hit quota mid-stream; skipping nanopub {}", ph, np);
                                         }
                                     }
                                 });
                             }
+                            logger.debug("Pubkey {}: finished load for typeHash={}", ph, typeHash);
                         }
 
                         double timeSeconds = (System.nanoTime() - startTime) * 1e-9;
-                        logger.info("Loaded {} nanopubs in {}s, {} np/s",
-                                totalLoaded.get(), timeSeconds, String.format("%.2f", totalLoaded.get() / timeSeconds));
+                        logger.info("Pubkey {}: loaded {} nanopubs in {}s ({} np/s)",
+                                ph, totalLoaded.get(), String.format("%.2f", timeSeconds),
+                                String.format("%.2f", totalLoaded.get() / timeSeconds));
 
                         if (AgentFilter.isOverQuota(s, ph)) {
+                            logger.info("Pubkey {} reached quota during this load; marking account as capped", ph);
                             quotaReached = true;
                         }
                     }
+                } else {
+                    logger.debug("Account pubkey is '$' (unrestricted); no per-pubkey quota/filter checks applied");
                 }
 
                 Document l = getOne(s, "lists", new Document().append("pubkey", ph).append("type", "$"));
                 if (l != null) {
+                    logger.debug("Pubkey {}: marking matching list entry as loaded", ph);
                     set(s, "lists", l.append("status", loaded.getValue()));
                 }
                 EntryStatus accountStatus = quotaReached ? capped : loaded;
                 int effectiveQuota = AgentFilter.getQuota(s, ph);
                 if (effectiveQuota >= 0) {
+                    logger.debug("Pubkey {}: recording effective quota={}", ph, effectiveQuota);
                     a.append("quota", effectiveQuota);
                 }
+                logger.info("Pubkey {}: account load complete, status={}", ph, accountStatus);
                 set(s, Collection.ACCOUNTS.toString(), a.append("status", accountStatus.getValue()));
 
                 schedule(s, LOAD_FULL.withDelay(100));
@@ -1174,7 +1187,7 @@ public enum Task implements Serializable {
                 long sleepTime = 10;
                 if (taskDoc != null && taskDoc.getLong("not-before") < System.currentTimeMillis()) {
                     Task task = valueOf(taskDoc.getString("action"));
-                    Object taskId = taskDoc.containsKey("_id") ? taskDoc.get("_id") : null;
+                    Object taskId = taskDoc.getOrDefault("_id", null);
                     logger.info("Picked task to run: {} (docId={})", task.name(), taskId);
 
                     if (task.runAsTransaction()) {
