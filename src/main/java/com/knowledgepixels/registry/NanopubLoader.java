@@ -71,10 +71,13 @@ public class NanopubLoader {
         } else {
             Nanopub np = retrieveLocalNanopub(mongoSession, nanopubId);
             if (np == null) {
+                logger.debug("Nanopub {} not found locally; fetching from peers without persisting on retrieve", nanopubId);
                 np = getNanopub(nanopubId);
             }
             if (np != null) {
                 simpleLoad(mongoSession, np);
+            } else {
+                logger.warn("Could not retrieve nanopub {} from any peer; skipping load", nanopubId);
             }
         }
     }
@@ -82,7 +85,7 @@ public class NanopubLoader {
     public static void simpleLoad(ClientSession mongoSession, Nanopub np) {
         String pubkey = RegistryDB.getPubkey(np);
         if (pubkey == null) {
-            logger.warn("Skipping nanopub {}: no valid signature found", np.getUri());
+            logger.warn("Skipping load of nanopub {}: no valid signature found, so its public key could not be determined", np.getUri());
             return;
         }
         simpleLoad(mongoSession, np, pubkey);
@@ -96,17 +99,21 @@ public class NanopubLoader {
         String pubkeyHash = Utils.getHash(verifiedPubkey);
         // TODO Do we need to load anything else here, into the other DB collections?
         if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
+            logger.debug("Loading nanopub {} into full-loaded lists for pubkey {}", np.getUri(), pubkeyHash);
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, "$");
         } else if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
+            logger.debug("Loading nanopub {} into core lists (intro/endorse) for pubkey {}", np.getUri(), pubkeyHash);
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
         } else {
             // Pubkey not yet loaded (unknown or in transitional "encountered" state): store the
             // nanopub in the nanopubs collection so it is not lost. RUN_OPTIONAL_LOAD will add it
             // to the appropriate lists once the pubkey's intro/endorse have been fetched.
+            logger.debug("Pubkey {} not yet loaded; storing nanopub {} without adding it to any list yet", pubkeyHash, np.getUri());
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, null);
             if (!has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH))) {
                 // Unknown pubkey: create encountered intro list so RUN_OPTIONAL_LOAD picks it up
                 try {
+                    logger.info("Encountered new pubkey {}; creating intro list entry so it can be processed by RUN_OPTIONAL_LOAD", pubkeyHash);
                     insert(mongoSession, "lists", new Document("pubkey", pubkeyHash)
                             .append("type", INTRO_TYPE_HASH)
                             .append("status", EntryStatus.encountered.getValue()));
@@ -114,6 +121,7 @@ public class NanopubLoader {
                     if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
                         throw e;
                     }
+                    logger.debug("Intro list entry for pubkey {} was already created concurrently; ignoring duplicate-key error", pubkeyHash);
                 }
             }
         }
@@ -133,8 +141,10 @@ public class NanopubLoader {
     public static void loadStreamInParallel(Stream<MaybeNanopub> stream, Consumer<Nanopub> processor) {
         if (LOAD_PARALLELISM <= 1) {
             // Fall back to sequential processing
+            logger.debug("REGISTRY_LOAD_PARALLELISM={}; processing nanopub stream sequentially", LOAD_PARALLELISM);
             stream.forEach(m -> {
                 if (!m.isSuccess()) {
+                    logger.error("Failed to download a nanopub from the stream; aborting task");
                     throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                 }
                 processor.accept(m.getNanopub());
@@ -142,6 +152,7 @@ public class NanopubLoader {
             return;
         }
 
+        logger.debug("Processing nanopub stream in parallel with {} worker threads", LOAD_PARALLELISM);
         ExecutorService executor = Executors.newFixedThreadPool(LOAD_PARALLELISM);
         Semaphore semaphore = new Semaphore(LOAD_PARALLELISM * 2);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -152,6 +163,7 @@ public class NanopubLoader {
                     return;
                 }
                 if (!m.isSuccess()) {
+                    logger.error("Failed to download a nanopub from the stream; aborting remaining work");
                     error.compareAndSet(null, new AbortingTaskException("Failed to download nanopub; aborting task..."));
                     return;
                 }
@@ -160,6 +172,7 @@ public class NanopubLoader {
                     semaphore.acquire();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    logger.warn("Interrupted while waiting for a free worker slot; aborting parallel load", e);
                     error.compareAndSet(null, e);
                     return;
                 }
@@ -167,6 +180,7 @@ public class NanopubLoader {
                     try {
                         processor.accept(np);
                     } catch (Exception e) {
+                        logger.error("Worker thread failed while processing nanopub {}: {}", np.getUri(), e.getMessage(), e);
                         error.compareAndSet(null, e);
                     } finally {
                         semaphore.release();
@@ -176,13 +190,17 @@ public class NanopubLoader {
         } finally {
             executor.shutdown();
             try {
-                executor.awaitTermination(1, TimeUnit.HOURS);
+                if (!executor.awaitTermination(1, TimeUnit.HOURS)) {
+                    logger.warn("Worker pool did not terminate within the 1-hour timeout after shutdown");
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                logger.warn("Interrupted while waiting for worker pool to terminate", e);
             }
         }
 
         if (error.get() != null) {
+            logger.error("Parallel nanopub loading failed: {}", error.get().getMessage());
             if (error.get() instanceof RuntimeException re) {
                 throw re;
             }
@@ -214,6 +232,9 @@ public class NanopubLoader {
 
         List<String> peerUrlsToTry = new ArrayList<>(Utils.getPeerUrls());
         Collections.shuffle(peerUrlsToTry);
+        if (peerUrlsToTry.isEmpty()) {
+            logger.warn("No peers configured; cannot retrieve nanopub list for pubkey {} / type {}", pubkeyHash, typeHash);
+        }
         while (!peerUrlsToTry.isEmpty()) {
             String peerUrl = peerUrlsToTry.removeFirst();
 
@@ -226,13 +247,13 @@ public class NanopubLoader {
                 CloseableHttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
                 int httpStatus = resp.getStatusLine().getStatusCode();
                 if (httpStatus < 200 || httpStatus >= 300) {
-                    logger.warn("Fetching nanopub list from {} failed (HTTP {}); trying next peer", requestUrl, httpStatus);
+                    logger.warn("Peer {} returned HTTP {} for nanopub list request {}; trying next peer", peerUrl, httpStatus, requestUrl);
                     EntityUtils.consumeQuietly(resp.getEntity());
                     continue;
                 }
                 Header nrStatus = resp.getFirstHeader("Nanopub-Registry-Status");
                 if (nrStatus == null) {
-                    logger.warn("Peer {} did not return Nanopub-Registry-Status header; trying next peer", peerUrl);
+                    logger.warn("Peer {} did not return a Nanopub-Registry-Status header for {}; trying next peer", peerUrl, requestUrl);
                     EntityUtils.consumeQuietly(resp.getEntity());
                     continue;
                 } else if (!nrStatus.getValue().equals("ready") && !nrStatus.getValue().equals("updating")) {
@@ -240,18 +261,20 @@ public class NanopubLoader {
                     EntityUtils.consumeQuietly(resp.getEntity());
                     continue;
                 }
+                logger.debug("Successfully fetched nanopub list from peer {} (status: {})", peerUrl, nrStatus.getValue());
                 InputStream is = resp.getEntity().getContent();
                 return NanopubStream.fromByteStream(is).getAsNanopubs().onClose(() -> {
                     try {
                         resp.close();
                     } catch (IOException e) {
-                        logger.debug("Error closing HTTP response", e);
+                        logger.debug("Error closing HTTP response from peer {}", peerUrl, e);
                     }
                 });
             } catch (UnsupportedOperationException | IOException ex) {
-                logger.warn("Failed to fetch nanopub list from {}: {}", requestUrl, ex.getMessage(), ex);
+                logger.warn("Failed to fetch nanopub list from peer {} ({}): {}", peerUrl, requestUrl, ex.getMessage(), ex);
             }
         }
+        logger.warn("Exhausted all peers without successfully retrieving nanopub list for pubkey {} / type {}", pubkeyHash, typeHash);
         return Stream.empty();
     }
 
@@ -260,6 +283,7 @@ public class NanopubLoader {
         int tryCount = 0;
         while (np == null) {
             if (tryCount > 10) {
+                logger.error("Giving up on retrieving nanopub {} after {} attempts", nanopubId, tryCount);
                 throw new RuntimeException("Could not load nanopub: " + nanopubId);
             } else if (tryCount > 0) {
                 try {
@@ -268,13 +292,15 @@ public class NanopubLoader {
                     logger.warn("Thread interrupted while waiting to retry nanopub retrieval for {}", nanopubId, ex);
                 }
             }
-            logger.info("Nanopub {} not found locally; fetching from peers (attempt {})", nanopubId, tryCount + 1);
+            logger.info("Nanopub {} not found locally; fetching from peers (attempt {} of 10)", nanopubId, tryCount + 1);
 
             // TODO Reach out to other Nanopub Registries here:
             np = getNanopub(nanopubId);
             if (np != null) {
+                logger.debug("Retrieved nanopub {} from a peer; persisting it locally", nanopubId);
                 RegistryDB.loadNanopub(mongoSession, np);
             } else {
+                logger.debug("Attempt {} to retrieve nanopub {} from peers failed", tryCount + 1, nanopubId);
                 tryCount = tryCount + 1;
             }
         }
@@ -291,7 +317,7 @@ public class NanopubLoader {
             // Parse from Jelly, not TriG (it's faster)
             return JellyUtils.readFromDB(((Binary) cursor.next().get("jelly")).getData());
         } catch (RDF4JException | MalformedNanopubException ex) {
-            logger.error("Failed to parse Jelly content for nanopub '{}'; returning null", nanopubId, ex);
+            logger.error("Failed to parse locally stored Jelly content for nanopub '{}'; treating it as missing", nanopubId, ex);
             return null;
         }
     }
@@ -304,17 +330,22 @@ public class NanopubLoader {
         if (!ac.startsWith(RdfModule.MODULE_ID)) {
             throw new IllegalArgumentException("Not a trusty URI of type RA");
         }
+        if (peerUrls.isEmpty()) {
+            logger.warn("No peers configured; cannot fetch nanopub {}", ac);
+        }
         while (!peerUrls.isEmpty()) {
             String peerUrl = peerUrls.removeFirst();
             try {
                 Nanopub np = get(ac, peerUrl, NanopubUtils.getHttpClient());
                 if (np != null) {
+                    logger.debug("Successfully fetched nanopub {} from peer {}", ac, peerUrl);
                     return np;
                 }
             } catch (IOException | RDF4JException | MalformedNanopubException ex) {
                 logger.debug("Failed to fetch nanopub {} from peer {}: {}", ac, peerUrl, ex.getMessage(), ex);
             }
         }
+        logger.warn("Could not fetch nanopub {} from any of the {} configured peer(s)", ac, Utils.getPeerUrls().size());
         return null;
     }
 
@@ -335,12 +366,12 @@ public class NanopubLoader {
             HttpResponse resp = httpClient.execute(get);
             if (!wasSuccessful(resp)) {
                 EntityUtils.consumeQuietly(resp.getEntity());
-                throw new IOException(resp.getStatusLine().toString());
+                throw new IOException("Request to " + getUrl + " failed: " + resp.getStatusLine());
             }
             in = resp.getEntity().getContent();
             Nanopub nanopub = new NanopubImpl(in, RDFFormat.TRIG);
             if (!TrustyNanopubUtils.isValidTrustyNanopub(nanopub)) {
-                throw new MalformedNanopubException("Nanopub is not trusty");
+                throw new MalformedNanopubException("Nanopub retrieved from " + registryUrl + " is not a valid trusty nanopub");
             }
             return nanopub;
         } finally {
