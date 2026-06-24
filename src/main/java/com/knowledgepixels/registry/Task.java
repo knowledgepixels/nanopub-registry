@@ -37,14 +37,23 @@ public enum Task implements Serializable {
 
     INIT_DB {
         public void run(ClientSession s, Document taskDoc) {
+            logger.info("Running INIT_DB task: initializing a fresh database");
             setServerStatus(s, launching);
 
             increaseStateCounter(s);
             if (RegistryDB.isInitialized(s)) {
+                logger.error("INIT_DB aborted: database is already initialized");
                 throw new RuntimeException("DB already initialized");
             }
-            setValue(s, Collection.SERVER_INFO.toString(), "setupId", Math.abs(Utils.getRandom().nextLong()));
-            setValue(s, Collection.SERVER_INFO.toString(), "testInstance", "true".equals(System.getenv("REGISTRY_TEST_INSTANCE")));
+
+            long setupId = Math.abs(Utils.getRandom().nextLong());
+            boolean testInstance = "true".equals(System.getenv("REGISTRY_TEST_INSTANCE"));
+            logger.info("Initializing new database with setupId={} (testInstance={})", setupId, testInstance);
+
+            setValue(s, Collection.SERVER_INFO.toString(), "setupId", setupId);
+            setValue(s, Collection.SERVER_INFO.toString(), "testInstance", testInstance);
+
+            logger.debug("INIT_DB complete; scheduling LOAD_CONFIG task");
             schedule(s, LOAD_CONFIG);
         }
 
@@ -52,16 +61,30 @@ public enum Task implements Serializable {
 
     LOAD_CONFIG {
         public void run(ClientSession s, Document taskDoc) {
-            if (getServerStatus(s) != launching) {
-                throw new IllegalTaskStatusException("Illegal status for this task: " + getServerStatus(s));
+            logger.info("Running LOAD_CONFIG task");
+            ServerStatus status = getServerStatus(s);
+            if (status != launching) {
+                logger.error("LOAD_CONFIG aborted: expected server status '{}' but found '{}'", launching, status);
+                throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
 
-            if (System.getenv("REGISTRY_COVERAGE_TYPES") != null) {
-                setValue(s, Collection.SERVER_INFO.toString(), "coverageTypes", System.getenv("REGISTRY_COVERAGE_TYPES"));
+            String coverageTypes = System.getenv("REGISTRY_COVERAGE_TYPES");
+            if (coverageTypes != null) {
+                logger.info("Setting coverageTypes from REGISTRY_COVERAGE_TYPES: {}", coverageTypes);
+                setValue(s, Collection.SERVER_INFO.toString(), "coverageTypes", coverageTypes);
+            } else {
+                logger.debug("REGISTRY_COVERAGE_TYPES not set; leaving coverageTypes unset");
             }
-            if (System.getenv("REGISTRY_COVERAGE_AGENTS") != null) {
-                setValue(s, Collection.SERVER_INFO.toString(), "coverageAgents", System.getenv("REGISTRY_COVERAGE_AGENTS"));
+
+            String coverageAgents = System.getenv("REGISTRY_COVERAGE_AGENTS");
+            if (coverageAgents != null) {
+                logger.info("Setting coverageAgents from REGISTRY_COVERAGE_AGENTS: {}", coverageAgents);
+                setValue(s, Collection.SERVER_INFO.toString(), "coverageAgents", coverageAgents);
+            } else {
+                logger.debug("REGISTRY_COVERAGE_AGENTS not set; leaving coverageAgents unset");
             }
+
+            logger.debug("LOAD_CONFIG complete; scheduling LOAD_SETTING task");
             schedule(s, LOAD_SETTING);
         }
 
@@ -69,30 +92,40 @@ public enum Task implements Serializable {
 
     LOAD_SETTING {
         public void run(ClientSession s, Document taskDoc) throws Exception {
-            if (getServerStatus(s) != launching) {
-                throw new IllegalTaskStatusException("Illegal status for this task: " + getServerStatus(s));
+            logger.info("Running LOAD_SETTING task");
+            ServerStatus status = getServerStatus(s);
+            if (status != launching) {
+                logger.error("LOAD_SETTING aborted: expected server status '{}' but found '{}'", launching, status);
+                throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
 
             NanopubSetting settingNp = Utils.getSetting();
             String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
+            logger.info("Loading setting nanopub {}", settingId);
             setValue(s, Collection.SETTING.toString(), "original", settingId);
             setValue(s, Collection.SETTING.toString(), "current", settingId);
             loadNanopub(s, settingNp.getNanopub());
+
             List<Document> bootstrapServices = new ArrayList<>();
             for (IRI i : settingNp.getBootstrapServices()) {
                 bootstrapServices.add(new Document("_id", i.stringValue()));
             }
+            logger.info("Setting {} bootstrap service(s) from the setting nanopub: {}", bootstrapServices.size(), bootstrapServices);
             // potentially currently hardcoded in the nanopub lib
             setValue(s, Collection.SETTING.toString(), "bootstrap-services", bootstrapServices);
 
-            if (!"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
+            boolean performFullLoad = !"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"));
+            if (performFullLoad) {
+                logger.debug("REGISTRY_PERFORM_FULL_LOAD not disabled; scheduling LOAD_FULL task");
                 schedule(s, LOAD_FULL);
+            } else {
+                logger.info("REGISTRY_PERFORM_FULL_LOAD=false; skipping LOAD_FULL task");
             }
 
+            logger.debug("LOAD_SETTING complete; transitioning server status to '{}' and scheduling INIT_COLLECTIONS", coreLoading);
             setServerStatus(s, coreLoading);
             schedule(s, INIT_COLLECTIONS);
         }
-
     },
 
     INIT_COLLECTIONS {
@@ -102,14 +135,17 @@ public enum Task implements Serializable {
         // This state is periodically executed
 
         public void run(ClientSession s, Document taskDoc) throws Exception {
-            if (getServerStatus(s) != coreLoading && getServerStatus(s) != updating) {
-                throw new IllegalTaskStatusException("Illegal status for this task: " + getServerStatus(s));
+            logger.info("Running INIT_COLLECTIONS task");
+            ServerStatus status = getServerStatus(s);
+            if (status != coreLoading && status != updating) {
+                logger.error("INIT_COLLECTIONS aborted: expected server status 'coreLoading' or 'updating' but found '{}'", status);
+                throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
 
             IndexInitializer.initLoadingCollections(s);
 
             if ("false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
-                logger.info("Trust calculation disabled; skipping to FINALIZE_TRUST_STATE");
+                logger.info("Trust calculation disabled (REGISTRY_ENABLE_TRUST_CALCULATION=false); skipping to FINALIZE_TRUST_STATE");
                 for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
                     String pubkeyHash = entry.getKey();
                     int quota = entry.getValue();
@@ -120,13 +156,14 @@ public enum Task implements Serializable {
                             .append("quota", quota);
                     if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
                         insert(s, "accounts_loading", account);
-                        logger.info("Seeded explicit pubkey as account: {}", pubkeyHash);
+                        logger.debug("Seeded explicit pubkey as account: {} (quota={})", pubkeyHash, quota);
                     }
                 }
                 schedule(s, FINALIZE_TRUST_STATE);
                 return;
             }
 
+            logger.debug("Inserting root trust path entry for base agent");
             // since this may take long, we start with postfix "_loading"
             // and only at completion it's changed to trustPath, endorsements, accounts
             insert(s, "trustPaths_loading",
@@ -139,7 +176,9 @@ public enum Task implements Serializable {
                             .append("type", "extended")
             );
 
-            NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubLoader.retrieveNanopub(s, Utils.getSetting().getAgentIntroCollection().stringValue()));
+            String agentIntroCollectionUri = Utils.getSetting().getAgentIntroCollection().stringValue();
+            logger.info("Retrieving base agent intro collection: {}", agentIntroCollectionUri);
+            NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubLoader.retrieveNanopub(s, agentIntroCollectionUri));
             loadNanopub(s, agentIndex);
             for (IRI el : agentIndex.getElements()) {
                 String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
@@ -203,6 +242,7 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
 
             int depth = taskDoc.getInteger("depth");
+            logger.info("Running LOAD_DECLARATIONS task at depth {}", depth);
 
             while (true) {
                 Document d = getOne(s, "endorsements_loading",
@@ -236,6 +276,9 @@ public enum Task implements Serializable {
                                 .append("source", sourceAc);
                         if (!has(s, "trustEdges", trustEdge)) {
                             boolean invalidated = has(s, "invalidations", new Document("invalidatedNp", sourceAc).append("invalidatingPubkey", sourcePubkey));
+                            if (invalidated) {
+                                logger.info("Trust edge from {}/{} to {}/{} is invalidated by source {}", sourceAgent, sourcePubkey, agentId, agentPubkey, sourceAc);
+                            }
                             insert(s, "trustEdges", trustEdge.append("invalidated", invalidated));
                         }
 
@@ -263,9 +306,11 @@ public enum Task implements Serializable {
 
                     set(s, "endorsements_loading", d.append("status", retrieved.getValue()));
                 } else {
+                    logger.debug("Discarding endorsement {}: referenced nanopub {} is not a valid agent intro", d.get("_id"), d.getString("endorsedNanopub"));
                     set(s, "endorsements_loading", d.append("status", discarded.getValue()));
                 }
             }
+            logger.info("LOAD_DECLARATIONS at depth {} complete.", depth);
             schedule(s, EXPAND_TRUST_PATHS.with("depth", depth));
         }
 
@@ -296,6 +341,7 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
 
             int depth = taskDoc.getInteger("depth");
+            logger.info("Running EXPAND_TRUST_PATHS task at depth {}", depth);
 
             while (true) {
                 Document d = getOne(s, "accounts_loading",
@@ -364,8 +410,8 @@ public enum Task implements Serializable {
                     set(s, "accounts_loading", d.append("status", expanded.getValue()));
                 }
             }
+            logger.info("EXPAND_TRUST_PATHS at depth {} complete.", depth);
             schedule(s, LOAD_CORE.with("depth", depth).append("load-count", 0));
-
         }
 
         // At the end of this step, trust paths are updated to include
@@ -430,12 +476,15 @@ public enum Task implements Serializable {
             }
 
             if (agentAccount == null) {
+                logger.info("LOAD_CORE at depth {} complete: {} account(s) processed", depth, loadCount);
                 schedule(s, FINISH_ITERATION.with("depth", depth).append("load-count", loadCount));
             } else if (trustPath == null) {
+                logger.debug("Account {}/{} has no trust path at depth {}; marking skipped", agentId, pubkeyHash, depth);
                 // Account was seen but has no trust path at this depth; skip it
                 set(s, "accounts_loading", agentAccount.append("status", skipped.getValue()));
                 schedule(s, LOAD_CORE.with("depth", depth).append("load-count", loadCount));
             } else if (trustPath.getDouble("ratio") < MIN_TRUST_PATH_RATIO) {
+                logger.debug("Pubkey {}: trust path ratio {} below minimum {}; skipping core load, marking encountered", pubkeyHash, trustPath.getDouble("ratio"), MIN_TRUST_PATH_RATIO);
                 set(s, "accounts_loading", agentAccount.append("status", skipped.getValue()));
                 Document d = new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH);
                 if (!has(s, "lists", d)) {
@@ -443,6 +492,7 @@ public enum Task implements Serializable {
                 }
                 schedule(s, LOAD_CORE.with("depth", depth).append("load-count", loadCount + 1));
             } else {
+                logger.info("Pubkey {}: loading core (intro + endorsements) at depth {}", pubkeyHash, depth);
                 // TODO check intro limit
                 Document introList = new Document()
                         .append("pubkey", pubkeyHash)
@@ -463,6 +513,7 @@ public enum Task implements Serializable {
                 }
 
                 set(s, "lists", introList.append("status", loaded.getValue()));
+                logger.debug("Pubkey {}: intro list loaded", pubkeyHash);
 
                 // TODO check endorsement limit
                 Document endorseList = new Document()
@@ -476,6 +527,7 @@ public enum Task implements Serializable {
                 try (var stream = NanopubLoader.retrieveNanopubsFromPeers(ENDORSE_TYPE_HASH, pubkeyHash)) {
                     stream.forEach(m -> {
                         if (!m.isSuccess()) {
+                            logger.error("Pubkey {}: failed to download an endorsement nanopub; aborting LOAD_CORE task", pubkeyHash);
                             throw new AbortingTaskException("Failed to download nanopub; aborting task...");
                         }
                         Nanopub nanopub = m.getNanopub();
@@ -509,6 +561,7 @@ public enum Task implements Serializable {
                         }
                     });
                 }
+                logger.debug("Pubkey {}: endorsement list loaded", pubkeyHash);
 
                 set(s, "lists", endorseList.append("status", loaded.getValue()));
 
@@ -569,6 +622,7 @@ public enum Task implements Serializable {
         // DB write to:  accounts
 
         public void run(ClientSession s, Document taskDoc) {
+            logger.info("Running CALCULATE_TRUST_SCORES task");
 
             while (true) {
                 Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
@@ -615,8 +669,8 @@ public enum Task implements Serializable {
                                 .append("quota", quota)
                 );
             }
+            logger.info("CALCULATE_TRUST_SCORES complete");
             schedule(s, AGGREGATE_AGENTS);
-
         }
 
     },
@@ -627,6 +681,7 @@ public enum Task implements Serializable {
         // DB write to:  accounts, agents
 
         public void run(ClientSession s, Document taskDoc) {
+            logger.info("Running AGGREGATE_AGENTS task");
 
             while (true) {
                 Document a = getOne(s, "accounts_loading", new Document("status", processed.getValue()));
@@ -668,6 +723,7 @@ public enum Task implements Serializable {
                                 .append("name", chosenName)
                 );
             }
+            logger.info("AGGREGATE_AGENTS complete");
             schedule(s, ASSIGN_PUBKEYS);
 
         }
@@ -680,6 +736,9 @@ public enum Task implements Serializable {
         // DB write to:  accounts
 
         public void run(ClientSession s, Document taskDoc) {
+            logger.info("Running ASSIGN_PUBKEYS task");
+            int approvedCount = 0;
+            int contestedCount = 0;
 
             while (true) {
                 Document a = getOne(s, "accounts_loading", new DbEntryWrapper(aggregated).getDocument());
@@ -691,12 +750,16 @@ public enum Task implements Serializable {
                 if (collection("accounts_loading").countDocuments(s, pubkeyId) == 1) {
                     collection("accounts_loading").updateMany(s, pubkeyId,
                             new Document("$set", new DbEntryWrapper(approved).getDocument()));
+                    approvedCount++;
                 } else {
                     // TODO At the moment all get marked as 'contested'; implement more nuanced algorithm
+                    logger.debug("Pubkey {} is claimed by multiple accounts; marking contested", pubkeyId.getString("pubkey"));
                     collection("accounts_loading").updateMany(s, pubkeyId, new Document("$set",
                             new DbEntryWrapper(contested).getDocument()));
+                    contestedCount++;
                 }
             }
+            logger.info("ASSIGN_PUBKEYS complete: {} approved, {} contested", approvedCount, contestedCount);
             schedule(s, DETERMINE_UPDATES);
 
         }
@@ -709,6 +772,7 @@ public enum Task implements Serializable {
         // DB write to:  accounts
 
         public void run(ClientSession s, Document taskDoc) {
+            logger.info("Running DETERMINE_UPDATES task");
 
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(
@@ -722,6 +786,7 @@ public enum Task implements Serializable {
                     set(s, "accounts_loading", d.append("status", loaded.getValue()));
                 }
             }
+            logger.info("DETERMINE_UPDATES complete");
             schedule(s, FINALIZE_TRUST_STATE);
 
         }
@@ -732,8 +797,10 @@ public enum Task implements Serializable {
         // We do this is a separate task/transaction, because if we do it at the beginning of RELEASE_DATA, that task hangs and cannot
         // properly re-run (as some renaming outside of transactions will have taken place).
         public void run(ClientSession s, Document taskDoc) {
+            logger.info("Running FINALIZE_TRUST_STATE task");
             String newTrustStateHash = RegistryDB.calculateTrustStateHash(s);
             String previousTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");  // may be null
+            logger.info("Computed new trust state hash {} (previous: {})", newTrustStateHash, previousTrustStateHash);
             setValue(s, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate", ZonedDateTime.now().toString());
 
             schedule(s, RELEASE_DATA.with("newTrustStateHash", newTrustStateHash).append("previousTrustStateHash", previousTrustStateHash));
@@ -747,17 +814,20 @@ public enum Task implements Serializable {
 
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
+            logger.info("Running RELEASE_DATA task (current status: {})", status);
 
             String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
             String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
 
             // Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
+            logger.debug("Renaming loading collections into live collections");
             rename("accounts_loading", Collection.ACCOUNTS.toString());
             rename("trustPaths_loading", "trustPaths");
             rename("agents_loading", Collection.AGENTS.toString());
             rename("endorsements_loading", "endorsements");
 
             if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
+                logger.info("Trust state changed ({} -> {}); recording new state and snapshot", previousTrustStateHash, newTrustStateHash);
                 increaseStateCounter(s);
                 setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
                 Object trustStateCounter = getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter");
@@ -796,6 +866,7 @@ public enum Task implements Serializable {
                         new Document("_id", newTrustStateHash),
                         snapshot,
                         new ReplaceOptions().upsert(true));
+                logger.debug("Saved trust state snapshot {} with {} account(s)", newTrustStateHash, snapshotAccounts.size());
 
                 // Prune beyond retention: collect _ids of snapshots past the Nth most recent, delete them.
                 // trustStateCounter is monotonically increasing (see increaseStateCounter above), so ordering is well-defined.
@@ -811,18 +882,24 @@ public enum Task implements Serializable {
                     }
                 }
                 if (!toPrune.isEmpty()) {
+                    logger.info("Pruning {} trust state snapshot(s) beyond retention limit of {}", toPrune.size(), TRUST_STATE_SNAPSHOT_RETENTION);
                     collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).deleteMany(
                             s, new Document("_id", new Document("$in", toPrune)));
                 }
+            } else {
+                logger.info("Trust state unchanged ({}); skipping snapshot and pruning", newTrustStateHash);
             }
 
             if (status == coreLoading) {
+                logger.info("Server status transitioning coreLoading -> coreReady");
                 setServerStatus(s, coreReady);
             } else {
+                logger.info("Server status transitioning {} -> ready", status);
                 setServerStatus(s, ready);
             }
 
             // Run update after 1h:
+            logger.debug("RELEASE_DATA complete; scheduling next UPDATE in 1h");
             schedule(s, UPDATE.withDelay(60 * 60 * 1000));
         }
 
@@ -832,6 +909,7 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
             if (status == ready || status == coreReady) {
+                logger.info("Server status {} eligible for update; transitioning to updating and scheduling INIT_COLLECTIONS", status);
                 setServerStatus(s, updating);
                 schedule(s, INIT_COLLECTIONS);
             } else {
@@ -855,8 +933,9 @@ public enum Task implements Serializable {
             ServerStatus status = getServerStatus(s);
             logger.debug("Server status check for LOAD_FULL: status={}", status);
             if (status != coreReady && status != ready && status != updating) {
-                logger.info("Server status={} is not eligible for full load (expected coreReady/ready/updating); deferring and retrying in 1000ms", status);
-                schedule(s, LOAD_FULL.withDelay(1000));
+                long delay = 1000;
+                logger.info("Server status={} is not eligible for full load (expected coreReady/ready/updating); deferring and retrying in {}ms", status, delay);
+                schedule(s, LOAD_FULL.withDelay(delay));
                 return;
             }
 
@@ -867,8 +946,9 @@ public enum Task implements Serializable {
                     logger.info("Server status transitioning coreReady -> ready; full load finished");
                     setServerStatus(s, ready);
                 }
-                logger.info("Scheduling optional loading checks (RUN_OPTIONAL_LOAD) in 100ms");
-                schedule(s, RUN_OPTIONAL_LOAD.withDelay(100));
+                long delay = 100;
+                logger.info("Scheduling optional loading checks (RUN_OPTIONAL_LOAD) in {}ms", delay);
+                schedule(s, RUN_OPTIONAL_LOAD.withDelay(delay));
             } else {
                 final String ph = a.getString("pubkey");
                 boolean quotaReached = false;
@@ -1085,12 +1165,18 @@ public enum Task implements Serializable {
 
     CHECK_NEW {
         public void run(ClientSession s, Document taskDoc) {
+            logger.debug("Running CHECK_NEW task: checking peers and legacy source for new nanopubs");
+
+            logger.debug("Checking peers for new nanopubs");
             RegistryPeerConnector.checkPeers(s);
             // Keep legacy connection during transition period:
+            logger.debug("Checking legacy connector for new nanopubs");
             LegacyConnector.checkForNewNanopubs(s);
             // TODO Somehow throttle the loading of such potentially non-approved nanopubs
 
-            schedule(s, LOAD_FULL.withDelay(100));
+            long delay = 100;
+            logger.debug("CHECK_NEW complete; scheduling LOAD_FULL with {}ms delay", delay);
+            schedule(s, LOAD_FULL.withDelay(delay));
         }
 
         @Override
@@ -1287,6 +1373,7 @@ public enum Task implements Serializable {
     private static IntroNanopub getAgentIntro(ClientSession mongoSession, String nanopubId) {
         IntroNanopub agentIntro = new IntroNanopub(NanopubLoader.retrieveNanopub(mongoSession, nanopubId));
         if (agentIntro.getUser() == null) {
+            logger.debug("Nanopub {} is not a valid agent intro (no declared user); discarding", nanopubId);
             return null;
         }
         loadNanopub(mongoSession, agentIntro.getNanopub());
