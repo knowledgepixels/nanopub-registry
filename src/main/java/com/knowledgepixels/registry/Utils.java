@@ -13,13 +13,16 @@ import org.apache.commons.lang.StringUtils;
 import org.commonjava.mimeparse.MIMEParse;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.util.Values;
+import org.eclipse.rdf4j.model.vocabulary.FOAF;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
+import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 import org.nanopub.vocabulary.NPX;
 import org.slf4j.Logger;
@@ -421,10 +424,10 @@ public class Utils {
      * {@code foaf:name} literals are asserted on the same agent, the lexicographic
      * minimum is returned for deterministic behaviour across rebuilds.
      */
-    public static String extractIntroName(org.nanopub.extra.setting.IntroNanopub agentIntro) {
+    public static String extractIntroName(IntroNanopub agentIntro) {
         IRI agentIri = agentIntro.getUser();
         if (agentIri == null) {
-            logger.debug("Intro nanopub {} has no user IRI; cannot extract name", agentIntro.getNanopub().getUri());
+            logger.debug("Intro nanopub has no user IRI; cannot extract name");
             return null;
         }
         String chosen = null;
@@ -432,10 +435,10 @@ public class Utils {
             if (!st.getSubject().equals(agentIri)) {
                 continue;
             }
-            if (!st.getPredicate().equals(org.eclipse.rdf4j.model.vocabulary.FOAF.NAME)) {
+            if (!st.getPredicate().equals(FOAF.NAME)) {
                 continue;
             }
-            if (!(st.getObject() instanceof org.eclipse.rdf4j.model.Literal)) {
+            if (!(st.getObject() instanceof Literal)) {
                 continue;
             }
             String candidate = st.getObject().stringValue();
