@@ -106,4 +106,5 @@ public final class MetricsCollector {
     private int countDocumentsInCollection(ClientSession session, String collectionName) {
         return (int) collection(collectionName).countDocuments(session);
     }
+
 }

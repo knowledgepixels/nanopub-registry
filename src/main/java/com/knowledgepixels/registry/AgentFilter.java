@@ -14,13 +14,13 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
 /**
  * Controls which pubkeys are allowed to publish nanopubs and what their quotas are.
  * Configured via REGISTRY_COVERAGE_AGENTS env var.
- *
+ * <p>
  * Format: whitespace-separated entries, each being either:
  * - "viaSetting" — include all agents approved by the trust network (with computed quotas)
  * - "pubkeyHash:quota" — include a specific pubkey with an explicit quota
- *
+ * <p>
  * Example: viaSetting abc123...def456:5000 789xyz...abc012:10000
- *
+ * <p>
  * When unset, defaults to viaSetting (all trusted agents, no restrictions).
  */
 public final class AgentFilter {
@@ -31,18 +31,23 @@ public final class AgentFilter {
     private static volatile boolean enforceQuota = false;
     private static volatile Map<String, Integer> explicitPubkeys = Collections.emptyMap();
 
-    private AgentFilter() {}
+    private AgentFilter() {
+    }
 
     /**
      * Initializes the agent filter from the REGISTRY_COVERAGE_AGENTS env var.
      */
     public static void init() {
         String config = Utils.getEnv("REGISTRY_COVERAGE_AGENTS", "viaSetting");
+        logger.debug("Initializing AgentFilter from REGISTRY_COVERAGE_AGENTS='{}'", config);
+
         boolean via = false;
         Map<String, Integer> pubkeys = new HashMap<>();
 
         for (String entry : config.trim().split("\\s+")) {
-            if (entry.isEmpty()) continue;
+            if (entry.isEmpty()) {
+                continue;
+            }
             if ("viaSetting".equals(entry)) {
                 via = true;
             } else if (entry.contains(":")) {
@@ -52,14 +57,13 @@ public final class AgentFilter {
                 try {
                     quota = Integer.parseInt(parts[1]);
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException(
-                            "Invalid quota in REGISTRY_COVERAGE_AGENTS: " + entry);
+                    logger.error("Failed to parse quota in REGISTRY_COVERAGE_AGENTS entry '{}': '{}' is not a valid integer", entry, parts[1]);
+                    throw new IllegalArgumentException("Invalid quota in REGISTRY_COVERAGE_AGENTS: " + entry);
                 }
                 pubkeys.put(pubkeyHash, quota);
             } else {
-                throw new IllegalArgumentException(
-                        "Invalid entry in REGISTRY_COVERAGE_AGENTS: " + entry
-                                + " (expected 'viaSetting' or 'pubkeyHash:quota')");
+                logger.error("Unrecognized entry in REGISTRY_COVERAGE_AGENTS: '{}'", entry);
+                throw new IllegalArgumentException("Invalid entry in REGISTRY_COVERAGE_AGENTS: " + entry + " (expected 'viaSetting' or 'pubkeyHash:quota')");
             }
         }
 
@@ -74,10 +78,11 @@ public final class AgentFilter {
         } else {
             logger.info("Agent filter: {} explicit pubkeys only", pubkeys.size());
         }
+        logger.info("Quota enforcement (REGISTRY_ENFORCE_QUOTA): {}", enforceQuota);
 
         if (via && "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
             logger.warn("viaSetting is enabled but trust calculation is disabled — " +
-                    "no agents will be discovered via the trust network; only explicit pubkeys will work");
+                        "no agents will be discovered via the trust network; only explicit pubkeys will work");
         }
     }
 
@@ -103,7 +108,9 @@ public final class AgentFilter {
     public static int getQuota(ClientSession session, String pubkeyHash) {
         // Explicit pubkeys take precedence
         if (explicitPubkeys.containsKey(pubkeyHash)) {
-            return explicitPubkeys.get(pubkeyHash);
+            int quota = explicitPubkeys.get(pubkeyHash);
+            logger.trace("Pubkey {}: quota={} (explicit config)", pubkeyHash, quota);
+            return quota;
         }
 
         // Check trust network if enabled
@@ -111,16 +118,21 @@ public final class AgentFilter {
             Document account = collection(Collection.ACCOUNTS.toString()).find(session,
                     new Document("pubkey", pubkeyHash).append("status", "loaded")).first();
             if (account != null && account.get("quota") != null) {
-                return account.getInteger("quota");
+                int quota = account.getInteger("quota");
+                logger.trace("Pubkey {}: quota={} (account status=loaded)", pubkeyHash, quota);
+                return quota;
             }
             // Also accept toLoad accounts (approved but not yet fully loaded)
             account = collection(Collection.ACCOUNTS.toString()).find(session,
                     new Document("pubkey", pubkeyHash).append("status", "toLoad")).first();
             if (account != null && account.get("quota") != null) {
-                return account.getInteger("quota");
+                int quota = account.getInteger("quota");
+                logger.trace("Pubkey {}: quota={} (account status=toLoad)", pubkeyHash, quota);
+                return quota;
             }
         }
 
+        logger.trace("Pubkey {}: no quota found (not allowed)", pubkeyHash);
         return -1; // not allowed
     }
 
@@ -129,8 +141,14 @@ public final class AgentFilter {
      * Always returns true if quota enforcement is disabled.
      */
     public static boolean isAllowed(ClientSession session, String pubkeyHash) {
-        if (!enforceQuota) return true;
-        return getQuota(session, pubkeyHash) >= 0;
+        if (!enforceQuota) {
+            return true;
+        }
+        boolean allowed = getQuota(session, pubkeyHash) >= 0;
+        if (!allowed) {
+            logger.debug("Pubkey {}: not allowed (no quota entry found)", pubkeyHash);
+        }
+        return allowed;
     }
 
     /**
@@ -138,9 +156,14 @@ public final class AgentFilter {
      * Always returns false if quota enforcement is disabled.
      */
     public static boolean isOverQuota(ClientSession session, String pubkeyHash) {
-        if (!enforceQuota) return false;
+        if (!enforceQuota) {
+            return false;
+        }
         int quota = getQuota(session, pubkeyHash);
-        if (quota < 0) return true; // not allowed at all
+        if (quota < 0) {
+            logger.debug("Pubkey {}: treated as over quota (not allowed at all)", pubkeyHash);
+            return true; // not allowed at all
+        }
 
         // Count nanopubs for this pubkey via the "$" list position
         Document listDoc = collection("lists").find(session,
@@ -148,6 +171,13 @@ public final class AgentFilter {
         long currentCount = (listDoc != null && listDoc.get("maxPosition") != null)
                 ? listDoc.getLong("maxPosition") + 1 : 0;
 
-        return currentCount >= quota;
+        boolean over = currentCount >= quota;
+        if (over) {
+            logger.debug("Pubkey {}: over quota ({} / {})", pubkeyHash, currentCount, quota);
+        } else {
+            logger.trace("Pubkey {}: under quota ({} / {})", pubkeyHash, currentCount, quota);
+        }
+        return over;
     }
+
 }

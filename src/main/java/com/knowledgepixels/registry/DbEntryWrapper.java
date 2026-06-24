@@ -30,7 +30,7 @@ public class DbEntryWrapper {
      */
     public DbEntryWrapper(EntryStatus status) {
         this.document = new Document(statusField, status.getValue());
-        logger.debug("Created DbEntryWrapper with status='{}'", status.getValue());
+        logger.debug("Created DbEntryWrapper with status='{}' (no existing document)", status.getValue());
     }
 
     /**
@@ -40,6 +40,7 @@ public class DbEntryWrapper {
      */
     public DbEntryWrapper(Document document) {
         this.document = document;
+        logger.debug("Created DbEntryWrapper wrapping existing document, current status='{}'", document.getString(statusField));
     }
 
     /**
@@ -49,7 +50,9 @@ public class DbEntryWrapper {
      * @param status   The status of the entry.
      */
     public DbEntryWrapper(Document document, EntryStatus status) {
+        String previousStatus = document.getString(statusField);
         this.document = document.append(statusField, status.getValue());
+        logger.debug("Created DbEntryWrapper wrapping existing document, status set to '{}' (was '{}')", status.getValue(), previousStatus);
     }
 
     /**
@@ -67,7 +70,9 @@ public class DbEntryWrapper {
      * @param status The new status of the entry.
      */
     public void setStatus(EntryStatus status) {
-        document.append(statusField, status.getValue());
+        String previousStatus = this.document.getString(statusField);
+        this.document.append(statusField, status.getValue());
+        logger.debug("Status updated to '{}' (was '{}')", status.getValue(), previousStatus);
     }
 
 }
