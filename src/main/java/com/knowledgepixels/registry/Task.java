@@ -259,6 +259,11 @@ public enum Task implements Serializable {
                     String introName = Utils.extractIntroName(agentIntro);
                     Calendar introCreatedCal = SimpleTimestampPattern.getCreationTime(agentIntro.getNanopub());
                     Date introCreatedAt = (introCreatedCal == null) ? null : introCreatedCal.getTime();
+                    // The authorizing introduction for this (agent, pubkey): it carries the
+                    // KeyDeclaration for the pubkey. Recorded alongside the name and kept in sync
+                    // with it (latest-dct:created wins), so it reflects one authorizing intro —
+                    // the name-winning one — not the complete set of intros for this account.
+                    String introNp = agentIntro.getNanopub().getUri().stringValue();
 
                     for (KeyDeclaration kd : agentIntro.getKeyDeclarations()) {
                         String sourceAgent = d.getString("agent");
@@ -289,7 +294,8 @@ public enum Task implements Serializable {
                                     .append("status", seen.getValue())
                                     .append("depth", depth)
                                     .append("name", introName)
-                                    .append("nameCreatedAt", introCreatedAt));
+                                    .append("nameCreatedAt", introCreatedAt)
+                                    .append("introNanopub", introNp));
                         } else if (introName != null) {
                             // Per-(agent, pubkey) name policy: keep the name from the intro
                             // with the latest dct:created. First write wins when no current
@@ -299,7 +305,8 @@ public enum Task implements Serializable {
                                 || (introCreatedAt != null && introCreatedAt.after(currentCreatedAt))) {
                                 set(s, "accounts_loading", existing
                                         .append("name", introName)
-                                        .append("nameCreatedAt", introCreatedAt));
+                                        .append("nameCreatedAt", introCreatedAt)
+                                        .append("introNanopub", introNp));
                             }
                         }
                     }
@@ -850,6 +857,7 @@ public enum Task implements Serializable {
                             .append("agent", a.getString("agent"))
                             .append("name", a.getString("name"))
                             .append("nameCreatedAt", a.get("nameCreatedAt"))
+                            .append("introNanopub", a.getString("introNanopub"))
                             .append("status", a.getString("status"))
                             .append("depth", a.get("depth"))
                             .append("pathCount", a.get("pathCount"))
