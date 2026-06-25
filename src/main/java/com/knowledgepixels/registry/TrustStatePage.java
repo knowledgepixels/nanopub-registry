@@ -185,6 +185,10 @@ public class TrustStatePage extends Page {
                         print(" (" + name + ")");
                     }
                 }
+                String introNanopub = a.getString("introNanopub");
+                if (introNanopub != null && !introNanopub.isBlank()) {
+                    print(" via <a href=\"" + Utils.urlEncode(introNanopub) + "\">intro</a>");
+                }
                 print(", status: " + a.get("status"));
                 print(", depth: " + a.get("depth"));
                 if (a.get("pathCount") != null) print(", pathCount: " + a.get("pathCount"));
