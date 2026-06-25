@@ -3,6 +3,7 @@ package com.knowledgepixels.registry;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import io.vertx.ext.web.RoutingContext;
+import net.trustyuri.TrustyUriUtils;
 import org.bson.Document;
 
 import java.io.IOException;
@@ -187,7 +188,9 @@ public class TrustStatePage extends Page {
                 }
                 String introNanopub = a.getString("introNanopub");
                 if (introNanopub != null && !introNanopub.isBlank()) {
-                    print(" via <a href=\"" + Utils.urlEncode(introNanopub) + "\">intro</a>");
+                    // introNanopub is a full nanopub URI; link via the in-registry /np/<artifactCode>
+                    // convention (see ListPage), not urlEncode (that escapes the scheme too).
+                    print(" via <a href=\"/np/" + TrustyUriUtils.getArtifactCode(introNanopub) + "\">intro</a>");
                 }
                 print(", status: " + a.get("status"));
                 print(", depth: " + a.get("depth"));
