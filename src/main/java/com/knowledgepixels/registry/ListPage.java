@@ -7,10 +7,11 @@ import io.vertx.ext.web.RoutingContext;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.nanopub.jelly.NanopubStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URLEncoder;
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
@@ -26,17 +27,20 @@ import static com.mongodb.client.model.Projections.include;
 public class ListPage extends Page {
 
     private static final Gson gson = new Gson();
+    private static final Logger logger = LoggerFactory.getLogger(ListPage.class);
 
     public static void show(RoutingContext context) {
         ListPage page;
+        logger.info("Received list request: {}", context.request().path());
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             // No transaction here: the nanopubs.jelly endpoint streams large result sets
             // that would exceed MongoDB's transaction timeout.
             page = new ListPage(s, context);
             page.show();
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.warn("Failed to show list for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
         } finally {
+            logger.debug("Ending response for list request: {}", context.request().path());
             context.response().end();
         }
     }
@@ -50,6 +54,9 @@ public class ListPage extends Page {
         String format;
         String ext = getExtension();
         final String req = getRequestString();
+
+        logger.debug("Preparing list response for request: {} (ext={})", getFullRequest(), ext);
+
         if ("json".equals(ext)) {
             format = TYPE_JSON;
         } else if ("jelly".equals(ext)) {
@@ -57,19 +64,24 @@ public class ListPage extends Page {
         } else if (ext == null || "html".equals(ext)) {
             format = Utils.getMimeType(context, SUPPORTED_TYPES_LIST);
         } else {
+            logger.warn("Invalid list request (unsupported extension) for {}: {}", getFullRequest(), ext);
             context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
             return;
         }
 
         if (getPresentationFormat() != null) {
             setRespContentType(getPresentationFormat());
+            logger.debug("Overriding response content type with presentation format: {}", getPresentationFormat());
         } else {
             setRespContentType(format);
+            logger.debug("Set response content type: {}", format);
         }
 
         if (req.matches("/list/[0-9a-f]{64}/([0-9a-f]{64}|\\$)")) {
             String pubkey = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$1");
             String type = req.replaceFirst("/list/([0-9a-f]{64})/([0-9a-f]{64}|\\$)", "$2");
+
+            logger.info("Serving list for pubkey={} type={} format={}", getLabel(pubkey), getLabel(type), format);
 
             if (TYPE_JELLY.equals(format)) {
                 // Determine start position from afterChecksums parameter (comma-separated, geometric fallback)
@@ -78,7 +90,9 @@ public class ListPage extends Page {
                 if (afterChecksums != null) {
                     for (String checksum : afterChecksums.split(",")) {
                         checksum = checksum.trim();
-                        if (checksum.isEmpty()) continue;
+                        if (checksum.isEmpty()) {
+                            continue;
+                        }
                         Document match = collection("listEntries").find(mongoSession,
                                 new Document("pubkey", pubkey).append("type", type).append("checksum", checksum)).first();
                         if (match != null) {
@@ -98,15 +112,18 @@ public class ListPage extends Page {
                 List<Bson> pipeline = List.of(match(matchFilter), sort(ascending("position")),
                         lookup("nanopubs", "np", "_id", "nanopub"), project(new Document("jelly", "$nanopub.jelly")), unwind("$jelly"));
                 try (var result = collection("listEntries").aggregate(mongoSession, pipeline).cursor()) {
+                    logger.info("Streaming Jelly nanopubs for pubkey={} type={} afterPosition={}", getLabel(pubkey), getLabel(type), afterPosition);
                     NanopubStream npStream = NanopubStream.fromMongoCursor(result);
                     BufferOutputStream outputStream = new BufferOutputStream();
                     npStream.writeToByteStream(outputStream);
                     context.response().write(outputStream.getBuffer());
+                    logger.info("Finished streaming Jelly nanopubs for pubkey={} type={}", getLabel(pubkey), getLabel(type));
                 }
             } else {
                 MongoCursor<Document> c = collection("listEntries").find(mongoSession, new Document("pubkey", pubkey).append("type", type)).projection(exclude("_id")).sort(ascending("position")).cursor();
 
                 if (TYPE_JSON.equals(format)) {
+                    int count = 0;
                     println("[");
                     while (c.hasNext()) {
                         Document d = c.next();
@@ -115,9 +132,12 @@ public class ListPage extends Page {
                         d.replace("position", d.getLong("position").intValue());
                         print(d.toJson());
                         println(c.hasNext() ? "," : "");
+                        count++;
                     }
                     println("]");
+                    logger.info("Served {} list entries for pubkey={} type={} (format=json)", count, getLabel(pubkey), getLabel(type));
                 } else {
+                    int listed = 0;
                     printHtmlHeader("List for pubkey " + getLabel(pubkey) + " / type " + getLabel(type) + " - Nanopub Registry");
                     println("<h1>List</h1>");
                     println("<p><a href=\"/list/" + pubkey + "\">&lt; Pubkey</a></p>");
@@ -135,22 +155,28 @@ public class ListPage extends Page {
                     while (c.hasNext()) {
                         Document d = c.next();
                         println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + getLabel(d.getString("np")) + "</code></a></li>");
+                        listed++;
                     }
                     println("</ol>");
                     printHtmlFooter();
+                    logger.info("Listed {} entries for pubkey={} type={} (format=html)", listed, getLabel(pubkey), getLabel(type));
                 }
             }
         } else if (req.matches("/list/[0-9a-f]{64}")) {
             String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
             MongoCursor<Document> c = collection("lists").find(mongoSession, new Document("pubkey", pubkey)).projection(exclude("_id")).cursor();
             if (TYPE_JSON.equals(format)) {
+                int count = 0;
                 println("[");
                 while (c.hasNext()) {
                     print(c.next().toJson());
                     println(c.hasNext() ? "," : "");
+                    count++;
                 }
                 println("]");
+                logger.info("Served {} account documents for pubkey={} (format=json)", count, getLabel(pubkey));
             } else {
+                int listed = 0;
                 printHtmlHeader("Accounts for Pubkey " + getLabel(pubkey) + " - Nanopub Registry");
                 println("<h1>Accounts for Pubkey " + getLabel(pubkey) + "</h1>");
                 println("<p><a href=\"/list\">&lt; Current Trust State</a></p>");
@@ -175,20 +201,26 @@ public class ListPage extends Page {
                         println("(type " + (typeUri != null ? typeUri : type) + ")");
                     }
                     println("</li>");
+                    listed++;
                 }
                 println("</ol>");
                 printHtmlFooter();
+                logger.info("Listed {} entry lists for pubkey={} (format=html)", listed, getLabel(pubkey));
             }
         } else if (req.equals("/list")) {
             try (var c = collection(Collection.ACCOUNTS.toString()).find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor()) {
                 if (TYPE_JSON.equals(format)) {
+                    int count = 0;
                     println("[");
                     while (c.hasNext()) {
                         print(c.next().toJson());
                         println(c.hasNext() ? "," : "");
+                        count++;
                     }
                     println("]");
+                    logger.info("Served {} accounts (format=json) for {}", count, getFullRequest());
                 } else {
+                    int listed = 0;
                     printHtmlHeader("Current Trust State - Nanopub Registry");
                     println("<h1>Current Trust State</h1>");
                     println("<p><a href=\"/\">&lt; Home</a></p>");
@@ -231,14 +263,17 @@ public class ListPage extends Page {
                             }
                             println("");
                             println("</li>");
+                            listed++;
                         }
                     }
                     println("</ol>");
                     printHtmlFooter();
+                    logger.info("Listed {} accounts (format=html) for {}", listed, getFullRequest());
                 }
             }
         } else if (req.equals("/agent") && context.request().getParam("id") != null) {
             String agentId = context.request().getParam("id");
+            logger.info("Serving agent detail for id={} format={}", Utils.getAgentLabel(agentId), format);
             if (TYPE_JSON.equals(format)) {
                 print(AgentInfo.get(mongoSession, agentId).asJson());
             } else {
@@ -270,14 +305,18 @@ public class ListPage extends Page {
             }
         } else if (req.equals("/agentAccounts") && context.request().getParam("id") != null) {
             String agentId = context.request().getParam("id");
+            logger.info("Serving agent accounts for id={} format={}", Utils.getAgentLabel(agentId), format);
             MongoCursor<Document> c = collection(Collection.ACCOUNTS.toString()).find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
             if (TYPE_JSON.equals(format)) {
+                int count = 0;
                 println("[");
                 while (c.hasNext()) {
                     print(c.next().toJson());
                     println(c.hasNext() ? "," : "");
+                    count++;
                 }
                 println("]");
+                logger.info("Served {} agent accounts for id={} (format=json)", count, Utils.getAgentLabel(agentId));
             } else {
                 Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
                 String agentName = (agentDoc != null) ? agentDoc.getString("name") : null;
@@ -292,6 +331,7 @@ public class ListPage extends Page {
                 println("</p>");
                 println("<h3>Account List</h3>");
                 println("<ul>");
+                int listed = 0;
                 while (c.hasNext()) {
                     Document d = c.next();
                     String pubkey = d.getString("pubkey");
@@ -305,20 +345,26 @@ public class ListPage extends Page {
                     String accountName = d.getString("name");
                     String nameSuffix = (accountName != null && !accountName.isBlank()) ? " (" + accountName + ")" : "";
                     println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>" + nameSuffix + " (" + d.get("status") + "), " + "count " + npCount + ", " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
+                    listed++;
                 }
                 println("</ul>");
                 printHtmlFooter();
+                logger.info("Listed {} accounts for agent id={} (format=html)", listed, Utils.getAgentLabel(agentId));
             }
         } else if (req.equals("/agents")) {
             MongoCursor<Document> c = collection(Collection.AGENTS.toString()).find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
             if (TYPE_JSON.equals(format)) {
+                int count = 0;
                 println("[");
                 while (c.hasNext()) {
                     print(c.next().toJson());
                     println(c.hasNext() ? "," : "");
+                    count++;
                 }
                 println("]");
+                logger.info("Served {} agents (format=json)", count);
             } else {
+                int listed = 0;
                 printHtmlHeader("Agent List - Nanopub Registry");
                 println("<h1>Agent List</h1>");
                 println("<p><a href=\"/\">&lt; Home</a></p>");
@@ -331,15 +377,19 @@ public class ListPage extends Page {
                 println("<ol>");
                 while (c.hasNext()) {
                     Document d = c.next();
-                    if (d.get("agent").equals("$")) continue;
+                    if (d.get("agent").equals("$")) {
+                        continue;
+                    }
                     String a = d.getString("agent");
                     int accountCount = d.getInteger("accountCount");
                     String name = d.getString("name");
                     String nameSuffix = (name != null && !name.isBlank()) ? " (" + name + ")" : "";
                     println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>" + nameSuffix + ", " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
+                    listed++;
                 }
                 println("</ol>");
                 printHtmlFooter();
+                logger.info("Listed {} agents (format=html)", listed);
             }
         } else if (req.equals("/nanopubs")) {
             if (TYPE_JELLY.equals(format)) {
@@ -348,9 +398,11 @@ public class ListPage extends Page {
                 try {
                     afterCounter = Long.parseLong(getParam("afterCounter", "-1"));
                 } catch (NumberFormatException ex) {
+                    logger.warn("Invalid afterCounter parameter for {}: {} ({})", getFullRequest(), getParam("afterCounter", ""), ex);
                     context.response().setStatusCode(400).setStatusMessage("Invalid afterCounter parameter.");
                     return;
                 }
+                logger.info("Streaming nanopubs.jelly afterCounter={}", afterCounter);
                 var pipeline = collection(Collection.NANOPUBS.toString()).find(mongoSession).filter(gt("counter", afterCounter)).sort(ascending("counter"))
                         .projection(include("jelly", "counter"));
 
@@ -360,6 +412,7 @@ public class ListPage extends Page {
                     npStream.writeToByteStream(outputStream);
                     context.response().write(outputStream.getBuffer());
                 }
+                logger.info("Finished streaming nanopubs.jelly for {}", getFullRequest());
             } else {
                 // Return nanopubs as streamed JSON or HTML
                 String sortParam = getParam("sort", "date");
@@ -376,18 +429,23 @@ public class ListPage extends Page {
                         filter = new Document();
                         sort = descending("counter");
                     }
+                    int count = 0;
                     try (MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession)
                             .filter(filter).sort(sort)
                             .projection(include("_id")).cursor()) {
                         println("[");
                         boolean first = true;
                         while (c.hasNext()) {
-                            if (!first) println(",");
+                            if (!first) {
+                                println(",");
+                            }
                             first = false;
                             print(gson.toJson(c.next().getString("_id")));
+                            count++;
                         }
                         println("\n]");
                     }
+                    logger.info("Served {} nanopub ids (format=json, sort={})", count, sortParam);
                 } else {
                     printHtmlHeader("Nanopubs - Nanopub Registry");
                     println("<h1>Nanopubs</h1>");
@@ -406,27 +464,34 @@ public class ListPage extends Page {
                     println("<p><a href=\"nanopubs.jelly\">.jelly</a></p>");
                     println("<h3>Latest Nanopubs (max. 1000)</h3>");
                     println("<ol>");
+                    int listed = 0;
                     try (MongoCursor<Document> c = collection(Collection.NANOPUBS.toString()).find(mongoSession)
                             .sort(descending("counter")).limit(1000).cursor()) {
                         while (c.hasNext()) {
                             String npId = c.next().getString("_id");
                             println("<li><a href=\"/np/" + npId + "\"><code>" + getLabel(npId) + "</code></a></li>");
+                            listed++;
                         }
                     }
                     println("</ol>");
                     printHtmlFooter();
+                    logger.info("Listed {} latest nanopubs (format=html)", listed);
                 }
             }
         } else if (req.equals("/pubkeys")) {
             try (var c = collection("lists").distinct(mongoSession, "pubkey", String.class).cursor()) {
                 if (TYPE_JSON.equals(format)) {
+                    int count = 0;
                     println("[");
                     while (c.hasNext()) {
                         print(gson.toJson(c.next()));
                         println(c.hasNext() ? "," : "");
+                        count++;
                     }
                     println("]");
+                    logger.info("Served {} pubkeys (format=json)", count);
                 } else {
+                    int listed = 0;
                     printHtmlHeader("Pubkey List - Nanopub Registry");
                     println("<h1>Pubkey List</h1>");
                     println("<p><a href=\"/\">&lt; Home</a></p>");
@@ -443,20 +508,27 @@ public class ListPage extends Page {
                             println("<li>");
                             println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
                             println("</li>");
+                            listed++;
                         }
                     }
                     println("</ol>");
                     printHtmlFooter();
+                    logger.info("Listed {} pubkeys (format=html)", listed);
                 }
             }
         } else {
+            logger.warn("Invalid list request path: {}", getFullRequest());
             context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
     }
 
     private static String getLabel(Object obj) {
-        if (obj == null) return null;
-        if (obj.toString().length() < 10) return obj.toString();
+        if (obj == null) {
+            return null;
+        }
+        if (obj.toString().length() < 10) {
+            return obj.toString();
+        }
         return obj.toString().substring(0, 10);
     }
 

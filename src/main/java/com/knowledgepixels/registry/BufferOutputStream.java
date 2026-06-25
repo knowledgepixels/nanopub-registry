@@ -1,6 +1,8 @@
 package com.knowledgepixels.registry;
 
 import io.vertx.core.buffer.Buffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.OutputStream;
 
@@ -9,6 +11,8 @@ import java.io.OutputStream;
  */
 public class BufferOutputStream extends OutputStream {
 
+    private static final Logger logger = LoggerFactory.getLogger(BufferOutputStream.class);
+
     private final Buffer buffer;
 
     /**
@@ -16,6 +20,7 @@ public class BufferOutputStream extends OutputStream {
      */
     public BufferOutputStream() {
         buffer = Buffer.buffer();
+        logger.debug("BufferOutputStream created with empty buffer");
     }
 
     /**
@@ -25,6 +30,7 @@ public class BufferOutputStream extends OutputStream {
      * @return a copy of the internal {@link Buffer}.
      */
     public Buffer getBuffer() {
+        logger.debug("Returning copy of buffer, total size={} bytes", buffer.length());
         return this.buffer.copy();
     }
 
@@ -45,6 +51,7 @@ public class BufferOutputStream extends OutputStream {
      */
     @Override
     public void write(byte[] bytes) {
+        logger.trace("Appending {} bytes to buffer (new total will be {} bytes)", bytes.length, buffer.length() + bytes.length);
         buffer.appendBytes(bytes);
     }
 
@@ -57,6 +64,7 @@ public class BufferOutputStream extends OutputStream {
      */
     @Override
     public void write(byte[] bytes, int offset, int len) {
+        logger.trace("Appending {} bytes (offset={}) to buffer (new total will be {} bytes)", len, offset, buffer.length() + len);
         buffer.appendBytes(bytes, offset, len);
     }
 

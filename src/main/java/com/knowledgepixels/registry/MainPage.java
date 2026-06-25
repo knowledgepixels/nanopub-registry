@@ -2,6 +2,8 @@ package com.knowledgepixels.registry;
 
 import com.mongodb.client.ClientSession;
 import io.vertx.ext.web.RoutingContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -9,15 +11,19 @@ import static com.knowledgepixels.registry.RegistryDB.*;
 
 public class MainPage extends Page {
 
+    private static final Logger logger = LoggerFactory.getLogger(MainPage.class);
+
     public static void show(RoutingContext context) {
         MainPage page;
+        logger.info("Received main request: {}", context.request().path());
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             s.startTransaction();
             page = new MainPage(s, context);
             page.show();
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.warn("Failed to show main page for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
         } finally {
+            logger.debug("Ending response for main request: {}", context.request().path());
             context.response().end();
             // TODO Clean-up here?
         }
@@ -31,23 +37,30 @@ public class MainPage extends Page {
         RoutingContext c = getContext();
         String format;
         String ext = getExtension();
+
+        logger.debug("Preparing main page response for request: {} (ext={})", getFullRequest(), ext);
+
         if ("json".equals(ext)) {
             format = "application/json";
         } else if (ext == null || "html".equals(ext)) {
             String suppFormats = "application/json,text/html";
             format = Utils.getMimeType(c, suppFormats);
         } else {
+            logger.warn("Invalid main request (unsupported extension) for {}: {}", getFullRequest(), ext);
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
             return;
         }
 
         if (getPresentationFormat() != null) {
             setRespContentType(getPresentationFormat());
+            logger.debug("Overriding response content type with presentation format: {}", getPresentationFormat());
         } else {
             setRespContentType(format);
+            logger.debug("Set response content type: {}", format);
         }
 
         if ("application/json".equals(format)) {
+            logger.info("Serving main registry info as JSON for {}", getFullRequest());
             println(RegistryInfo.getLocal(mongoSession).asJson());
         } else {
             String status = serverInfo.get("status") != null ? serverInfo.get("status").toString() : "launching";
@@ -79,7 +92,9 @@ public class MainPage extends Page {
                 println("<li><em>lastTrustStateUpdate:</em> null</li>");
             }
             Object trustStateHash = serverInfo.get("trustStateHash");
-            if (trustStateHash != null) trustStateHash = trustStateHash.toString().substring(0, 10);
+            if (trustStateHash != null) {
+                trustStateHash = trustStateHash.toString().substring(0, 10);
+            }
             println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");
             String oSetting = getValue(mongoSession, Collection.SETTING.toString(), "original").toString();
             println("<li><em>originalSetting:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");

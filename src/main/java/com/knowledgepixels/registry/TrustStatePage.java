@@ -4,12 +4,15 @@ import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import io.vertx.ext.web.RoutingContext;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.Utils.*;
+import static com.knowledgepixels.registry.Utils.TYPE_HTML;
+import static com.knowledgepixels.registry.Utils.TYPE_JSON;
 import static com.mongodb.client.model.Projections.exclude;
 import static com.mongodb.client.model.Sorts.descending;
 
@@ -28,17 +31,21 @@ import static com.mongodb.client.model.Sorts.descending;
  */
 public class TrustStatePage extends Page {
 
+    private static final Logger logger = LoggerFactory.getLogger(TrustStatePage.class);
+
     private static final String SUPPORTED_TYPES = TYPE_JSON + "," + TYPE_HTML;
 
     public static void show(RoutingContext context) {
         TrustStatePage page;
+        logger.info("Received trust-state request: {}", context.request().path());
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             s.startTransaction();
             page = new TrustStatePage(s, context);
             page.show();
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.warn("Failed to show trust-state for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
         } finally {
+            logger.debug("Ending response for trust-state request: {}", context.request().path());
             context.response().end();
         }
     }
@@ -52,33 +59,42 @@ public class TrustStatePage extends Page {
         String req = getRequestString();
         String ext = getExtension();
 
+        logger.debug("Preparing trust-state response for request: {} (ext={})", getFullRequest(), ext);
+
         String format;
         if ("json".equals(ext)) {
             format = TYPE_JSON;
         } else if (ext == null || "html".equals(ext)) {
             format = Utils.getMimeType(c, SUPPORTED_TYPES);
         } else {
+            logger.warn("Invalid trust-state request (unsupported extension) for {}: {}", getFullRequest(), ext);
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
             return;
         }
 
         if (getPresentationFormat() != null) {
             setRespContentType(getPresentationFormat());
+            logger.debug("Overriding response content type with presentation format: {}", getPresentationFormat());
         } else {
             setRespContentType(format);
+            logger.debug("Set response content type: {}", format);
         }
 
         if ("/trust-state".equals(req) || "/trust-state/".equals(req)) {
             showList(format);
         } else if (req.matches("/trust-state/[A-Za-z0-9_\\-]+")) {
             String hash = req.substring("/trust-state/".length());
+            logger.debug("Resolved snapshot hash '{}' from request path", hash);
             showDetail(hash, format);
         } else {
+            logger.warn("Invalid trust-state request path: {}", getFullRequest());
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
     }
 
     private void showList(String format) {
+        int listed = 0;
+        logger.debug("Querying trust-state snapshots collection (format={})", format);
         // Metadata only — the accounts array is heavy and not needed in the index.
         try (MongoCursor<Document> it = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
                 .find(mongoSession)
@@ -95,8 +111,10 @@ public class TrustStatePage extends Page {
                             .append("createdAt", d.get("createdAt"));
                     print(out.toJson());
                     println(it.hasNext() ? "," : "");
+                    listed++;
                 }
                 println("]");
+                logger.info("Listed {} trust-state snapshots (format=json) for {}", listed, getFullRequest());
             } else {
                 printHtmlHeader("Trust State History - Nanopub Registry");
                 println("<h1>Trust State History</h1>");
@@ -122,21 +140,26 @@ public class TrustStatePage extends Page {
                 }
                 println("</ol>");
                 printHtmlFooter();
+                logger.info("Listed {} trust-state snapshots (format=html) for {}", listed, getFullRequest());
             }
         }
     }
 
     private void showDetail(String hash, String format) {
+        logger.debug("Looking up trust-state snapshot '{}'", hash);
         Document snapshot = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
                 .find(mongoSession, new Document("_id", hash)).first();
         if (snapshot == null) {
+            logger.warn("Trust state snapshot not found: {} (request={})", hash, getFullRequest());
             getContext().response().setStatusCode(404).setStatusMessage("Trust state snapshot not found");
             return;
         }
+        logger.info("Serving trust state snapshot {} (format={}) for {}", hash, format, getFullRequest());
 
         if (TYPE_JSON.equals(format)) {
             // Content is immutable by construction: the URL encodes a hash that never rewrites.
             getContext().response().putHeader("Cache-Control", "public, immutable, max-age=31536000");
+            logger.debug("Set immutable cache-control for snapshot {}", hash);
             Document output = new Document()
                     .append("trustStateHash", snapshot.getString("_id"))
                     .append("trustStateCounter", snapshot.get("trustStateCounter"))
@@ -167,12 +190,15 @@ public class TrustStatePage extends Page {
         Object accountsObj = snapshot.get("accounts");
         int accountCount = (accountsObj instanceof List) ? ((List<?>) accountsObj).size() : 0;
         println("<li><em>accountCount:</em> " + accountCount + "</li>");
+        logger.debug("Snapshot {} has {} account entries (accountsObj type: {})", hash, accountCount, accountsObj == null ? "null" : accountsObj.getClass().getSimpleName());
         println("</ul>");
         println("<h3>Accounts</h3>");
         println("<ol>");
         if (accountsObj instanceof List) {
             for (Object entry : (List<?>) accountsObj) {
-                if (!(entry instanceof Document)) continue;
+                if (!(entry instanceof Document)) {
+                    continue;
+                }
                 Document a = (Document) entry;
                 String pubkey = a.getString("pubkey");
                 String agent = a.getString("agent");
@@ -187,9 +213,15 @@ public class TrustStatePage extends Page {
                 }
                 print(", status: " + a.get("status"));
                 print(", depth: " + a.get("depth"));
-                if (a.get("pathCount") != null) print(", pathCount: " + a.get("pathCount"));
-                if (a.get("ratio") != null) print(", ratio: " + a.get("ratio"));
-                if (a.get("quota") != null) print(", quota: " + a.get("quota"));
+                if (a.get("pathCount") != null) {
+                    print(", pathCount: " + a.get("pathCount"));
+                }
+                if (a.get("ratio") != null) {
+                    print(", ratio: " + a.get("ratio"));
+                }
+                if (a.get("quota") != null) {
+                    print(", quota: " + a.get("quota"));
+                }
                 println("</li>");
             }
         }
@@ -198,8 +230,12 @@ public class TrustStatePage extends Page {
     }
 
     private static String getLabel(String s) {
-        if (s == null) return null;
-        if (s.length() < 10) return s;
+        if (s == null) {
+            return null;
+        }
+        if (s.length() < 10) {
+            return s;
+        }
         return s.substring(0, 10);
     }
 

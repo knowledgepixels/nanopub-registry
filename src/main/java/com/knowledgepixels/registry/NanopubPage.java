@@ -13,6 +13,8 @@ import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -21,6 +23,8 @@ import static com.knowledgepixels.registry.RegistryDB.isSet;
 import static com.knowledgepixels.registry.Utils.*;
 
 public class NanopubPage extends Page {
+
+    private static final Logger logger = LoggerFactory.getLogger(NanopubPage.class);
 
     static final String NANODASH_BASE_URL_DEFAULT = "https://nanodash.knowledgepixels.com/";
 
@@ -36,13 +40,15 @@ public class NanopubPage extends Page {
 
     public static void show(RoutingContext context, boolean forwardHtml) {
         NanopubPage page;
+        logger.info("Received nanopub request: {} forwardHtml={}", context.request().path(), forwardHtml);
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             s.startTransaction();
             page = new NanopubPage(s, context, forwardHtml);
             page.show();
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.warn("Failed to show nanopub for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
         } finally {
+            logger.debug("Ending response for nanopub request: {}", context.request().path());
             context.response().end();
             // TODO Clean-up here?
         }
@@ -58,10 +64,15 @@ public class NanopubPage extends Page {
         String ext = getExtension();
         String format = Utils.getType(ext);
         final String req = getRequestString();
+
+        logger.debug("Preparing nanopub response for request: {} (ext={}, resolvedFormat={})", getFullRequest(), ext, format);
+
         if (format == null) {
             format = Utils.getMimeType(c, SUPPORTED_TYPES_NANOPUB);
+            logger.debug("Resolved format from Accept header: {}", format);
         }
         if (format == null) {
+            logger.warn("Invalid nanopub request (could not determine format): {}", getFullRequest());
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
             return;
         }
@@ -69,26 +80,32 @@ public class NanopubPage extends Page {
         var presentationFormat = getPresentationFormat();
         if (presentationFormat != null) {
             setRespContentType(presentationFormat);
+            logger.debug("Overriding response content type with presentation format: {}", presentationFormat);
         } else {
             setRespContentType(format);
+            logger.debug("Set response content type: {}", format);
         }
 
         if (req.matches("/(np|get)/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
             String ac = req.replaceFirst("/(np|get)/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$2");
+            logger.debug("Lookup nanopub id: {}", ac);
             Document npDoc = collection(Collection.NANOPUBS.toString()).find(new Document("_id", ac)).first();
             if (npDoc == null) {
                 if (!isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")) {
                     //getResp().sendError(404, "Not found: " + ac);
+                    logger.info("Nanopub {} not found locally; redirecting to external resolver", ac);
                     c.response().setStatusCode(307);
                     c.response().putHeader("Location", "https://np.knowledgepixels.com/" + ac);
                     return;
                 } else {
+                    logger.warn("Nanopub {} not found (test instance): {}", ac, getFullRequest());
                     c.response().setStatusCode(404).setStatusMessage("Not found: " + getFullRequest());
                     return;
                 }
             }
             //		String url = ServerConf.getInfo().getPublicUrl();
             if (TYPE_TRIG.equals(format)) {
+                logger.info("Serving nanopub {} as TRIG", ac);
                 println(npDoc.getString("content"));
             } else if (TYPE_JELLY.equals(format)) {
                 if (presentationFormat != null && presentationFormat.startsWith("text")) {
@@ -107,23 +124,30 @@ public class NanopubPage extends Page {
                             outputStream
                     );
                     c.response().write(outputStream.getBuffer());
+                    logger.info("Served nanopub {} as Jelly frame (bytes written)", ac);
                 }
             } else if (format != null && format.equals(TYPE_NQUADS)) {
+                logger.info("Serving nanopub {} as N-Quads", ac);
                 outputNanopub(npDoc, RDFFormat.NQUADS);
             } else if (format != null && format.equals(TYPE_JSONLD)) {
+                logger.info("Serving nanopub {} as JSON-LD", ac);
                 outputNanopub(npDoc, RDFFormat.JSONLD);
             } else if (format != null && format.equals(TYPE_TRIX)) {
+                logger.info("Serving nanopub {} as TriX", ac);
                 outputNanopub(npDoc, RDFFormat.TRIX);
             } else if (forwardHtml && isHtmlRequested(c)) {
                 String fullId = npDoc.getString("fullId");
+                logger.info("Forwarding HTML request for nanopub {} to Nanodash (url={})", ac, getNanodashBaseUrl());
                 c.response().setStatusCode(302);
                 c.response().putHeader("Location", getNanodashBaseUrl() + "explore?id=" + Utils.urlEncode(fullId));
                 return;
             } else if (forwardHtml) {
                 // Non-HTML default for /get/ path (e.g. Accept: */*): serve as trig
+                logger.info("Forwarding non-HTML /get/ request for {} as TRIG", ac);
                 setRespContentType(TYPE_TRIG);
                 println(npDoc.getString("content"));
             } else {
+                logger.info("Rendering HTML detail view for nanopub {}", ac);
                 printHtmlHeader("Nanopublication " + ac + " - Nanopub Registry");
                 println("<h1>Nanopublication</h1>");
                 println("<p><a href=\"/\">&lt; Home</a></p>");
@@ -150,6 +174,7 @@ public class NanopubPage extends Page {
                 printHtmlFooter();
             }
         } else {
+            logger.warn("Invalid nanopub request path: {}", getFullRequest());
             c.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
     }
@@ -164,9 +189,10 @@ public class NanopubPage extends Page {
         try {
             Nanopub np = new NanopubImpl(npDoc.getString("content"), RDFFormat.TRIG);
             c.response().write(NanopubUtils.writeToString(np, rdfFormat), Charsets.UTF_8.toString());
+            logger.info("Transformed nanopub {} to {}", npDoc.getString("_id"), rdfFormat);
         } catch (RDF4JException | MalformedNanopubException | IOException ex) {
+            logger.warn("Failed transforming nanopub {} to {}: {} ({})", npDoc.getString("_id"), rdfFormat, ex.getMessage(), ex.getClass().getSimpleName(), ex);
             c.response().setStatusCode(500).setStatusMessage("Failed transforming nanopub: " + getFullRequest());
-            ex.printStackTrace();
         }
     }
 

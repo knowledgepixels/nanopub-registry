@@ -1,6 +1,8 @@
 package com.knowledgepixels.registry;
 
 import org.bson.codecs.pojo.annotations.BsonProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The status field of several Documents, especially:
@@ -80,6 +82,8 @@ public enum EntryStatus {
      */
     capped;
 
+    private static final Logger logger = LoggerFactory.getLogger(EntryStatus.class);
+
     // The code is inspired by: https://www.mongodb.com/community/forums/t/cannot-store-java-enum-values-in-mongodb/99719/3
     // It's not really necessary right now, since we call getValue by hand,
     // we may also just call toString()...
@@ -91,12 +95,18 @@ public enum EntryStatus {
     }
 
     public static EntryStatus fromValue(String value) throws UnsupportedEntryStatusValueException {
+        if (value == null) {
+            logger.warn("Attempted to convert null to EntryStatus");
+            throw new IllegalArgumentException("EntryStatus value must not be null");
+        }
         for (EntryStatus e : EntryStatus.values()) {
             if (e.toString().equals(value)) {
                 return e;
             }
         }
-        throw new UnsupportedEntryStatusValueException("Unsupported EntryStatus Value: " + value);
+        String msg = "Unsupported EntryStatus value: '" + value + "'.";
+        logger.warn(msg);
+        throw new UnsupportedEntryStatusValueException(msg);
     }
 
     public String getValue() {

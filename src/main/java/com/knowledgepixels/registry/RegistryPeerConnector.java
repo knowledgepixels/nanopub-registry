@@ -30,7 +30,7 @@ public class RegistryPeerConnector {
 
     private RegistryPeerConnector() {}
 
-    private static final Logger log = LoggerFactory.getLogger(RegistryPeerConnector.class);
+    private static final Logger logger = LoggerFactory.getLogger(RegistryPeerConnector.class);
 
     public static void checkPeers(ClientSession s) {
         List<String> peerUrls = new ArrayList<>(Utils.getPeerUrls());
@@ -40,37 +40,40 @@ public class RegistryPeerConnector {
             try {
                 checkPeer(s, peerUrl);
             } catch (Exception ex) {
-                log.warn("Failed to check peer {}: {}", peerUrl, ex.getMessage(), ex);
+                logger.warn("Failed to check peer {}: {} ({})", peerUrl, ex.getMessage(), ex.getClass().getSimpleName(), ex);
             }
         }
     }
 
     static void checkPeer(ClientSession s, String peerUrl) throws IOException {
-        log.info("Checking peer: {}", peerUrl);
+        logger.info("Checking peer: {}", peerUrl);
 
         HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpHead(peerUrl));
         int httpStatus = resp.getStatusLine().getStatusCode();
+        String reason = resp.getStatusLine().getReasonPhrase();
         EntityUtils.consumeQuietly(resp.getEntity());
         if (httpStatus < 200 || httpStatus >= 300) {
-            log.warn("Failed to reach peer {} (HTTP {}); skipping", peerUrl, httpStatus);
+            logger.warn("Failed to reach peer {}: HTTP {} {} ; skipping", peerUrl, httpStatus, reason);
             return;
         }
 
         if (isTestInstance(resp)) {
-            log.info("Skipping peer {} because it is a test instance", peerUrl);
+            logger.info("Skipping peer {} because it is a test instance", peerUrl);
             return;
         }
 
         String status = getHeader(resp, "Nanopub-Registry-Status");
         if (!"ready".equals(status) && !"updating".equals(status)) {
-            log.warn("Skipping peer {}: registry status is '{}' (expected 'ready' or 'updating')", peerUrl, status);
+            logger.warn("Skipping peer {}: registry status is '{}' (expected 'ready' or 'updating')", peerUrl, status);
             return;
         }
 
+        String setupHeader = getHeader(resp, "Nanopub-Registry-Setup-Id");
+        String loadCounterHeader = getHeader(resp, "Nanopub-Registry-Load-Counter");
         Long peerSetupId = getHeaderLong(resp, "Nanopub-Registry-Setup-Id");
         Long peerLoadCounter = getHeaderLong(resp, "Nanopub-Registry-Load-Counter");
         if (peerSetupId == null || peerLoadCounter == null) {
-            log.warn("Skipping peer {}: missing required headers Nanopub-Registry-Setup-Id or Nanopub-Registry-Load-Counter", peerUrl);
+            logger.warn("Skipping peer {}: missing or invalid headers. Nanopub-Registry-Setup-Id='{}', Nanopub-Registry-Load-Counter='{}'", peerUrl, setupHeader, loadCounterHeader);
             return;
         }
 
@@ -83,7 +86,7 @@ public class RegistryPeerConnector {
         Long lastLoadCounter = peerState != null ? peerState.getLong("loadCounter") : null;
 
         if (lastSetupId != null && !lastSetupId.equals(peerSetupId)) {
-            log.info("Peer {} was reset (setupId changed), resetting tracking", peerUrl);
+            logger.info("Peer {} was reset: setupId changed from {} -> {}; resetting tracking state", peerUrl, lastSetupId, peerSetupId);
             deletePeerState(s, peerUrl);
             lastLoadCounter = null;
         }
@@ -91,21 +94,25 @@ public class RegistryPeerConnector {
         long effectiveCounter = lastLoadCounter != null ? lastLoadCounter : 0;
 
         if (lastLoadCounter != null && lastLoadCounter.equals(peerLoadCounter)) {
-            log.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
+            logger.info("Peer {} has no new nanopubs (loadCounter unchanged: {})", peerUrl, peerLoadCounter);
         } else if (lastLoadCounter != null) {
             // Fetch all nanopubs added since our last known position.
-            log.info("Peer {} has new nanopubs (loadCounter {} -> {}), fetching recent", peerUrl, lastLoadCounter, peerLoadCounter);
+            logger.info("Peer {} has new nanopubs (loadCounter {} -> {}), fetching recent", peerUrl, lastLoadCounter, peerLoadCounter);
             long lastReceived = loadRecentNanopubs(s, peerUrl, lastLoadCounter);
             if (lastReceived > 0) {
                 effectiveCounter = lastReceived;
+                logger.info("Updated effective counter for {} to {}", peerUrl, effectiveCounter);
+            } else {
+                logger.info("No nanopubs were successfully received from {} when fetching recent entries", peerUrl);
             }
             // Only discover new pubkeys when the peer has new data
             discoverPubkeys(s, peerUrl);
         } else {
-            log.info("Peer {} is new, pubkey discovery will handle initial sync", peerUrl);
+            logger.info("Peer {} is new to this registry; starting pubkey discovery and initial sync", peerUrl);
             discoverPubkeys(s, peerUrl);
         }
         updatePeerState(s, peerUrl, peerSetupId, effectiveCounter);
+        logger.debug("Peer {} state updated: setupId={}, loadCounter={}", peerUrl, peerSetupId, effectiveCounter);
     }
 
     /**
@@ -115,14 +122,15 @@ public class RegistryPeerConnector {
      */
     private static long loadRecentNanopubs(ClientSession s, String peerUrl, long afterCounter) {
         String requestUrl = peerUrl + "nanopubs.jelly?afterCounter=" + afterCounter;
-        log.info("Fetching recent nanopubs from: {}", requestUrl);
+        logger.info("Fetching recent nanopubs from {} (afterCounter={})", peerUrl, afterCounter);
         AtomicLong lastReceivedCounter = new AtomicLong(-1);
         try {
             HttpResponse resp = NanopubUtils.getHttpClient().execute(new HttpGet(requestUrl));
             int httpStatus = resp.getStatusLine().getStatusCode();
+            String reason = resp.getStatusLine().getReasonPhrase();
             if (httpStatus < 200 || httpStatus >= 300) {
                 EntityUtils.consumeQuietly(resp.getEntity());
-                log.warn("Fetching recent nanopubs from {} failed (HTTP {}); skipping", requestUrl, httpStatus);
+                logger.warn("Fetching recent nanopubs from {} failed: HTTP {} {} ; skipping", requestUrl, httpStatus, reason);
                 return -1;
             }
             try (InputStream is = resp.getEntity().getContent()) {
@@ -146,17 +154,18 @@ public class RegistryPeerConnector {
                         });
             }
         } catch (IOException ex) {
-            log.warn("Failed to fetch recent nanopubs from {}: {}", peerUrl, ex.getMessage(), ex);
+            logger.warn("Failed to fetch recent nanopubs from {} (request: {}): {} ({})", peerUrl, requestUrl, ex.getMessage(), ex.getClass().getSimpleName(), ex);
         }
-        log.info("Last received counter from {}: {}", peerUrl, lastReceivedCounter.get());
+        logger.info("Last received counter from {}: {}", peerUrl, lastReceivedCounter.get());
         return lastReceivedCounter.get();
     }
 
     static void discoverPubkeys(ClientSession s, String peerUrl) {
-        log.info("Discovering pubkeys from peer: {}", peerUrl);
+        logger.info("Discovering pubkeys from peer: {}", peerUrl);
         try {
             List<String> peerPubkeys = Utils.retrieveListFromJsonUrl(peerUrl + "pubkeys.json");
             int discovered = 0;
+            logger.debug("Retrieved {} pubkeys from {} for discovery", peerPubkeys.size(), peerUrl);
             for (String pubkeyHash : peerPubkeys) {
                 Document filter = new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH);
                 if (!has(s, "lists", filter)) {
@@ -167,6 +176,8 @@ public class RegistryPeerConnector {
                     } catch (MongoWriteException e) {
                         if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
                             throw e;
+                        } else {
+                            logger.debug("Pubkey {} was inserted concurrently by another worker", pubkeyHash);
                         }
                     }
                     discovered++;
@@ -177,9 +188,9 @@ public class RegistryPeerConnector {
                     discovered++;
                 }
             }
-            log.info("Discovered {} new pubkeys from peer {}", discovered, peerUrl);
+            logger.info("Discovered {} new pubkeys from peer {}", discovered, peerUrl);
         } catch (Exception ex) {
-            log.warn("Failed to discover pubkeys from {}: {}", peerUrl, ex.getMessage(), ex);
+            logger.warn("Failed to discover pubkeys from {}: {} ({})", peerUrl, ex.getMessage(), ex.getClass().getSimpleName(), ex);
         }
     }
 
@@ -220,6 +231,7 @@ public class RegistryPeerConnector {
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException ex) {
+            logger.debug("Failed to parse header {} value '{}' as long", name, value);
             return null;
         }
     }

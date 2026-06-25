@@ -13,13 +13,16 @@ import org.apache.commons.lang.StringUtils;
 import org.commonjava.mimeparse.MIMEParse;
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.util.Values;
+import org.eclipse.rdf4j.model.vocabulary.FOAF;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
+import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.extra.setting.NanopubSetting;
 import org.nanopub.vocabulary.NPX;
 import org.slf4j.Logger;
@@ -62,12 +65,15 @@ public class Utils {
         try (InputStream in = Utils.class.getResourceAsStream("/version.properties")) {
             if (in != null) {
                 p.load(in);
+            } else {
+                logger.warn("version.properties resource not found on classpath; version will be reported as 'unknown'");
             }
         } catch (IOException ex) {
             logger.warn("Could not read version.properties", ex);
         }
         v = p.getProperty("version", "unknown");
         version = v;
+        logger.info("Registry version resolved to '{}'", v);
         return v;
     }
 
@@ -76,10 +82,12 @@ public class Utils {
         String mimeType = supportedList.getFirst();
         String acceptHeader = context.request().getHeader("Accept");
         if (acceptHeader == null) {
+            logger.trace("No Accept header present; defaulting to '{}'", mimeType);
             return mimeType;
         }
         try {
             mimeType = MIMEParse.bestMatch(supportedList, acceptHeader);
+            logger.trace("Resolved Accept header '{}' to mime type '{}' (supported: {})", acceptHeader, mimeType, supported);
         } catch (Exception ex) {
             logger.error("Failed to parse Accept header '{}': {}", acceptHeader, ex.getMessage(), ex);
         }
@@ -114,6 +122,9 @@ public class Utils {
                 }
             }
         }
+        if (!invalidatedNanopubs.isEmpty()) {
+            logger.debug("Nanopub {} invalidates {} other nanopub(s): {}", np.getUri(), invalidatedNanopubs.size(), invalidatedNanopubs);
+        }
         return invalidatedNanopubs;
     }
 
@@ -125,6 +136,7 @@ public class Utils {
      * @param reader the environment reader to set
      */
     public static void setEnvReader(ReadsEnvironment reader) {
+        logger.debug("Environment reader replaced (likely test setup)");
         ENV_READER = reader;
     }
 
@@ -156,7 +168,9 @@ public class Utils {
         String typeHash = Utils.getHash(type.toString());
         if (type.toString().equals("$")) {
             typeHash = "$";
+            logger.trace("Type '$' (unrestricted) mapped to special hash '$'");
         } else {
+            logger.trace("Type '{}' hashed to '{}'; recording in database", type, typeHash);
             RegistryDB.recordHash(mongoSession, type.toString());
         }
         return typeHash;
@@ -170,6 +184,7 @@ public class Utils {
      */
     public static String getAgentLabel(String agentId) {
         if (agentId == null || agentId.isBlank()) {
+            logger.warn("getAgentLabel called with null or blank agentId");
             throw new IllegalArgumentException("Agent ID cannot be null or blank");
         }
         agentId = agentId.replaceFirst("^https://orcid\\.org/", "orcid:");
@@ -270,7 +285,11 @@ public class Utils {
             extensionTypeMap.put("html", TYPE_HTML);
             extensionTypeMap.put("json", TYPE_JSON);
         }
-        return extensionTypeMap.get(extension);
+        String type = extensionTypeMap.get(extension);
+        if (type == null) {
+            logger.debug("No known MIME type for extension '{}'", extension);
+        }
+        return type;
     }
 
     private static List<String> peerUrls;
@@ -286,13 +305,16 @@ public class Utils {
             String envPeerUrls = getEnv("REGISTRY_PEER_URLS", "");
             String thisRegistryUrl = getEnv("REGISTRY_SERVICE_URL", "");
             if (!envPeerUrls.isEmpty()) {
+                logger.debug("Resolving peer URLs from REGISTRY_PEER_URLS env var");
                 for (String peerUrl : envPeerUrls.trim().split("\\s+")) {
                     if (thisRegistryUrl.equals(peerUrl)) {
+                        logger.debug("Excluding self ('{}') from peer URL list", peerUrl);
                         continue;
                     }
                     peerUrls.add(peerUrl);
                 }
             } else {
+                logger.debug("REGISTRY_PEER_URLS not set; resolving peer URLs from registry setting's bootstrap services");
                 NanopubSetting setting;
                 try {
                     setting = getSetting();
@@ -303,11 +325,13 @@ public class Utils {
                 for (IRI iri : setting.getBootstrapServices()) {
                     String peerUrl = iri.stringValue();
                     if (thisRegistryUrl.equals(peerUrl)) {
+                        logger.debug("Excluding self ('{}') from peer URL list", peerUrl);
                         continue;
                     }
                     peerUrls.add(peerUrl);
                 }
             }
+            logger.info("Resolved {} peer URL(s): {}", peerUrls.size(), peerUrls);
         }
         return peerUrls;
     }
@@ -327,7 +351,14 @@ public class Utils {
             synchronized (Utils.class) {
                 if (settingNp == null) {
                     String settingPath = getEnv("REGISTRY_SETTING_FILE", "/data/setting.trig");
-                    settingNp = new NanopubSetting(new NanopubImpl(new File(settingPath)));
+                    logger.info("Loading registry setting from '{}'", settingPath);
+                    try {
+                        settingNp = new NanopubSetting(new NanopubImpl(new File(settingPath)));
+                        logger.info("Registry setting loaded successfully from '{}'", settingPath);
+                    } catch (RDF4JException | MalformedNanopubException | IOException ex) {
+                        logger.error("Failed to load registry setting from '{}'", settingPath, ex);
+                        throw ex;
+                    }
                 }
             }
         }
@@ -342,7 +373,12 @@ public class Utils {
      */
     public static String getRandomPeer() throws RDF4JException {
         List<String> peerUrls = getPeerUrls();
-        return peerUrls.get(random.nextInt(peerUrls.size()));
+        if (peerUrls.isEmpty()) {
+            logger.warn("getRandomPeer called but no peer URLs are configured");
+        }
+        String peer = peerUrls.get(random.nextInt(peerUrls.size()));
+        logger.trace("Selected random peer: '{}'", peer);
+        return peer;
     }
 
     private static final Random random = new Random();
@@ -371,7 +407,15 @@ public class Utils {
      * @throws URISyntaxException  if the URL syntax is invalid
      */
     public static List<String> retrieveListFromJsonUrl(String url) throws JsonIOException, JsonSyntaxException, IOException, URISyntaxException {
-        return g.fromJson(new InputStreamReader(new URI(url).toURL().openStream()), listType);
+        logger.debug("Retrieving JSON list from '{}'", url);
+        try {
+            List<String> result = g.fromJson(new InputStreamReader(new URI(url).toURL().openStream()), listType);
+            logger.debug("Retrieved {} entries from '{}'", result == null ? 0 : result.size(), url);
+            return result;
+        } catch (JsonIOException | JsonSyntaxException | IOException | URISyntaxException ex) {
+            logger.warn("Failed to retrieve or parse JSON list from '{}': {}", url, ex.getMessage());
+            throw ex;
+        }
     }
 
     /**
@@ -380,14 +424,23 @@ public class Utils {
      * {@code foaf:name} literals are asserted on the same agent, the lexicographic
      * minimum is returned for deterministic behaviour across rebuilds.
      */
-    public static String extractIntroName(org.nanopub.extra.setting.IntroNanopub agentIntro) {
+    public static String extractIntroName(IntroNanopub agentIntro) {
         IRI agentIri = agentIntro.getUser();
-        if (agentIri == null) return null;
+        if (agentIri == null) {
+            logger.debug("Intro nanopub has no user IRI; cannot extract name");
+            return null;
+        }
         String chosen = null;
         for (Statement st : agentIntro.getNanopub().getAssertion()) {
-            if (!st.getSubject().equals(agentIri)) continue;
-            if (!st.getPredicate().equals(org.eclipse.rdf4j.model.vocabulary.FOAF.NAME)) continue;
-            if (!(st.getObject() instanceof org.eclipse.rdf4j.model.Literal)) continue;
+            if (!st.getSubject().equals(agentIri)) {
+                continue;
+            }
+            if (!st.getPredicate().equals(FOAF.NAME)) {
+                continue;
+            }
+            if (!(st.getObject() instanceof Literal)) {
+                continue;
+            }
             String candidate = st.getObject().stringValue();
             if (chosen == null || candidate.compareTo(chosen) < 0) {
                 chosen = candidate;
