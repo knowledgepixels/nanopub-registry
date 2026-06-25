@@ -1,3 +1,36 @@
+## [1.11.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.10.0...nanopub-registry-1.11.0) (2026-06-25)
+
+### Features
+
+* **trust-state:** record authorizing introNanopub on account rows ([9ad6686](https://github.com/knowledgepixels/nanopub-registry/commit/9ad668607a6045abb8883bcd008d6d856d31199c)), closes [knowledgepixels/nanopub-query#125](https://github.com/knowledgepixels/nanopub-query/issues/125)
+
+### Dependency updates
+
+* **core-deps:** update jcommander dependency to v1.85 ([75b852b](https://github.com/knowledgepixels/nanopub-registry/commit/75b852b1957627466dac923394769d1979027f6b))
+* **core-deps:** update org.nanopub:nanopub to v1.90.0 ([eebd16b](https://github.com/knowledgepixels/nanopub-registry/commit/eebd16ba45abd38ec67b5f2b3d19d945530a48af))
+* **core-deps:** update org.slf4j dependency to v2.0.18 ([ff1a067](https://github.com/knowledgepixels/nanopub-registry/commit/ff1a067610c1f656cc17327b89a19ef66f0af1ec))
+* **deps:** move versions number in properties section for better maintainability ([85352de](https://github.com/knowledgepixels/nanopub-registry/commit/85352de18fc105dcbf5c95ad92d09ad21a3e1298))
+* **deps:** update release dependencies to latest version ([ac66f86](https://github.com/knowledgepixels/nanopub-registry/commit/ac66f862d9716f4735b9a2abbf6fb33327cf0898))
+
+### Bug Fixes
+
+* **trust-state:** link intro via /np/<artifactCode>, not urlEncode ([dce73f6](https://github.com/knowledgepixels/nanopub-registry/commit/dce73f657a01fbe93f282b416d047d1c995a587f))
+
+### Tests
+
+* **EntryStatus:** update import statements for JUnit 5 compatibility ([1090838](https://github.com/knowledgepixels/nanopub-registry/commit/10908388a7a6e761adf240e5df9655c1727a7771))
+
+### Build and continuous integration
+
+* **deps:** update action actions/setup-java to v5.2.0 ([968c35a](https://github.com/knowledgepixels/nanopub-registry/commit/968c35a75f045d94e090d43341a72025516db02a))
+* **deps:** update actions/checkout action to v6.0.3 ([601f2db](https://github.com/knowledgepixels/nanopub-registry/commit/601f2dba2a682911f3b5235c3a1b75efc8ed2316))
+
+### General maintenance
+
+* enhance and standardize logging across multiple components ([#116](https://github.com/knowledgepixels/nanopub-registry/issues/116)) ([7e1dc9d](https://github.com/knowledgepixels/nanopub-registry/commit/7e1dc9df3a05eb347fd0b9ab7932f9fb47b82c02))
+* **RegistryDB:** enhance logging for database operations and initialization checks ([b71f518](https://github.com/knowledgepixels/nanopub-registry/commit/b71f518fc1cfd83ff894a482f8d82e2568f543cb))
+* setting next snapshot version [skip ci] ([69d1d84](https://github.com/knowledgepixels/nanopub-registry/commit/69d1d84eecc851af9b8a1543d302fb84f5a3f5df))
+
 ## [1.10.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.9.0...nanopub-registry-1.10.0) (2026-05-13)
 
 ### Features
