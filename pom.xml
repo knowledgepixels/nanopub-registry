@@ -36,7 +36,7 @@
     <mimeparse.version>0.1.3.3</mimeparse.version>
     <gson.version>2.14.0</gson.version>
     <apache.commons.exec.version>1.6.0</apache.commons.exec.version>
-    <com.beust.jcommander.version>1.82</com.beust.jcommander.version>
+    <org.jcommander.version>1.85</org.jcommander.version>
     <jelly.version>3.7.2</jelly.version>
     <micrometer.version>1.10.13</micrometer.version>
     <org.slf4j.version>2.0.17</org.slf4j.version>
@@ -151,9 +151,9 @@
       <version>${apache.commons.exec.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.beust</groupId>
+      <groupId>org.jcommander</groupId>
       <artifactId>jcommander</artifactId>
-      <version>${com.beust.jcommander.version}</version>
+      <version>${org.jcommander.version}</version>
     </dependency>
     <dependency>
       <groupId>eu.neverblink.jelly</groupId>
