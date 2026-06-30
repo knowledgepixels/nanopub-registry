@@ -913,9 +913,10 @@ public enum Task implements Serializable {
                 setServerStatus(s, ready);
             }
 
-            // Run update after 1h:
-            logger.debug("RELEASE_DATA complete; scheduling next UPDATE in 1h");
-            schedule(s, UPDATE.withDelay(60 * 60 * 1000));
+            // Run update 10min after this cycle finishes (the delay is measured from the end of the
+            // recompute, since this is the last task in the chain):
+            logger.debug("RELEASE_DATA complete; scheduling next UPDATE in 10min");
+            schedule(s, UPDATE.withDelay(10 * 60 * 1000));
         }
 
     },
