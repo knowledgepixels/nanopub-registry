@@ -1,3 +1,14 @@
+## [1.11.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.0...nanopub-registry-1.11.1) (2026-06-30)
+
+### Bug Fixes
+
+* **trust-state:** exclude toLoad accounts from snapshot hash and snapshot ([4ee7446](https://github.com/knowledgepixels/nanopub-registry/commit/4ee7446d792fd39785d8302d46419697f6267bc5)), closes [#119](https://github.com/knowledgepixels/nanopub-registry/issues/119)
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([3bd9d97](https://github.com/knowledgepixels/nanopub-registry/commit/3bd9d97c6a838bfbecc8b4c87fec60f8dbb2c256))
+* **update:** shorten trust-state update interval from 1h to 10min ([2456050](https://github.com/knowledgepixels/nanopub-registry/commit/2456050b00b0a2bc4e7b6eb531e99715ec8e3f1b)), closes [119/#120](https://github.com/119/nanopub-registry/issues/120)
+
 ## [1.11.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.10.0...nanopub-registry-1.11.0) (2026-06-25)
 
 ### Features
