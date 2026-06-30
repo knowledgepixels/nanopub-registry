@@ -852,6 +852,13 @@ public enum Task implements Serializable {
                     if ("$".equals(pubkey)) {
                         continue;
                     }
+                    // 'toLoad' is an internal-only staging status (not yet servable). Excluding it here
+                    // — together with the matching exclusion in calculateTrustStateHash — keeps transient
+                    // 'toLoad' accounts out of the published snapshot, so an account enters the public
+                    // trust state exactly when it becomes loaded, never stuck at 'toLoad' (issue #119).
+                    if (toLoad.getValue().equals(a.getString("status"))) {
+                        continue;
+                    }
                     snapshotAccounts.add(new Document()
                             .append("pubkey", pubkey)
                             .append("agent", a.getString("agent"))
