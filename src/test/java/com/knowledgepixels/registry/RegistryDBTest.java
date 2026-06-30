@@ -783,4 +783,40 @@ class RegistryDBTest {
         }
     }
 
+    @Test
+    void calculateTrustStateHashExcludesToLoadAccounts() {
+        RegistryDB.init();
+        try (ClientSession session = RegistryDB.getClient().startSession()) {
+            // Account A is loaded; account B (a leaf) is still in the 'toLoad' staging status.
+            RegistryDB.insert(session, "accounts_loading",
+                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
+            RegistryDB.insert(session, "accounts_loading",
+                    new Document("agent", "agentB").append("pubkey", "pkB").append("status", EntryStatus.toLoad.getValue()));
+
+            // One trust path per account.
+            RegistryDB.insert(session, "trustPaths_loading",
+                    new Document("_id", "pathA").append("type", "primary").append("agent", "agentA").append("pubkey", "pkA"));
+            RegistryDB.insert(session, "trustPaths_loading",
+                    new Document("_id", "pathB").append("type", "primary").append("agent", "agentB").append("pubkey", "pkB"));
+
+            String hashWithBToLoad = RegistryDB.calculateTrustStateHash(session);
+
+            // B's path must be excluded while B is 'toLoad': removing the path doc entirely yields the same hash.
+            RegistryDB.collection("trustPaths_loading").deleteOne(session, new Document("_id", "pathB"));
+            String hashWithBAbsent = RegistryDB.calculateTrustStateHash(session);
+            assertEquals(hashWithBAbsent, hashWithBToLoad,
+                    "A 'toLoad' account's trust path must not contribute to the hash");
+
+            // Restore B's path and promote B to 'loaded': it now enters the hash, so the hash changes.
+            RegistryDB.insert(session, "trustPaths_loading",
+                    new Document("_id", "pathB").append("type", "primary").append("agent", "agentB").append("pubkey", "pkB"));
+            RegistryDB.collection("accounts_loading").updateOne(session,
+                    new Document("agent", "agentB").append("pubkey", "pkB"),
+                    new Document("$set", new Document("status", EntryStatus.loaded.getValue())));
+            String hashWithBLoaded = RegistryDB.calculateTrustStateHash(session);
+            assertNotEquals(hashWithBToLoad, hashWithBLoaded,
+                    "Promoting a leaf account 'toLoad' -> 'loaded' must change the trust state hash (issue #119)");
+        }
+    }
+
 }

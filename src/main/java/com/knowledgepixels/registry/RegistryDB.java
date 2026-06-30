@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
 
 import static com.mongodb.client.model.Indexes.ascending;
 
@@ -695,11 +697,31 @@ public class RegistryDB {
      * @return the calculated trust state hash
      */
     public static String calculateTrustStateHash(ClientSession mongoSession) {
+        // Accounts still in the 'toLoad' staging status are not yet servable and must not enter the
+        // public trust state: a path's head account flips 'toLoad' -> 'loaded' between UPDATE cycles
+        // (in LOAD_FULL) without changing any trust path, so if those paths were hashed, a leaf
+        // account's promotion would never change the hash and never trigger a new snapshot, leaving
+        // it published as 'toLoad' indefinitely (see issue #119). By excluding 'toLoad' paths here,
+        // crossing out of 'toLoad' is itself a membership change -> hash change -> emission.
+        Set<String> toLoadAccounts = new HashSet<>();
+        try (MongoCursor<Document> ac = collection("accounts_loading")
+                .find(mongoSession, new Document("status", EntryStatus.toLoad.getValue()))
+                .projection(new Document("agent", 1).append("pubkey", 1))
+                .cursor()) {
+            while (ac.hasNext()) {
+                Document a = ac.next();
+                toLoadAccounts.add(a.getString("agent") + "|" + a.getString("pubkey"));
+            }
+        }
+
         MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor();
         // TODO Improve this so we don't create the full string just for calculating its hash:
         String s = "";
         while (tp.hasNext()) {
             Document d = tp.next();
+            if (toLoadAccounts.contains(d.getString("agent") + "|" + d.getString("pubkey"))) {
+                continue;
+            }
             s += d.getString("_id") + " (" + d.getString("type") + ")\n";
         }
         String hash = Utils.getHash(s);
