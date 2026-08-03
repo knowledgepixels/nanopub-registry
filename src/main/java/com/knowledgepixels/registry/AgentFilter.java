@@ -80,7 +80,7 @@ public final class AgentFilter {
         }
         logger.info("Quota enforcement (REGISTRY_ENFORCE_QUOTA): {}", enforceQuota);
 
-        if (via && "false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+        if (via && "false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
             logger.warn("viaSetting is enabled but trust calculation is disabled — " +
                         "no agents will be discovered via the trust network; only explicit pubkeys will work");
         }

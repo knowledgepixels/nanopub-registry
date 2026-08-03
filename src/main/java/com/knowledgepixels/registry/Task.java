@@ -114,7 +114,7 @@ public enum Task implements Serializable {
             // potentially currently hardcoded in the nanopub lib
             setValue(s, Collection.SETTING.toString(), "bootstrap-services", bootstrapServices);
 
-            boolean performFullLoad = !"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"));
+            boolean performFullLoad = !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null));
             if (performFullLoad) {
                 logger.debug("REGISTRY_PERFORM_FULL_LOAD not disabled; scheduling LOAD_FULL task");
                 schedule(s, LOAD_FULL);
@@ -144,7 +144,7 @@ public enum Task implements Serializable {
 
             IndexInitializer.initLoadingCollections(s);
 
-            if ("false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+            if ("false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
                 logger.info("Trust calculation disabled (REGISTRY_ENABLE_TRUST_CALCULATION=false); skipping to FINALIZE_TRUST_STATE");
                 for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
                     String pubkeyHash = entry.getKey();
@@ -941,7 +941,7 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.debug("LOAD_FULL invoked; taskDoc={}", taskDoc);
 
-            if ("false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
+            if ("false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null))) {
                 logger.info("REGISTRY_PERFORM_FULL_LOAD=false; skipping full load");
                 return;
             }
@@ -1052,7 +1052,7 @@ public enum Task implements Serializable {
                 Utils.getEnv("REGISTRY_OPTIONAL_LOAD_BATCH_SIZE", "100"));
 
         public void run(ClientSession s, Document taskDoc) {
-            if ("false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"))) {
+            if ("false".equals(Utils.getEnv("REGISTRY_ENABLE_OPTIONAL_LOAD", null))) {
                 schedule(s, CHECK_NEW.withDelay(500));
                 return;
             }
@@ -1228,7 +1228,7 @@ public enum Task implements Serializable {
     }
 
     private static boolean prioritizeAllPubkeys() {
-        return "true".equals(System.getenv("REGISTRY_PRIORITIZE_ALL_PUBKEYS"));
+        return "true".equals(Utils.getEnv("REGISTRY_PRIORITIZE_ALL_PUBKEYS", null));
     }
 
     /**
