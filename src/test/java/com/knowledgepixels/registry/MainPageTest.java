@@ -1,7 +1,11 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.PageMocks;
+import com.knowledgepixels.registry.utils.TestUtils;
 import org.bson.Document;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -22,6 +26,19 @@ import static org.mockito.Mockito.when;
 class MainPageTest {
 
     private static final String SETTING_ID = "RAsettingArtifactCode1234567890";
+
+    private FakeEnv fakeEnv;
+
+    @BeforeEach
+    void setUp() {
+        // Registered but not built: the default reader stays in place until a test opts in.
+        fakeEnv = TestUtils.setupFakeEnv();
+    }
+
+    @AfterEach
+    void tearDown() {
+        fakeEnv.reset();
+    }
 
     private static PageMocks.Db mockDbWithStatus(MockedStatic<RegistryDB> dbMock, String status) {
         List<Document> serverInfo = new ArrayList<>(PageMocks.DEFAULT_SERVER_INFO);
@@ -113,6 +130,45 @@ class MainPageTest {
             MainPage.show(ctx.context);
 
             assertTrue(ctx.body().contains("This is a test instance."), "test instances carry a visible warning");
+        }
+    }
+
+    @Test
+    void htmlReportsDisabledFeatureFlags() {
+        fakeEnv.addVariable("REGISTRY_ENABLE_OPTIONAL_LOAD", "false")
+                .addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false").build();
+
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            mockDbWithStatus(dbMock, "ready");
+
+            PageMocks.MockContext ctx = PageMocks.contextAccepting("/", "text/html");
+            MainPage.show(ctx.context);
+
+            String body = ctx.body();
+            assertTrue(body.contains("<em>optionalLoadEnabled:</em> false"), "the flag is reported as configured");
+            assertTrue(body.contains("<em>trustCalculationEnabled:</em> false"), "the flag is reported as configured");
+            // Without trust calculation there are no agents to count, so the section is dropped
+            // rather than shown as empty.
+            assertFalse(body.contains("<h3>Agents</h3>"));
+            assertTrue(body.contains("<h3>Current Trust State</h3>"), "the other sections are unaffected");
+        }
+    }
+
+    @Test
+    void jsonReportsDisabledFeatureFlags() {
+        fakeEnv.addVariable("REGISTRY_ENABLE_OPTIONAL_LOAD", "false")
+                .addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false").build();
+
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            mockDbWithStatus(dbMock, "ready");
+
+            PageMocks.MockContext ctx = PageMocks.context("/.json");
+            MainPage.show(ctx.context);
+
+            String body = ctx.body();
+            assertTrue(body.contains("\"optionalLoadEnabled\":false"));
+            assertTrue(body.contains("\"trustCalculationEnabled\":false"));
+            assertFalse(body.contains("agentCount"), "the agent count is not computed when trust calculation is off");
         }
     }
 

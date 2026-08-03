@@ -78,6 +78,28 @@ class AgentFilterTest {
     }
 
     @Test
+    void viaSettingStaysEnabledWhenTrustCalculationIsOff() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting")
+                .addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false").build();
+        AgentFilter.init();
+
+        // The combination is accepted but useless — no agent is ever discovered — so init
+        // warns rather than failing, and the configuration is kept as written.
+        assertTrue(AgentFilter.usesViaSetting());
+        assertTrue(AgentFilter.getExplicitPubkeys().isEmpty());
+    }
+
+    @Test
+    void explicitPubkeysStillWorkWithoutTrustCalculation() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "abc123:5000")
+                .addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false").build();
+        AgentFilter.init();
+
+        assertFalse(AgentFilter.usesViaSetting());
+        assertEquals(5000, AgentFilter.getExplicitPubkeys().get("abc123"));
+    }
+
+    @Test
     void toleratesVariousWhitespace() {
         fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting  abc123:5000\tabc123:5000\ndef456:10000").build();
         AgentFilter.init();

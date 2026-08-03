@@ -2,8 +2,11 @@ package com.knowledgepixels.registry.utils;
 
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
 /**
@@ -109,6 +112,26 @@ public class TestUtils {
     public static void copyResourceToDataDir(String resourceName) throws Exception {
         prepareDataDir();
         Files.copy(Path.of(resourceName), temporaryDataDir.resolve(resourceName));
+    }
+
+    /**
+     * Copies a file from the test classpath to the temporary data directory, so it can be
+     * handed to code that expects a real file path.
+     *
+     * @param resourceName the classpath resource to copy
+     * @return the path of the copied file
+     * @throws Exception if the resource is missing or cannot be copied
+     */
+    public static Path copyClasspathResourceToDataDir(String resourceName) throws Exception {
+        prepareDataDir();
+        Path target = temporaryDataDir.resolve(resourceName);
+        try (InputStream in = TestUtils.class.getClassLoader().getResourceAsStream(resourceName)) {
+            if (in == null) {
+                throw new FileNotFoundException("Classpath resource not found: " + resourceName);
+            }
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return target;
     }
 
 }

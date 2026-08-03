@@ -5,6 +5,10 @@ import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.bson.Document;
@@ -12,13 +16,27 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.nanopub.NanopubUtils;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.List;
+
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.RegistryPeerConnector.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class RegistryPeerConnectorTest {
 
@@ -348,6 +366,136 @@ class RegistryPeerConnectorTest {
 
             assertEquals(500L, state1.getLong("loadCounter"));
             assertEquals(600L, state2.getLong("loadCounter"));
+        }
+    }
+
+    /**
+     * A peer is only synced from when it answers 2xx, is not a test instance, reports a
+     * usable status and advertises a numeric setup id and load counter. Every other case
+     * must bail out before touching the database, which is what these assert.
+     */
+    @Nested
+    class CheckPeerTests {
+
+        private static final String PEER = "https://peer.example.org/";
+
+        /**
+         * Runs checkPeer against a peer answering with the given status code and headers,
+         * and asserts that no database work happened.
+         */
+        private void assertPeerSkipped(int statusCode, String... headers) throws IOException {
+            try (MockedStatic<NanopubUtils> httpMock = mockStatic(NanopubUtils.class);
+                 MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+
+                CloseableHttpClient client = mock(CloseableHttpClient.class);
+                httpMock.when(NanopubUtils::getHttpClient).thenReturn(client);
+                CloseableHttpResponse resp = mock(CloseableHttpResponse.class);
+                when(resp.getStatusLine()).thenReturn(new BasicStatusLine(HttpVersion.HTTP_1_1, statusCode, "Reason"));
+                for (int i = 0; i < headers.length; i += 2) {
+                    when(resp.getFirstHeader(headers[i])).thenReturn(new BasicHeader(headers[i], headers[i + 1]));
+                }
+                when(client.execute(any(HttpUriRequest.class))).thenReturn(resp);
+
+                checkPeer(mock(ClientSession.class), PEER);
+
+                dbMock.verify(() -> RegistryDB.collection(anyString()), never());
+            }
+        }
+
+        @Test
+        void unreachablePeerIsSkipped() throws IOException {
+            assertPeerSkipped(503,
+                    "Nanopub-Registry-Status", "ready",
+                    "Nanopub-Registry-Setup-Id", "42",
+                    "Nanopub-Registry-Load-Counter", "100");
+        }
+
+        @Test
+        void testInstancePeerIsSkipped() throws IOException {
+            // Syncing from a test instance would pollute a production registry.
+            assertPeerSkipped(200,
+                    "Nanopub-Registry-Test-Instance", "true",
+                    "Nanopub-Registry-Status", "ready",
+                    "Nanopub-Registry-Setup-Id", "42",
+                    "Nanopub-Registry-Load-Counter", "100");
+        }
+
+        @Test
+        void peerStillLaunchingIsSkipped() throws IOException {
+            assertPeerSkipped(200,
+                    "Nanopub-Registry-Status", "launching",
+                    "Nanopub-Registry-Setup-Id", "42",
+                    "Nanopub-Registry-Load-Counter", "100");
+        }
+
+        @Test
+        void peerWithoutStatusHeaderIsSkipped() throws IOException {
+            assertPeerSkipped(200,
+                    "Nanopub-Registry-Setup-Id", "42",
+                    "Nanopub-Registry-Load-Counter", "100");
+        }
+
+        @Test
+        void peerWithUnparseableSetupIdIsSkipped() throws IOException {
+            assertPeerSkipped(200,
+                    "Nanopub-Registry-Status", "ready",
+                    "Nanopub-Registry-Setup-Id", "not-a-number",
+                    "Nanopub-Registry-Load-Counter", "100");
+        }
+
+        @Test
+        void peerWithoutLoadCounterIsSkipped() throws IOException {
+            assertPeerSkipped(200,
+                    "Nanopub-Registry-Status", "ready",
+                    "Nanopub-Registry-Setup-Id", "42");
+        }
+    }
+
+    @Nested
+    class CheckPeersTests {
+
+        private Object previousPeerUrls;
+
+        @BeforeEach
+        void pinPeerUrls() throws Exception {
+            previousPeerUrls = peerUrlsField().get(null);
+        }
+
+        @AfterEach
+        void restorePeerUrls() throws Exception {
+            peerUrlsField().set(null, previousPeerUrls);
+        }
+
+        private Field peerUrlsField() throws Exception {
+            Field f = Utils.class.getDeclaredField("peerUrls");
+            f.setAccessible(true);
+            return f;
+        }
+
+        @Test
+        void doesNothingWithoutConfiguredPeers() throws Exception {
+            peerUrlsField().set(null, List.of());
+
+            try (MockedStatic<NanopubUtils> httpMock = mockStatic(NanopubUtils.class)) {
+                checkPeers(mock(ClientSession.class));
+                httpMock.verify(NanopubUtils::getHttpClient, never());
+            }
+        }
+
+        @Test
+        void keepsGoingWhenOnePeerFails() throws Exception {
+            peerUrlsField().set(null, List.of("https://peer-a.example.org/", "https://peer-b.example.org/"));
+
+            try (MockedStatic<NanopubUtils> httpMock = mockStatic(NanopubUtils.class)) {
+                CloseableHttpClient client = mock(CloseableHttpClient.class);
+                httpMock.when(NanopubUtils::getHttpClient).thenReturn(client);
+                when(client.execute(any(HttpUriRequest.class))).thenThrow(new IOException("connection refused"));
+
+                // One dead peer must not stop the sweep over the rest.
+                checkPeers(mock(ClientSession.class));
+
+                verify(client, times(2)).execute(any(HttpUriRequest.class));
+            }
         }
     }
 }
