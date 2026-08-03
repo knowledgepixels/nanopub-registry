@@ -2,6 +2,7 @@ package com.knowledgepixels.registry.utils;
 
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -98,7 +99,7 @@ public class TestUtils {
         if (Files.exists(temporaryDataDir)) {
             Files.walk(temporaryDataDir)
                     .map(Path::toFile)
-                    .forEach(java.io.File::delete);
+                    .forEach(File::delete);
             Files.deleteIfExists(temporaryDataDir);
         }
     }

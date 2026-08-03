@@ -24,11 +24,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests how {@link NanopubLoader} vets peers when fetching a nanopub list. A peer is
@@ -120,7 +116,7 @@ class NanopubLoaderPeerTest {
 
             NanopubLoader.retrieveNanopubsFromPeers(TYPE_HASH, PUBKEY_HASH);
 
-            verify(client, org.mockito.Mockito.times(2)).execute(any(HttpUriRequest.class));
+            verify(client, times(2)).execute(any(HttpUriRequest.class));
         }
     }
 

@@ -10,6 +10,7 @@ import org.apache.http.message.BasicHeader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.nanopub.NanopubUtils;
 
 import java.io.ByteArrayInputStream;
@@ -18,15 +19,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link LegacyConnector}, which polls the first-generation nanopub-server
@@ -104,7 +99,7 @@ class LegacyConnectorTest {
             ClientSession session = mock(ClientSession.class);
             LegacyConnector.checkForNewNanopubs(session);
 
-            org.mockito.Mockito.verify(client, times(1)).execute(any(HttpUriRequest.class));
+            verify(client, times(1)).execute(any(HttpUriRequest.class));
         }
     }
 
@@ -165,7 +160,7 @@ class LegacyConnectorTest {
             LegacyConnector.checkForNewNanopubs(session);
 
             // Only rel="prev" drives the backwards walk; rel="next" must not be followed.
-            org.mockito.Mockito.verify(client, times(1)).execute(any(HttpUriRequest.class));
+            Mockito.verify(client, times(1)).execute(any(HttpUriRequest.class));
         }
     }
 

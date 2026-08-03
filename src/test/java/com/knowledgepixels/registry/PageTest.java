@@ -27,12 +27,12 @@ class PageTest {
         registry.when(() -> RegistryDB.collection(Collection.SERVER_INFO.toString())).thenReturn(serverInfoCollection);
         when(serverInfoCollection.find(session)).thenReturn(serverInfoFindIterable);
         java.util.List<Document> serverInfoDocs = java.util.List.of(
-            new Document("_id", "status").append("value", "ready"),
-            new Document("_id", "setupId").append("value", 1L),
-            new Document("_id", "trustStateCounter").append("value", 0L),
-            new Document("_id", "lastTrustStateUpdate").append("value", ""),
-            new Document("_id", "trustStateHash").append("value", ""),
-            new Document("_id", "testInstance").append("value", false)
+                new Document("_id", "status").append("value", "ready"),
+                new Document("_id", "setupId").append("value", 1L),
+                new Document("_id", "trustStateCounter").append("value", 0L),
+                new Document("_id", "lastTrustStateUpdate").append("value", ""),
+                new Document("_id", "trustStateHash").append("value", ""),
+                new Document("_id", "testInstance").append("value", false)
         );
         when(serverInfoFindIterable.iterator()).thenAnswer(invocation -> {
             java.util.Iterator<Document> it = serverInfoDocs.iterator();

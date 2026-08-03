@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.nanopub.Nanopub;
 import org.nanopub.extra.setting.IntroNanopub;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -82,8 +83,7 @@ class TaskExtractIntroNameTest {
 
     private static IntroNanopub introWith(Statement... assertion) {
         Nanopub np = mock(Nanopub.class);
-        Set<Statement> assertionSet = new LinkedHashSet<>();
-        for (Statement st : assertion) assertionSet.add(st);
+        Set<Statement> assertionSet = new LinkedHashSet<>(Arrays.asList(assertion));
         when(np.getAssertion()).thenReturn(assertionSet);
         IntroNanopub intro = mock(IntroNanopub.class);
         when(intro.getUser()).thenReturn(AGENT);

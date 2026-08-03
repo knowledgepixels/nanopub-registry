@@ -20,16 +20,10 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests for {@link NanopubLoader}'s routing logic: which lists a nanopub is added to
@@ -42,7 +36,9 @@ class NanopubLoaderTest {
     private static final String PUBKEY_HASH = Utils.getHash(PUBKEY);
 
     private static final String NANOPUB_URI = "http://example.org/RAXH93wfOaQRwDpxwr-E_s10kCQubHZ6O19h-cz3YlNGI";
-    /** The trusty artifact code is what the nanopubs collection is keyed on. */
+    /**
+     * The trusty artifact code is what the nanopubs collection is keyed on.
+     */
     private static final String ARTIFACT_CODE = TrustyUriUtils.getArtifactCode(NANOPUB_URI);
 
     private static Nanopub nanopub(String uri) {
@@ -140,13 +136,14 @@ class NanopubLoaderTest {
     @Test
     void nonDuplicateWriteErrorsPropagate() {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
-            ClientSession s = mock(ClientSession.class);
-            Nanopub np = nanopub("http://example.org/np6");
-            dbMock.when(() -> RegistryDB.insert(any(ClientSession.class), anyString(), any(Document.class)))
-                    .thenThrow(new MongoWriteException(
-                            new WriteError(121, "document validation failure", new BsonDocument()), new ServerAddress()));
+            try (ClientSession s = mock(ClientSession.class)) {
+                Nanopub np = nanopub("http://example.org/np6");
+                dbMock.when(() -> RegistryDB.insert(any(ClientSession.class), anyString(), any(Document.class)))
+                        .thenThrow(new MongoWriteException(
+                                new WriteError(121, "document validation failure", new BsonDocument()), new ServerAddress()));
 
-            assertThrows(MongoWriteException.class, () -> NanopubLoader.simpleLoad(s, np, PUBKEY));
+                assertThrows(MongoWriteException.class, () -> NanopubLoader.simpleLoad(s, np, PUBKEY));
+            }
         }
     }
 

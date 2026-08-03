@@ -153,49 +153,51 @@ public class NanopubLoader {
         }
 
         logger.debug("Processing nanopub stream in parallel with {} worker threads", LOAD_PARALLELISM);
-        ExecutorService executor = Executors.newFixedThreadPool(LOAD_PARALLELISM);
-        Semaphore semaphore = new Semaphore(LOAD_PARALLELISM * 2);
-        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicReference<Exception> error;
+        try (ExecutorService executor = Executors.newFixedThreadPool(LOAD_PARALLELISM)) {
+            Semaphore semaphore = new Semaphore(LOAD_PARALLELISM * 2);
+            error = new AtomicReference<>();
 
-        try {
-            stream.forEach(m -> {
-                if (error.get() != null) {
-                    return;
-                }
-                if (!m.isSuccess()) {
-                    logger.error("Failed to download a nanopub from the stream; aborting remaining work");
-                    error.compareAndSet(null, new AbortingTaskException("Failed to download nanopub; aborting task..."));
-                    return;
-                }
-                Nanopub np = m.getNanopub();
+            try {
+                stream.forEach(m -> {
+                    if (error.get() != null) {
+                        return;
+                    }
+                    if (!m.isSuccess()) {
+                        logger.error("Failed to download a nanopub from the stream; aborting remaining work");
+                        error.compareAndSet(null, new AbortingTaskException("Failed to download nanopub; aborting task..."));
+                        return;
+                    }
+                    Nanopub np = m.getNanopub();
+                    try {
+                        semaphore.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        logger.warn("Interrupted while waiting for a free worker slot; aborting parallel load", e);
+                        error.compareAndSet(null, e);
+                        return;
+                    }
+                    executor.submit(() -> {
+                        try {
+                            processor.accept(np);
+                        } catch (Exception e) {
+                            logger.error("Worker thread failed while processing nanopub {}: {}", np.getUri(), e.getMessage(), e);
+                            error.compareAndSet(null, e);
+                        } finally {
+                            semaphore.release();
+                        }
+                    });
+                });
+            } finally {
+                executor.shutdown();
                 try {
-                    semaphore.acquire();
+                    if (!executor.awaitTermination(1, TimeUnit.HOURS)) {
+                        logger.warn("Worker pool did not terminate within the 1-hour timeout after shutdown");
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logger.warn("Interrupted while waiting for a free worker slot; aborting parallel load", e);
-                    error.compareAndSet(null, e);
-                    return;
+                    logger.warn("Interrupted while waiting for worker pool to terminate", e);
                 }
-                executor.submit(() -> {
-                    try {
-                        processor.accept(np);
-                    } catch (Exception e) {
-                        logger.error("Worker thread failed while processing nanopub {}: {}", np.getUri(), e.getMessage(), e);
-                        error.compareAndSet(null, e);
-                    } finally {
-                        semaphore.release();
-                    }
-                });
-            });
-        } finally {
-            executor.shutdown();
-            try {
-                if (!executor.awaitTermination(1, TimeUnit.HOURS)) {
-                    logger.warn("Worker pool did not terminate within the 1-hour timeout after shutdown");
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.warn("Interrupted while waiting for worker pool to terminate", e);
             }
         }
 
