@@ -14,6 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -105,6 +106,15 @@ class UtilsContentNegotiationTest {
         Files.writeString(file, "[]");
 
         assertTrue(Utils.retrieveListFromJsonUrl(file.toUri().toString()).isEmpty());
+    }
+
+    @Test
+    void aJsonNullBodyYieldsNoList(@TempDir Path tempDir) throws Exception {
+        Path file = tempDir.resolve("null.json");
+        Files.writeString(file, "null");
+
+        // Gson maps a bare JSON null to a null list; the caller has to cope with it.
+        assertNull(Utils.retrieveListFromJsonUrl(file.toUri().toString()));
     }
 
     @Test

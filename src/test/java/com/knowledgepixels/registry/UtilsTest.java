@@ -6,7 +6,10 @@ import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.util.Values;
+import org.eclipse.rdf4j.model.vocabulary.FOAF;
+import org.nanopub.vocabulary.NPX;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 class UtilsTest {
 
@@ -224,6 +228,43 @@ class UtilsTest {
     }
 
     @Test
+    void getPeerUrlsExcludesThisRegistryFromTheEnvList() {
+        fakeEnv.addVariable("REGISTRY_PEER_URLS",
+                        "https://registry.nanodash.net/ https://registry.petapico.org/ https://registry.knowledgepixels.com/")
+                .addVariable("REGISTRY_SERVICE_URL", "https://registry.petapico.org/")
+                .build();
+
+        // A registry syncing from itself would loop; its own URL is dropped from the list.
+        assertEquals(List.of("https://registry.nanodash.net/", "https://registry.knowledgepixels.com/"),
+                Utils.getPeerUrls());
+    }
+
+    @Test
+    void getPeerUrlsExcludesThisRegistryFromTheBootstrapServices() {
+        fakeEnv.addVariable("REGISTRY_PEER_URLS", "")
+                .addVariable("REGISTRY_SERVICE_URL", "https://registry.petapico.org/")
+                .addVariable("REGISTRY_SETTING_FILE", "setting.trig")
+                .build();
+
+        // Same exclusion applies when the peers come from the setting's bootstrap services.
+        List<String> peerUrls = Utils.getPeerUrls();
+        assertFalse(peerUrls.contains("https://registry.petapico.org/"));
+        assertTrue(peerUrls.contains("https://registry.nanodash.net/"));
+        assertTrue(peerUrls.contains("https://registry.knowledgepixels.com/"));
+    }
+
+    @Test
+    void getRandomPeerWithoutAnyPeers() throws Exception {
+        TestUtils.clearStaticFields(Utils.class, new HashMap<>() {{
+            put("peerUrls", List.of());
+        }});
+
+        // There is no sensible peer to return, so the caller gets an exception rather than
+        // a silent null.
+        assertThrows(IllegalArgumentException.class, Utils::getRandomPeer);
+    }
+
+    @Test
     void getRandomPeer() {
         fakeEnv
                 .addVariable("REGISTRY_PEER_URLS", "")
@@ -234,6 +275,58 @@ class UtilsTest {
         List<String> peerUrls = Utils.getPeerUrls();
         String randomPeer = Utils.getRandomPeer();
         assertTrue(peerUrls.contains(randomPeer));
+    }
+
+    private static final IRI TRUSTY_TARGET = Values.iri("http://purl.org/np/RARv1-bZWsdvQs88TDH2trcwNoGF1g5AawE2sPKeh5K_0");
+    private static final IRI OTHER_TRUSTY = Values.iri("http://purl.org/np/RAoxvBHmzM1yEEcQNGdiLBBS0UBMQBNzr4l1Qs8HzS_Yc");
+    private static final IRI INVALIDATING_NP = Values.iri("http://purl.org/np/RAhCPQGL1JvNi_1jvJgL5cxBu9ITpEhSPYFxRrSNzhoBQ");
+
+    /**
+     * Runs getInvalidatedNanopubIds over exactly the given statements.
+     */
+    private static Set<IRI> invalidatedBy(Statement... statements) {
+        Nanopub np = mock(Nanopub.class);
+        when(np.getUri()).thenReturn(INVALIDATING_NP);
+        try (MockedStatic<org.nanopub.NanopubUtils> utils = mockStatic(org.nanopub.NanopubUtils.class)) {
+            utils.when(() -> org.nanopub.NanopubUtils.getStatements(np)).thenReturn(List.of(statements));
+            return Utils.getInvalidatedNanopubIds(np);
+        }
+    }
+
+    @Test
+    void retractionsAndInvalidationsCountRegardlessOfSubject() {
+        // Anyone can retract or invalidate; the subject is not constrained.
+        assertEquals(Set.of(TRUSTY_TARGET), invalidatedBy(
+                Values.getValueFactory().createStatement(OTHER_TRUSTY, NPX.RETRACTS, TRUSTY_TARGET)));
+        assertEquals(Set.of(TRUSTY_TARGET), invalidatedBy(
+                Values.getValueFactory().createStatement(OTHER_TRUSTY, NPX.INVALIDATES, TRUSTY_TARGET)));
+    }
+
+    @Test
+    void supersedingOnlyCountsWhenTheNanopubSupersedesItself() {
+        // "supersedes" is only meaningful when asserted by the superseding nanopub itself.
+        assertEquals(Set.of(TRUSTY_TARGET), invalidatedBy(
+                Values.getValueFactory().createStatement(INVALIDATING_NP, NPX.SUPERSEDES, TRUSTY_TARGET)));
+        assertTrue(invalidatedBy(
+                Values.getValueFactory().createStatement(OTHER_TRUSTY, NPX.SUPERSEDES, TRUSTY_TARGET)).isEmpty(),
+                "a third party cannot declare someone else's nanopub superseded");
+    }
+
+    @Test
+    void nonTrustyAndNonIriTargetsAreIgnored() {
+        IRI notTrusty = Values.iri("http://example.org/not-a-trusty-uri");
+        assertTrue(invalidatedBy(
+                Values.getValueFactory().createStatement(OTHER_TRUSTY, NPX.RETRACTS, notTrusty)).isEmpty(),
+                "only trusty URIs identify a nanopub to invalidate");
+        assertTrue(invalidatedBy(
+                Values.getValueFactory().createStatement(OTHER_TRUSTY, NPX.RETRACTS, Values.literal("RAsomething"))).isEmpty(),
+                "a literal object is not a nanopub reference");
+    }
+
+    @Test
+    void unrelatedPredicatesDoNotInvalidateAnything() {
+        assertTrue(invalidatedBy(
+                Values.getValueFactory().createStatement(OTHER_TRUSTY, FOAF.KNOWS, TRUSTY_TARGET)).isEmpty());
     }
 
     @Test
