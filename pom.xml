@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.knowledgepixels</groupId>
@@ -16,14 +15,17 @@
     <maven.compiler.target>21</maven.compiler.target>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd HH:mm</maven.build.timestamp.format>
-
+    
+    <!-- Plugins -->
     <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
     <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
     <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
     <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
     <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
     <jib-maven-plugin.version>3.5.1</jib-maven-plugin.version>
-
+    <maven-dependency-plugin.version>3.11.0</maven-dependency-plugin.version>
+    
+    <!-- Test dependencies -->
     <junit-jupiter.version>5.11.4</junit-jupiter.version>
     <mockito.version>5.23.0</mockito.version>
     <nanopub-testsuite-connector.version>1.0.0</nanopub-testsuite-connector.version>
@@ -248,8 +250,7 @@
             </goals>
             <configuration>
               <transformers>
-                <transformer
-                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <manifestEntries>
                     <Main-Class>${launcher.class}</Main-Class>
                     <Main-Verticle>${main.verticle}</Main-Verticle>
@@ -264,8 +265,23 @@
         </executions>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>${maven-dependency-plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>properties</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven-surefire-plugin.version}</version>
+        <configuration>
+          <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+        </configuration>
       </plugin>
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
