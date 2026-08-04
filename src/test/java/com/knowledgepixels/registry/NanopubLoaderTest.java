@@ -219,6 +219,21 @@ class NanopubLoaderTest {
     }
 
     @Test
+    void loadStreamInParallelStopsHandingOutWorkAfterAFailure() {
+        Stream<MaybeNanopub> stream = Stream.of(
+                new MaybeNanopub(new RuntimeException("download failed")),
+                new MaybeNanopub(nanopub("http://example.org/b")),
+                new MaybeNanopub(nanopub("http://example.org/c")));
+        ConcurrentLinkedQueue<Nanopub> processed = new ConcurrentLinkedQueue<>();
+
+        assertThrows(AbortingTaskException.class,
+                () -> NanopubLoader.loadStreamInParallel(stream, processed::add));
+
+        // Once the stream is known to be broken, the remaining items are not worth loading.
+        assertTrue(processed.isEmpty(), "no work is dispatched after the failure");
+    }
+
+    @Test
     void loadStreamInParallelSurfacesWorkerFailures() {
         Stream<MaybeNanopub> stream = Stream.of(new MaybeNanopub(nanopub("http://example.org/a")));
 
