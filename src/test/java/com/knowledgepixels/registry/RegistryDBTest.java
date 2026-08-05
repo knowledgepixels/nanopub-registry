@@ -141,6 +141,56 @@ class RegistryDBTest {
     }
 
     @Test
+    void dropLoadingCollections() {
+        RegistryDB.init();
+
+        ClientSession session = RegistryDB.getClient().startSession();
+        RegistryDB.insert(session, "trustPaths_loading", new Document("_id", "$"));
+        RegistryDB.insert(session, "accounts_loading", new Document("_id", "testKey"));
+        RegistryDB.insert(session, "trustPaths", new Document("_id", "$"));
+
+        RegistryDB.dropLoadingCollections();
+
+        assertFalse(RegistryDB.hasCollection("trustPaths_loading"));
+        assertFalse(RegistryDB.hasCollection("accounts_loading"));
+        // The live collections of the previous cycle stay in place and keep being served:
+        assertTrue(RegistryDB.hasCollection("trustPaths"));
+    }
+
+    @Test
+    void dropLoadingCollectionsWhenNoneExist() {
+        RegistryDB.init();
+
+        assertFalse(RegistryDB.hasCollection("trustPaths_loading"));
+
+        RegistryDB.dropLoadingCollections();
+        assertFalse(RegistryDB.hasCollection("trustPaths_loading"));
+    }
+
+    @Test
+    void promoteLoadingCollections() {
+        RegistryDB.init();
+
+        ClientSession session = RegistryDB.getClient().startSession();
+        RegistryDB.insert(session, "trustPaths", new Document("_id", "outdated"));
+        RegistryDB.insert(session, "trustPaths_loading", new Document("_id", "$"));
+        RegistryDB.insert(session, "accounts_loading", new Document("_id", "testKey"));
+        RegistryDB.insert(session, "agents_loading", new Document("_id", "testKey"));
+        RegistryDB.insert(session, "endorsements_loading", new Document("_id", "testKey"));
+
+        RegistryDB.promoteLoadingCollections();
+
+        for (String loadingCollectionName : new String[]{"trustPaths_loading", "accounts_loading", "agents_loading", "endorsements_loading"}) {
+            assertFalse(RegistryDB.hasCollection(loadingCollectionName));
+        }
+        for (String liveCollectionName : new String[]{"trustPaths", "accounts", "agents", "endorsements"}) {
+            assertTrue(RegistryDB.hasCollection(liveCollectionName));
+        }
+        assertNotNull(RegistryDB.collection("trustPaths").find(session, new Document("_id", "$")).first());
+        assertNull(RegistryDB.collection("trustPaths").find(session, new Document("_id", "outdated")).first());
+    }
+
+    @Test
     void getPubkey() throws MalformedNanopubException, IOException {
         File file = NanopubTestSuite.getLatest().getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
         Nanopub nanopub = new NanopubImpl(file);

@@ -130,4 +130,87 @@ class TaskTest {
         assertTrue(loadFullCount >= 2);
     }
 
+    @Test
+    void recoverInterruptedCycleRestartsTheCycle() throws Exception {
+        ClientSession mongoSession = startCycleInterruptedAs(ServerStatus.updating);
+        // A cycle interrupted midway, plus a duplicate successor left behind by the crash:
+        queueTasks(mongoSession, Task.LOAD_DECLARATIONS, Task.EXPAND_TRUST_PATHS, Task.LOAD_FULL);
+
+        Task.recoverInterruptedCycle(mongoSession);
+
+        List<String> actions = queuedActions(mongoSession);
+        assertEquals(2, actions.size());
+        assertTrue(actions.contains(Task.INIT_COLLECTIONS.name()));
+        // Tasks outside the trust-state cycle keep their place in the queue:
+        assertTrue(actions.contains(Task.LOAD_FULL.name()));
+    }
+
+    @Test
+    void recoverInterruptedCycleDuringCoreLoading() throws Exception {
+        ClientSession mongoSession = startCycleInterruptedAs(ServerStatus.coreLoading);
+        queueTasks(mongoSession, Task.INIT_COLLECTIONS);
+
+        Task.recoverInterruptedCycle(mongoSession);
+
+        // The re-queued INIT_COLLECTIONS is the recovery's own, not the interrupted one:
+        assertEquals(List.of(Task.INIT_COLLECTIONS.name()), queuedActions(mongoSession));
+    }
+
+    @Test
+    void recoverInterruptedCycleKeepsPendingReleaseData() throws Exception {
+        ClientSession mongoSession = startCycleInterruptedAs(ServerStatus.updating);
+        // The cycle is complete; RELEASE_DATA is idempotent and finishes it:
+        queueTasks(mongoSession, Task.FINALIZE_TRUST_STATE, Task.RELEASE_DATA);
+
+        Task.recoverInterruptedCycle(mongoSession);
+
+        assertEquals(List.of(Task.RELEASE_DATA.name()), queuedActions(mongoSession));
+    }
+
+    @Test
+    void recoverInterruptedCycleWhenNoCycleWasRunning() throws Exception {
+        ClientSession mongoSession = startCycleInterruptedAs(ServerStatus.ready);
+        queueTasks(mongoSession, Task.UPDATE);
+
+        Task.recoverInterruptedCycle(mongoSession);
+
+        assertEquals(List.of(Task.UPDATE.name()), queuedActions(mongoSession));
+    }
+
+    @Test
+    void recoverInterruptedCycleOnUninitializedDatabase() {
+        ClientSession mongoSession = RegistryDB.getClient().startSession();
+
+        Task.recoverInterruptedCycle(mongoSession);
+
+        assertEquals(List.of(), queuedActions(mongoSession));
+    }
+
+    /**
+     * Brings the DB into the state a shutdown during a trust-state cycle leaves behind: the given
+     * server status, and an empty task queue for the test to fill with the tasks that were pending.
+     */
+    private ClientSession startCycleInterruptedAs(ServerStatus status) throws Exception {
+        Task.runTask(Task.INIT_DB, Task.INIT_DB.asDocument());
+        ClientSession mongoSession = RegistryDB.getClient().startSession();
+        collection(Collection.TASKS.toString()).deleteMany(mongoSession, new Document());
+        RegistryDB.setValue(mongoSession, Collection.SERVER_INFO.toString(), "status", status.toString());
+        return mongoSession;
+    }
+
+    private void queueTasks(ClientSession mongoSession, Task... tasks) {
+        for (Task task : tasks) {
+            collection(Collection.TASKS.toString()).insertOne(mongoSession, task.asDocument());
+        }
+    }
+
+    private List<String> queuedActions(ClientSession mongoSession) {
+        return collection(Collection.TASKS.toString())
+                .find(mongoSession)
+                .into(new ArrayList<Document>())
+                .stream()
+                .map(d -> d.getString("action"))
+                .toList();
+    }
+
 }
