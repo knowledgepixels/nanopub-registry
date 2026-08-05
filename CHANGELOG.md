@@ -1,3 +1,13 @@
+## [1.11.2](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.1...nanopub-registry-1.11.2) (2026-08-05)
+
+### Dependency updates
+
+* **core-deps:** update org.nanopub:nanopub dependency to v1.91.0 ([e5ed6d4](https://github.com/knowledgepixels/nanopub-registry/commit/e5ed6d4623dbefdc0be06fa9f74401e26c7d120f))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([e86e484](https://github.com/knowledgepixels/nanopub-registry/commit/e86e484a02f143899456be12024259285d361236))
+
 ## [1.11.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.0...nanopub-registry-1.11.1) (2026-06-30)
 
 ### Bug Fixes
