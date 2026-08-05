@@ -1,3 +1,13 @@
+## [1.11.4](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.3...nanopub-registry-1.11.4) (2026-08-05)
+
+### Bug Fixes
+
+* let the trust calculation ignore the setting's invalidation, not the record ([#60](https://github.com/knowledgepixels/nanopub-registry/issues/60)) ([2a004ed](https://github.com/knowledgepixels/nanopub-registry/commit/2a004eda2198c24ffa49640a7b7dba6335a760dd)), closes [#125](https://github.com/knowledgepixels/nanopub-registry/issues/125) [#125](https://github.com/knowledgepixels/nanopub-registry/issues/125) [#125](https://github.com/knowledgepixels/nanopub-registry/issues/125) [#125](https://github.com/knowledgepixels/nanopub-registry/issues/125)
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([b67b1c7](https://github.com/knowledgepixels/nanopub-registry/commit/b67b1c71c1b6885af83a571e7b240af562776e04))
+
 ## [1.11.3](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.2...nanopub-registry-1.11.3) (2026-08-05)
 
 ### Bug Fixes
