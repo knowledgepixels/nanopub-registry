@@ -281,16 +281,7 @@ public enum Task implements Serializable {
                                 .append("source", sourceAc);
                         if (!has(s, "trustEdges", trustEdge)) {
                             boolean invalidated = has(s, "invalidations", new Document("invalidatedNp", sourceAc).append("invalidatingPubkey", sourcePubkey));
-                            if (invalidated && RegistryDB.isImmuneSetting(s, sourceAc)) {
-                                // The bootstrap setting stays recorded as invalidated, but edges
-                                // sourced from it survive (issue #60). Root endorsements use
-                                // sourcePubkey "$", so this lookup does not match them today —
-                                // guarded anyway so the rule holds wherever the edge comes from.
-                                logger.warn("Trust edge from {}/{} to {}/{} is sourced from the invalidated "
-                                                + "bootstrap setting {}; keeping it (issue #60)",
-                                        sourceAgent, sourcePubkey, agentId, agentPubkey, sourceAc);
-                                invalidated = false;
-                            } else if (invalidated) {
+                            if (invalidated) {
                                 logger.info("Trust edge from {}/{} to {}/{} is invalidated by source {}", sourceAgent, sourcePubkey, agentId, agentPubkey, sourceAc);
                             }
                             insert(s, "trustEdges", trustEdge.append("invalidated", invalidated));
@@ -388,9 +379,7 @@ public enum Task implements Serializable {
                     String currentSetting = getValue(s, Collection.SETTING.toString(), "current").toString();
 
                     try (MongoCursor<Document> edgeCursor = get(s, "trustEdges",
-                            new Document("fromAgent", agentId)
-                                    .append("fromPubkey", pubkeyHash)
-                                    .append("invalidated", false)
+                            trustEdgeFilter(agentId, pubkeyHash, getBootstrapSettingAcs(s))
                     )) {
                         while (edgeCursor.hasNext()) {
                             Document e = edgeCursor.next();
@@ -1216,6 +1205,42 @@ public enum Task implements Serializable {
     private static final Logger logger = LoggerFactory.getLogger(Task.class);
 
     public abstract void run(ClientSession s, Document taskDoc) throws Exception;
+
+    /**
+     * Which trust edges out of {@code (agentId, pubkeyHash)} the trust calculation follows.
+     *
+     * <p>Normally: edges that are not invalidated. Plus, always: edges sourced from a setting
+     * nanopub this instance was bootstrapped from, <em>even when they are invalidated</em>
+     * (issue #60).
+     *
+     * <p>Those edges are correctly marked invalidated — a superseded setting is invalidated
+     * like anything else, and {@code RegistryDB} records that faithfully. But the root
+     * endorsements of a running instance are all sourced from its setting
+     * ({@link #INIT_COLLECTIONS}), so honouring that invalidation here severs every root edge
+     * at once and collapses the trust network to the base agent. It cannot recover either:
+     * {@link #LOAD_SETTING} runs only at {@code status == launching}, so the instance keeps
+     * using the superseded setting.
+     *
+     * <p>That happened on 2026-08-05. A setting superseding the deployed one was published,
+     * changing only its trust-range algorithm — a field no code reads — and the next iteration
+     * produced a trust state with 14 accounts instead of 777, identically on three independent
+     * registries. Adopting a superseding setting is a deliberate act (deploy it as
+     * {@code REGISTRY_SETTING_FILE} and re-bootstrap); merely publishing one must not do it.
+     *
+     * @param agentId          the source agent
+     * @param pubkeyHash       the source pubkey hash
+     * @param bootstrapSettings artifact codes from {@link RegistryDB#getBootstrapSettingAcs}
+     * @return the MongoDB filter for the edges to follow
+     */
+    static Document trustEdgeFilter(String agentId, String pubkeyHash, Set<String> bootstrapSettings) {
+        Document filter = new Document("fromAgent", agentId).append("fromPubkey", pubkeyHash);
+        if (bootstrapSettings.isEmpty()) {
+            return filter.append("invalidated", false);
+        }
+        return filter.append("$or", List.of(
+                new Document("invalidated", false),
+                new Document("source", new Document("$in", new ArrayList<>(bootstrapSettings)))));
+    }
 
     public boolean runAsTransaction() {
         return true;
