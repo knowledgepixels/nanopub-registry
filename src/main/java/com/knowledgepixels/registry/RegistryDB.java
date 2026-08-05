@@ -222,7 +222,14 @@ public class RegistryDB {
 
     /**
      * Whether the given artifact code is a setting nanopub this instance was bootstrapped
-     * from, and therefore immune to invalidation (issue #60).
+     * from, and whose trust edges therefore survive its invalidation (issue #60).
+     *
+     * <p>Scope: this does <em>not</em> make the setting un-invalidatable. The invalidation is
+     * still recorded in {@code invalidations} and the setting is still marked invalidated in
+     * {@code listEntries}, so it reads as superseded wherever it is listed. What is suppressed
+     * is only the consequence for the trust graph — the edges the setting is the {@code source}
+     * of are kept, so superseding a setting cannot sever the trust root of an instance already
+     * running on it.
      *
      * <p>Checks both {@code original} and {@code current}. They are the same value today —
      * {@link Task#LOAD_SETTING} writes both and only runs at {@code status == launching} —
@@ -531,7 +538,10 @@ public class RegistryDB {
                         continue;  // This should never happen; checking here just to be sure
                     }
 
-                    // The bootstrap setting is immune to invalidation (issue #60).
+                    // The bootstrap setting's trust edges are immune to invalidation (#60).
+                    // The invalidation itself is still recorded in full: the setting is
+                    // genuinely superseded and must read as invalidated everywhere it is
+                    // listed. Only its effect on the trust graph is suppressed.
                     //
                     // Root endorsements are seeded with source = the setting's artifact code
                     // (Task.INIT_COLLECTIONS), so the blanket trustEdges update below would
@@ -552,14 +562,11 @@ public class RegistryDB {
                     // Superseding a setting must be able to change the setting; it must not
                     // be able to destroy the trust root that the running instance was
                     // bootstrapped from.
-                    if (isImmuneSetting(mongoSession, invalidatedAc)) {
-                        logger.warn("Ignoring invalidation of the bootstrap setting {} by nanopub {}: "
-                                        + "the setting this instance was bootstrapped from is immune to "
-                                        + "invalidation (issue #60). Adopting a superseding setting requires "
-                                        + "deploying it as REGISTRY_SETTING_FILE and re-bootstrapping.",
-                                invalidatedAc, nanopub.getUri());
-                        continue;
-                    }
+                    // The invalidation itself is recorded normally below — the setting *is*
+                    // invalidated, and must show as such in the nanopub lists. Only the last
+                    // step, severing the trust edges it is the source of, is skipped.
+                    // Invalidating a setting says "this setting is superseded"; it must not
+                    // also mean "the instance running on it loses its trust root".
 
                     // Add this nanopub also to all lists of invalidated nanopubs:
                     logger.debug("Nanopub {} invalidates {}; updating list entries and trust edges", nanopub.getUri(), invalidatedId);
@@ -571,7 +578,17 @@ public class RegistryDB {
                     }
 
                     collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
-                    collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
+
+                    if (isImmuneSetting(mongoSession, invalidatedAc)) {
+                        logger.warn("Nanopub {} invalidates the bootstrap setting {}: recorded as invalidated, "
+                                        + "but its trust edges are kept. The setting this instance was bootstrapped "
+                                        + "from is immune to invalidation (issue #60); adopting a superseding "
+                                        + "setting requires deploying it as REGISTRY_SETTING_FILE and "
+                                        + "re-bootstrapping.",
+                                nanopub.getUri(), invalidatedAc);
+                    } else {
+                        collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
+                    }
                     logger.debug("Marked invalidated entries and trust edges for invalidated artifact {}", invalidatedAc);
                 }
             }

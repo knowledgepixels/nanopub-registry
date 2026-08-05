@@ -3,19 +3,36 @@ package com.knowledgepixels.registry;
 import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
+import org.bson.Document;
+import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.nanopub.Nanopub;
+import org.nanopub.NanopubImpl;
+import org.nanopub.testsuite.NanopubTestSuite;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.io.File;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 /**
- * Issue #60 — the setting nanopub this instance was bootstrapped from must be immune to
- * invalidation.
+ * Issue #60 — invalidating the setting nanopub this instance was bootstrapped from must not
+ * sever its trust edges.
+ *
+ * <p>Scope, and it is deliberately narrow: the setting still gets invalidated normally. The
+ * {@code invalidations} record is written and its {@code listEntries} are marked, so it reads
+ * as superseded wherever it is listed. Only the consequence for the trust graph is suppressed.
  *
  * <p>Why it matters: {@code Task.INIT_COLLECTIONS} seeds every root endorsement with
  * {@code source = <setting artifact code>}, and {@code RegistryDB.loadNanopub} marks
@@ -91,6 +108,74 @@ class RegistryDBImmuneSettingTest {
 
             assertTrue(RegistryDB.isImmuneSetting(s, SETTING_AC), "current setting must be immune");
             assertTrue(RegistryDB.isImmuneSetting(s, OTHER_AC), "original setting must be immune");
+        }
+    }
+
+    /**
+     * The invalidation must still be recorded in full — the setting genuinely is superseded
+     * and has to read as invalidated wherever it is listed. Only its effect on the trust
+     * graph is suppressed.
+     */
+    @Test
+    void settingInvalidationIsRecordedButItsTrustEdgesSurvive() throws Exception {
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
+            String settingAc = SETTING_AC;
+            RegistryDB.setValue(s, Collection.SETTING.toString(), "original", settingAc);
+            RegistryDB.setValue(s, Collection.SETTING.toString(), "current", settingAc);
+
+            // A root trust edge, as Task.INIT_COLLECTIONS seeds them.
+            RegistryDB.insert(s, "trustEdges", new Document("fromAgent", "$").append("fromPubkey", "$")
+                    .append("toAgent", "http://example.org/a").append("toPubkey", "pk")
+                    .append("source", settingAc).append("invalidated", false));
+
+            loadNanopubInvalidating(s, settingAc);
+
+            assertTrue(RegistryDB.has(s, "invalidations", new Document("invalidatedNp", settingAc)),
+                    "the invalidation itself must still be recorded");
+            assertFalse(trustEdgeInvalidated(s, settingAc),
+                    "trust edges sourced from the bootstrap setting must survive its invalidation");
+        }
+    }
+
+    @Test
+    void ordinaryInvalidationStillSeversItsTrustEdges() throws Exception {
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
+            String settingAc = SETTING_AC;
+            String ordinaryAc = "RAlPfnKm8LTiHfLm2Uu7oHrJ5NCUOhqUvOTUuFVAr5hEg";
+            RegistryDB.setValue(s, Collection.SETTING.toString(), "original", settingAc);
+            RegistryDB.setValue(s, Collection.SETTING.toString(), "current", settingAc);
+
+            RegistryDB.insert(s, "trustEdges", new Document("fromAgent", "x").append("fromPubkey", "pk1")
+                    .append("toAgent", "http://example.org/b").append("toPubkey", "pk2")
+                    .append("source", ordinaryAc).append("invalidated", false));
+
+            loadNanopubInvalidating(s, ordinaryAc);
+
+            assertTrue(RegistryDB.has(s, "invalidations", new Document("invalidatedNp", ordinaryAc)));
+            assertTrue(trustEdgeInvalidated(s, ordinaryAc),
+                    "immunity must not leak: ordinary invalidation still severs its trust edges");
+        }
+    }
+
+    private static boolean trustEdgeInvalidated(ClientSession s, String sourceAc) {
+        Document e = RegistryDB.collection("trustEdges").find(s, new Document("source", sourceAc)).first();
+        assertNotNull(e, "test setup: the trust edge should exist");
+        return Boolean.TRUE.equals(e.getBoolean("invalidated"));
+    }
+
+    /**
+     * Loads a real nanopub while forcing it to invalidate {@code invalidatedAc}, so the
+     * invalidation branch of {@code loadNanopub} runs against a genuinely insertable nanopub.
+     */
+    private static void loadNanopubInvalidating(ClientSession s, String invalidatedAc) throws Exception {
+        File file = NanopubTestSuite.getLatest()
+                .getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        Nanopub np = new NanopubImpl(file);
+        IRI invalidated = SimpleValueFactory.getInstance()
+                .createIRI("http://purl.org/np/" + invalidatedAc);
+        try (MockedStatic<Utils> utils = mockStatic(Utils.class, CALLS_REAL_METHODS)) {
+            utils.when(() -> Utils.getInvalidatedNanopubIds(np)).thenReturn(Set.of(invalidated));
+            RegistryDB.loadNanopub(s, np);
         }
     }
 

@@ -281,7 +281,16 @@ public enum Task implements Serializable {
                                 .append("source", sourceAc);
                         if (!has(s, "trustEdges", trustEdge)) {
                             boolean invalidated = has(s, "invalidations", new Document("invalidatedNp", sourceAc).append("invalidatingPubkey", sourcePubkey));
-                            if (invalidated) {
+                            if (invalidated && RegistryDB.isImmuneSetting(s, sourceAc)) {
+                                // The bootstrap setting stays recorded as invalidated, but edges
+                                // sourced from it survive (issue #60). Root endorsements use
+                                // sourcePubkey "$", so this lookup does not match them today —
+                                // guarded anyway so the rule holds wherever the edge comes from.
+                                logger.warn("Trust edge from {}/{} to {}/{} is sourced from the invalidated "
+                                                + "bootstrap setting {}; keeping it (issue #60)",
+                                        sourceAgent, sourcePubkey, agentId, agentPubkey, sourceAc);
+                                invalidated = false;
+                            } else if (invalidated) {
                                 logger.info("Trust edge from {}/{} to {}/{} is invalidated by source {}", sourceAgent, sourcePubkey, agentId, agentPubkey, sourceAc);
                             }
                             insert(s, "trustEdges", trustEdge.append("invalidated", invalidated));
