@@ -1,3 +1,14 @@
+## [1.11.3](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.2...nanopub-registry-1.11.3) (2026-08-05)
+
+### Bug Fixes
+
+* make the bootstrap setting immune to invalidation ([#60](https://github.com/knowledgepixels/nanopub-registry/issues/60)) ([abe932e](https://github.com/knowledgepixels/nanopub-registry/commit/abe932ec63040cda5e4a9ee7d2633cd0ab90f93e))
+* narrow [#60](https://github.com/knowledgepixels/nanopub-registry/issues/60) immunity to trust edges only ([d530efa](https://github.com/knowledgepixels/nanopub-registry/commit/d530efaca698c9da1d2058bdf7864d7d5bb9509d))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([fe3e93c](https://github.com/knowledgepixels/nanopub-registry/commit/fe3e93c66fcb2bf371fd26647edda1b7d980dc4c))
+
 ## [1.11.2](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.1...nanopub-registry-1.11.2) (2026-08-05)
 
 ### Dependency updates
