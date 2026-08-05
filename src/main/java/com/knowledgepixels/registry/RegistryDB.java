@@ -221,6 +221,36 @@ public class RegistryDB {
     }
 
     /**
+     * Whether the given artifact code is a setting nanopub this instance was bootstrapped
+     * from, and therefore immune to invalidation (issue #60).
+     *
+     * <p>Checks both {@code original} and {@code current}. They are the same value today —
+     * {@link Task#LOAD_SETTING} writes both and only runs at {@code status == launching} —
+     * but the two are read separately elsewhere, so guarding both keeps the immunity intact
+     * if {@code current} ever starts tracking supersession.
+     *
+     * <p>Returns {@code false} when the setting has not been recorded yet, which is the case
+     * while {@code LOAD_SETTING} is still loading the setting nanopub itself. Nothing has been
+     * built at that point, so there are no trust edges to protect.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param artifactCode the artifact code to test
+     * @return true if this is the bootstrap setting of this instance
+     */
+    static boolean isImmuneSetting(ClientSession mongoSession, String artifactCode) {
+        if (artifactCode == null) {
+            return false;
+        }
+        for (String key : new String[] { "original", "current" }) {
+            Object v = getValue(mongoSession, Collection.SETTING.toString(), key);
+            if (v != null && artifactCode.equals(v.toString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Retrieves the boolean value of an element with the given name from the specified collection.
      *
      * @param mongoSession the MongoDB client session
@@ -499,6 +529,36 @@ public class RegistryDB {
                     if (invalidatedAc == null) {
                         logger.warn("Nanopub {} references invalidated nanopub {} with an unresolvable artifact code; skipping", nanopub.getUri(), invalidatedId);
                         continue;  // This should never happen; checking here just to be sure
+                    }
+
+                    // The bootstrap setting is immune to invalidation (issue #60).
+                    //
+                    // Root endorsements are seeded with source = the setting's artifact code
+                    // (Task.INIT_COLLECTIONS), so the blanket trustEdges update below would
+                    // mark *every* root trust edge invalidated the moment anyone supersedes
+                    // the setting. EXPAND_TRUST_PATHS only follows edges with
+                    // invalidated == false, so the trust network collapses to the base agent
+                    // and never recovers: LOAD_SETTING runs only at status == launching, so
+                    // the registry keeps using the invalidated setting forever.
+                    //
+                    // That happened on 2026-08-05. A new setting was published at 05:39:06
+                    // whose only assertion change was TransitiveTrust -> IDEBT10, but whose
+                    // pubinfo carried npx:supersedes of the deployed setting — and
+                    // getInvalidatedNanopubIds counts npx:supersedes as invalidation. The
+                    // next iteration produced a trust state with 14 accounts instead of 777,
+                    // identically on all three registries, and every downstream consumer
+                    // (nanopub-query space state, Nanodash) went blank.
+                    //
+                    // Superseding a setting must be able to change the setting; it must not
+                    // be able to destroy the trust root that the running instance was
+                    // bootstrapped from.
+                    if (isImmuneSetting(mongoSession, invalidatedAc)) {
+                        logger.warn("Ignoring invalidation of the bootstrap setting {} by nanopub {}: "
+                                        + "the setting this instance was bootstrapped from is immune to "
+                                        + "invalidation (issue #60). Adopting a superseding setting requires "
+                                        + "deploying it as REGISTRY_SETTING_FILE and re-bootstrapping.",
+                                invalidatedAc, nanopub.getUri());
+                        continue;
                     }
 
                     // Add this nanopub also to all lists of invalidated nanopubs:
