@@ -221,40 +221,40 @@ public class RegistryDB {
     }
 
     /**
-     * Whether the given artifact code is a setting nanopub this instance was bootstrapped
-     * from, and whose trust edges therefore survive its invalidation (issue #60).
+     * Artifact codes of the setting nanopub(s) this instance was bootstrapped from.
      *
-     * <p>Scope: this does <em>not</em> make the setting un-invalidatable. The invalidation is
-     * still recorded in {@code invalidations} and the setting is still marked invalidated in
-     * {@code listEntries}, so it reads as superseded wherever it is listed. What is suppressed
-     * is only the consequence for the trust graph — the edges the setting is the {@code source}
-     * of are kept, so superseding a setting cannot sever the trust root of an instance already
-     * running on it.
+     * <p>Used by {@code Task.EXPAND_TRUST_PATHS} to decide which invalidated trust edges the
+     * trust calculation should still follow (issue #60).
      *
-     * <p>Checks both {@code original} and {@code current}. They are the same value today —
-     * {@link Task#LOAD_SETTING} writes both and only runs at {@code status == launching} —
-     * but the two are read separately elsewhere, so guarding both keeps the immunity intact
-     * if {@code current} ever starts tracking supersession.
+     * <p>This is deliberately <em>not</em> an exemption from invalidation. A superseded setting
+     * is invalidated like any other nanopub: the {@code invalidations} record is written, its
+     * {@code listEntries} are marked, and the trust edges it is the {@code source} of are
+     * marked {@code invalidated: true}. All of that is true and stays recorded. The one thing
+     * that changes is how the trust calculation <em>reads</em> those edges — it keeps following
+     * them, because the root endorsements of a running instance are sourced from its setting
+     * (Task.INIT_COLLECTIONS), and superseding a setting must not sever the trust root of an
+     * instance already running on it.
      *
-     * <p>Returns {@code false} when the setting has not been recorded yet, which is the case
-     * while {@code LOAD_SETTING} is still loading the setting nanopub itself. Nothing has been
-     * built at that point, so there are no trust edges to protect.
+     * <p>Returns both {@code original} and {@code current}. They hold the same value today —
+     * {@code LOAD_SETTING} writes both and only runs at {@code status == launching} — but they
+     * are read separately elsewhere, so returning both keeps the rule correct if {@code current}
+     * ever starts tracking supersession.
+     *
+     * <p>Empty while {@code LOAD_SETTING} has not recorded the setting yet. Nothing has been
+     * built at that point, so there are no trust edges to consider.
      *
      * @param mongoSession the MongoDB client session
-     * @param artifactCode the artifact code to test
-     * @return true if this is the bootstrap setting of this instance
+     * @return the bootstrap setting artifact codes, possibly empty, never null
      */
-    static boolean isImmuneSetting(ClientSession mongoSession, String artifactCode) {
-        if (artifactCode == null) {
-            return false;
-        }
+    static Set<String> getBootstrapSettingAcs(ClientSession mongoSession) {
+        Set<String> acs = new HashSet<>();
         for (String key : new String[] { "original", "current" }) {
             Object v = getValue(mongoSession, Collection.SETTING.toString(), key);
-            if (v != null && artifactCode.equals(v.toString())) {
-                return true;
+            if (v != null) {
+                acs.add(v.toString());
             }
         }
-        return false;
+        return acs;
     }
 
     /**
@@ -538,36 +538,6 @@ public class RegistryDB {
                         continue;  // This should never happen; checking here just to be sure
                     }
 
-                    // The bootstrap setting's trust edges are immune to invalidation (#60).
-                    // The invalidation itself is still recorded in full: the setting is
-                    // genuinely superseded and must read as invalidated everywhere it is
-                    // listed. Only its effect on the trust graph is suppressed.
-                    //
-                    // Root endorsements are seeded with source = the setting's artifact code
-                    // (Task.INIT_COLLECTIONS), so the blanket trustEdges update below would
-                    // mark *every* root trust edge invalidated the moment anyone supersedes
-                    // the setting. EXPAND_TRUST_PATHS only follows edges with
-                    // invalidated == false, so the trust network collapses to the base agent
-                    // and never recovers: LOAD_SETTING runs only at status == launching, so
-                    // the registry keeps using the invalidated setting forever.
-                    //
-                    // That happened on 2026-08-05. A new setting was published at 05:39:06
-                    // whose only assertion change was TransitiveTrust -> IDEBT10, but whose
-                    // pubinfo carried npx:supersedes of the deployed setting — and
-                    // getInvalidatedNanopubIds counts npx:supersedes as invalidation. The
-                    // next iteration produced a trust state with 14 accounts instead of 777,
-                    // identically on all three registries, and every downstream consumer
-                    // (nanopub-query space state, Nanodash) went blank.
-                    //
-                    // Superseding a setting must be able to change the setting; it must not
-                    // be able to destroy the trust root that the running instance was
-                    // bootstrapped from.
-                    // The invalidation itself is recorded normally below — the setting *is*
-                    // invalidated, and must show as such in the nanopub lists. Only the last
-                    // step, severing the trust edges it is the source of, is skipped.
-                    // Invalidating a setting says "this setting is superseded"; it must not
-                    // also mean "the instance running on it loses its trust root".
-
                     // Add this nanopub also to all lists of invalidated nanopubs:
                     logger.debug("Nanopub {} invalidates {}; updating list entries and trust edges", nanopub.getUri(), invalidatedId);
                     collection("invalidations").insertOne(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc));
@@ -579,16 +549,7 @@ public class RegistryDB {
 
                     collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
 
-                    if (isImmuneSetting(mongoSession, invalidatedAc)) {
-                        logger.warn("Nanopub {} invalidates the bootstrap setting {}: recorded as invalidated, "
-                                        + "but its trust edges are kept. The setting this instance was bootstrapped "
-                                        + "from is immune to invalidation (issue #60); adopting a superseding "
-                                        + "setting requires deploying it as REGISTRY_SETTING_FILE and "
-                                        + "re-bootstrapping.",
-                                nanopub.getUri(), invalidatedAc);
-                    } else {
-                        collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
-                    }
+                    collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
                     logger.debug("Marked invalidated entries and trust edges for invalidated artifact {}", invalidatedAc);
                 }
             }
