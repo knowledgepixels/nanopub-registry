@@ -112,7 +112,9 @@ Steps 2–4 can be skipped with `REGISTRY_ENABLE_TRUST_CALCULATION=false`, which
 5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`. Optional loading can be disabled with `REGISTRY_ENABLE_OPTIONAL_LOAD=false`
 6. `UPDATE` (10min after the previous recalculation finished) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
 
-See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
+A task is removed from the queue only after it has run, and its writes are not atomic with that removal, so a shutdown mid-task leaves the task queued and its writes half-applied. On startup, a trust state cycle (steps 2–4) interrupted this way is therefore not resumed but restarted: the queued cycle tasks are dropped and `INIT_COLLECTIONS` is scheduled afresh, which discards the `_loading` collections and rebuilds them. Only a pending `RELEASE_DATA` is kept and left to finish, since the cycle is complete by then and that task is idempotent.
+
+See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`recoverInterruptedCycle`).
 
 
 ## Updating from peers
@@ -239,7 +241,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { notBefore^:1710672000000, action^:CHECK_NEW }
       { notBefore^:1710672000100, action^:LOAD_FULL }
 
-During trust state computation, intermediate `_loading` collections (`endorsements_loading`, `accounts_loading`, `agents_loading`, `trustPaths_loading`) are used and then renamed to replace the live collections in `RELEASE_DATA`.
+During trust state computation, intermediate `_loading` collections (`endorsements_loading`, `accounts_loading`, `agents_loading`, `trustPaths_loading`) are used and then renamed to replace the live collections in `RELEASE_DATA`. They are always built from scratch: `INIT_COLLECTIONS` drops whatever is still there before it starts inserting, so a cycle left half-built by a shutdown is discarded rather than added to.
 
 See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java).
 

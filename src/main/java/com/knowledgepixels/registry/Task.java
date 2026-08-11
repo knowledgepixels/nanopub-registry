@@ -31,6 +31,7 @@ import static com.knowledgepixels.registry.NanopubLoader.*;
 import static com.knowledgepixels.registry.RegistryDB.*;
 import static com.knowledgepixels.registry.ServerStatus.*;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Sorts.*;
 
 public enum Task implements Serializable {
@@ -141,6 +142,12 @@ public enum Task implements Serializable {
                 logger.error("INIT_COLLECTIONS aborted: expected server status 'coreLoading' or 'updating' but found '{}'", status);
                 throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
+
+            // A cycle always builds its staging collections from scratch, so anything still there
+            // is a half-built cycle left by an interrupted run and has to go before we start
+            // inserting (issue #50). Done outside the transaction, as dropping a collection is a
+            // DDL operation; it is idempotent, so a retry of this task is unaffected.
+            dropLoadingCollections();
 
             IndexInitializer.initLoadingCollections(s);
 
@@ -826,10 +833,7 @@ public enum Task implements Serializable {
 
             // Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
             logger.debug("Renaming loading collections into live collections");
-            rename("accounts_loading", Collection.ACCOUNTS.toString());
-            rename("trustPaths_loading", "trustPaths");
-            rename("agents_loading", Collection.AGENTS.toString());
-            rename("endorsements_loading", "endorsements");
+            promoteLoadingCollections();
 
             if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
                 logger.info("Trust state changed ({} -> {}); recording new state and snapshot", previousTrustStateHash, newTrustStateHash);
@@ -1296,6 +1300,17 @@ public enum Task implements Serializable {
 
     private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
 
+    /**
+     * The tasks that make up one trust-state cycle, from building the staging collections to
+     * promoting them to their live names.
+     *
+     * @see #recoverInterruptedCycle
+     */
+    private static final Set<Task> TRUST_CYCLE_TASKS = EnumSet.of(
+            INIT_COLLECTIONS, LOAD_DECLARATIONS, EXPAND_TRUST_PATHS, LOAD_CORE, FINISH_ITERATION,
+            CALCULATE_TRUST_SCORES, AGGREGATE_AGENTS, ASSIGN_PUBKEYS, DETERMINE_UPDATES,
+            FINALIZE_TRUST_STATE, RELEASE_DATA);
+
     private static volatile String currentTaskName;
     private static volatile long currentTaskStartTime;
 
@@ -1308,12 +1323,66 @@ public enum Task implements Serializable {
     }
 
     /**
+     * Restarts a trust-state cycle that a shutdown interrupted, so the registry can recover on its
+     * own (issue #50).
+     *
+     * <p>Task writes are not atomic with the removal of the task from the queue, so a task that was
+     * running when the process died is picked up again on restart and re-executes writes it already
+     * performed. For most of the cycle that is harmless — the tasks pick their work by entry status
+     * — but the unconditional inserts in {@link #INIT_COLLECTIONS} then fail on duplicate keys, and
+     * that task retries forever without ever getting past them. A crash can also leave both a task
+     * and the successor it scheduled in the queue, making the rest of the cycle run twice.
+     *
+     * <p>Rather than resuming a half-built cycle, we therefore restart it: the queued cycle tasks
+     * are dropped and a fresh {@link #INIT_COLLECTIONS} is scheduled, which discards the staging
+     * collections and rebuilds them. This costs one recomputation and nothing else — the staging
+     * collections only become live at the end of the cycle, so the trust state currently served
+     * (status {@code updating}) is untouched.
+     *
+     * <p>The exception is a queued {@link #RELEASE_DATA}: the cycle is then complete and that task
+     * is idempotent by design, so it is kept and left to finish rather than recomputed. Its
+     * siblings are still dropped, so a duplicate predecessor cannot run the cycle a second time.
+     *
+     * @param mongoSession the MongoDB client session
+     */
+    static void recoverInterruptedCycle(ClientSession mongoSession) {
+        Object statusValue = getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
+        if (statusValue == null) {
+            return;
+        }
+        ServerStatus status = ServerStatus.valueOf(statusValue.toString());
+        if (status != coreLoading && status != updating) {
+            // No cycle was in progress; if one is due, a queued UPDATE starts it from scratch.
+            logger.debug("Server status is {}; no interrupted trust-state cycle to recover", status);
+            return;
+        }
+
+        boolean releasePending = tasksCollection.find(mongoSession, eq("action", RELEASE_DATA.name())).first() != null;
+        List<String> obsolete = TRUST_CYCLE_TASKS.stream()
+                .filter(task -> !releasePending || task != RELEASE_DATA)
+                .map(Task::name)
+                .toList();
+        long removed = tasksCollection.deleteMany(mongoSession, in("action", obsolete)).getDeletedCount();
+
+        if (releasePending) {
+            logger.info("Recovering trust-state cycle interrupted in status {}: dropped {} queued task(s), letting the pending {} finish the cycle",
+                    status, removed, RELEASE_DATA.name());
+        } else {
+            logger.info("Recovering trust-state cycle interrupted in status {}: dropped {} queued task(s), restarting the cycle at {}",
+                    status, removed, INIT_COLLECTIONS.name());
+            schedule(mongoSession, INIT_COLLECTIONS);
+        }
+    }
+
+    /**
      * The super important base entry point!
      */
     static void runTasks() {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             if (!RegistryDB.isInitialized(s)) {
                 schedule(s, INIT_DB); // does not yet execute, only schedules
+            } else {
+                recoverInterruptedCycle(s);
             }
 
             logger.info("Task runner started");
