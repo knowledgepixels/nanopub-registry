@@ -130,10 +130,19 @@ public enum Task implements Serializable {
 
     INIT_COLLECTIONS {
 
-        // DB read from:
-        // DB write to:  trustPaths, endorsements, accounts
+        // DB read from: setting
+        // DB write to:  nanopubs
         // This state is periodically executed
 
+        /**
+         * Prepares the ground for a trust state cycle: resets the loading collections, creates
+         * their indexes, and fetches the agent intro collection into the local nanopub store.
+         *
+         * <p>Everything here is either a catalog operation or network I/O, so this task cannot be
+         * transactional. It deliberately holds no derived writes: those live in
+         * {@link #SEED_TRUST_STATE}, which runs afterwards and, because the intro collection is
+         * local by then, needs neither (issue #128).
+         */
         public void run(ClientSession s, Document taskDoc) throws Exception {
             logger.info("Running INIT_COLLECTIONS task");
             ServerStatus status = getServerStatus(s);
@@ -142,10 +151,67 @@ public enum Task implements Serializable {
                 throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
 
+            // This task cannot run as a transaction (see runAsTransaction below), so it has to be
+            // idempotent instead: an interrupted run is re-executed from the same queue document.
+            // The _loading collections are scratch space that RELEASE_DATA renames away at the end
+            // of a cycle and that SEED_TRUST_STATE fills from scratch, so discarding whatever is
+            // there is always safe, and it is what keeps a retry from colliding with the fixed
+            // keys seeded by that task (issue #50).
+            for (String c : LOADING_COLLECTIONS) {
+                drop(c);
+            }
+
             IndexInitializer.initLoadingCollections(s);
 
-            if ("false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
-                logger.info("Trust calculation disabled (REGISTRY_ENABLE_TRUST_CALCULATION=false); skipping to FINALIZE_TRUST_STATE");
+            // Read through Utils rather than System.getenv so tests can reach this branch; the two
+            // are equivalent in production, where the env reader delegates to System::getenv.
+            boolean trustCalculation = !"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null));
+            if (trustCalculation) {
+                // Pull the agent intro collection into the nanopub store now, so that the seeding
+                // below it resolves the index locally and stays off the network.
+                String agentIntroCollectionUri = Utils.getSetting().getAgentIntroCollection().stringValue();
+                logger.info("Retrieving base agent intro collection: {}", agentIntroCollectionUri);
+                loadNanopub(s, NanopubLoader.retrieveNanopub(s, agentIntroCollectionUri));
+                if (NanopubLoader.retrieveLocalNanopub(s, agentIntroCollectionUri) == null) {
+                    // retrieveNanopub returns the nanopub even when loadNanopub declined to store
+                    // it (size or triple count limits), which would send SEED_TRUST_STATE to the
+                    // network from inside its transaction. Fail here instead, where retrying is free.
+                    throw new RuntimeException("Agent intro collection could not be stored locally: " + agentIntroCollectionUri);
+                }
+            } else {
+                logger.info("Trust calculation disabled (REGISTRY_ENABLE_TRUST_CALCULATION=false); not retrieving the agent intro collection");
+            }
+
+            // Pass the decision on rather than re-reading the environment, so that both halves of
+            // the cycle are seeded from one observation of the flag.
+            schedule(s, SEED_TRUST_STATE.with("trustCalculation", trustCalculation));
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Drops and indexes the _loading collections, which is DDL, and fetches the agent
+            // intro collection over the network. Neither is permitted or bounded inside a
+            // transaction; the writes that follow from them are in SEED_TRUST_STATE. See #128.
+            return false;
+        }
+
+    },
+
+    SEED_TRUST_STATE {
+
+        // DB read from: nanopubs, setting
+        // DB write to:  trustPaths, endorsements, accounts
+
+        /**
+         * Seeds the loading collections for a fresh cycle, from data that
+         * {@link #INIT_COLLECTIONS} has already made local. Transactional: on a crash the whole
+         * seeding is rolled back and re-run, rather than half-applied (issue #128).
+         */
+        public void run(ClientSession s, Document taskDoc) throws Exception {
+            logger.info("Running SEED_TRUST_STATE task");
+
+            if (!taskDoc.getBoolean("trustCalculation", true)) {
+                logger.info("Trust calculation disabled; seeding explicit pubkeys and skipping to FINALIZE_TRUST_STATE");
                 for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
                     String pubkeyHash = entry.getKey();
                     int quota = entry.getValue();
@@ -177,9 +243,14 @@ public enum Task implements Serializable {
             );
 
             String agentIntroCollectionUri = Utils.getSetting().getAgentIntroCollection().stringValue();
-            logger.info("Retrieving base agent intro collection: {}", agentIntroCollectionUri);
-            NanopubIndex agentIndex = IndexUtils.castToIndex(NanopubLoader.retrieveNanopub(s, agentIntroCollectionUri));
-            loadNanopub(s, agentIndex);
+            // Strictly local: INIT_COLLECTIONS has already stored this and verified it is here, so
+            // this must not fall back to the network the way retrieveNanopub would.
+            Nanopub agentIndexNp = NanopubLoader.retrieveLocalNanopub(s, agentIntroCollectionUri);
+            if (agentIndexNp == null) {
+                throw new RuntimeException("Agent intro collection is not available locally: " + agentIntroCollectionUri);
+            }
+            NanopubIndex agentIndex = IndexUtils.castToIndex(agentIndexNp);
+            String currentSetting = getValue(s, Collection.SETTING.toString(), "current").toString();
             for (IRI el : agentIndex.getElements()) {
                 String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
                 Validate.notNull(declarationAc);
@@ -188,7 +259,7 @@ public enum Task implements Serializable {
                         new Document("agent", "$")
                                 .append("pubkey", "$")
                                 .append("endorsedNanopub", declarationAc)
-                                .append("source", getValue(s, Collection.SETTING.toString(), "current").toString())
+                                .append("source", currentSetting)
                                 .append("status", toRetrieve.getValue())
 
                 );
@@ -337,6 +408,13 @@ public enum Task implements Serializable {
         // ------------------------------------------------------------
         // Only one trust edge per introduction is shown here, but
         // there can be several.
+
+        @Override
+        public boolean runAsTransaction() {
+            // Retrieves an agent intro over the network for every pending endorsement, each with
+            // up to ten retries, which would exceed MongoDB's transaction timeout. See #128.
+            return false;
+        }
 
     },
 
@@ -598,6 +676,13 @@ public enum Task implements Serializable {
         // Only one endorsement is shown here, but there are typically
         // several.
 
+        @Override
+        public boolean runAsTransaction() {
+            // Streams intros and endorsements from peers, and loads them through worker threads
+            // that each open their own session. Neither can join a transaction. See #128.
+            return false;
+        }
+
     },
 
     FINISH_ITERATION {
@@ -780,7 +865,7 @@ public enum Task implements Serializable {
             logger.info("Running DETERMINE_UPDATES task");
 
             // TODO Handle contested accounts properly:
-            for (Document d : collection("accounts_loading").find(
+            for (Document d : collection("accounts_loading").find(s,
                     new DbEntryWrapper(approved).getDocument())) {
                 // TODO Consider quota too:
                 Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString());
@@ -815,11 +900,17 @@ public enum Task implements Serializable {
 
     RELEASE_DATA {
 
-        private static final int TRUST_STATE_SNAPSHOT_RETENTION = 100;
-
+        /**
+         * Publishes the cycle's results by renaming the loading collections over the live ones.
+         *
+         * <p>Renaming is a catalog operation and cannot run inside a transaction, which is the
+         * whole reason this task is separate: everything derived from the renamed collections —
+         * the counter, the snapshot, the status transition — is in {@link #PUBLISH_TRUST_STATE},
+         * which runs afterwards and so reads them through a snapshot that already includes them
+         * (issue #128).
+         */
         public void run(ClientSession s, Document taskDoc) {
-            ServerStatus status = getServerStatus(s);
-            logger.info("Running RELEASE_DATA task (current status: {})", status);
+            logger.info("Running RELEASE_DATA task (current status: {})", getServerStatus(s));
 
             String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
             String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
@@ -831,16 +922,65 @@ public enum Task implements Serializable {
             rename("agents_loading", Collection.AGENTS.toString());
             rename("endorsements_loading", "endorsements");
 
+            schedule(s, PUBLISH_TRUST_STATE
+                    .with("newTrustStateHash", newTrustStateHash)
+                    .append("previousTrustStateHash", previousTrustStateHash));
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Renames the _loading collections into the live ones, which is DDL and cannot run
+            // inside a transaction. See #128. Both the renames and the rescheduling below them are
+            // idempotent, which is what PUBLISH_TRUST_STATE's own guard relies on: an interrupted
+            // run of this task is re-executed and enqueues that successor a second time.
+            return false;
+        }
+
+    },
+
+    PUBLISH_TRUST_STATE {
+
+        private static final int TRUST_STATE_SNAPSHOT_RETENTION = 100;
+
+        /**
+         * Records the newly released trust state: the counter, the debug row, the hash-keyed
+         * snapshot, the retention pruning and the server status transition. Transactional — every
+         * write here is an ordinary document write on collections {@link #RELEASE_DATA} has
+         * already renamed into place.
+         */
+        public void run(ClientSession s, Document taskDoc) {
+            ServerStatus status = getServerStatus(s);
+            logger.info("Running PUBLISH_TRUST_STATE task (current status: {})", status);
+
+            String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
+            String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
+
             if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
                 logger.info("Trust state changed ({} -> {}); recording new state and snapshot", previousTrustStateHash, newTrustStateHash);
-                increaseStateCounter(s);
-                setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
+                // Bump the counter and record the hash only once per distinct trust state. This
+                // task is transactional, so it cannot half-apply — but RELEASE_DATA is not, and an
+                // interrupted run of it enqueues this task a second time with the same hashes. The
+                // check has to be against the stored hash rather than against
+                // previousTrustStateHash from the task document, which still holds the value from
+                // before the first run and would let the counter drift on every duplicate.
+                String storedTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");
+                if (newTrustStateHash.equals(storedTrustStateHash)) {
+                    logger.info("Trust state {} was already recorded by an earlier run of this task; not bumping the counter again", newTrustStateHash);
+                } else {
+                    increaseStateCounter(s);
+                    setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
+                }
                 Object trustStateCounter = getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter");
-                insert(s, "debug_trustPaths", new Document()
-                        .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
-                        .append("trustStateHash", newTrustStateHash)
-                        .append("trustStateCounter", trustStateCounter)
-                );
+                // Keyed on the counter, which is stable across retries thanks to the guard above,
+                // so a retry replaces this row instead of appending a duplicate. The
+                // trustStateCounter field is kept because DebugPage queries on it.
+                collection("debug_trustPaths").replaceOne(s,
+                        new Document("_id", trustStateCounter),
+                        new Document("_id", trustStateCounter)
+                                .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
+                                .append("trustStateHash", newTrustStateHash)
+                                .append("trustStateCounter", trustStateCounter),
+                        new ReplaceOptions().upsert(true));
 
                 // Structured hash-keyed snapshot for consumer mirroring (#107).
                 // Reads the accounts collection just renamed from accounts_loading above (:697).
@@ -913,7 +1053,7 @@ public enum Task implements Serializable {
 
             // Run update 10min after this cycle finishes (the delay is measured from the end of the
             // recompute, since this is the last task in the chain):
-            logger.debug("RELEASE_DATA complete; scheduling next UPDATE in 10min");
+            logger.debug("PUBLISH_TRUST_STATE complete; scheduling next UPDATE in 10min");
             schedule(s, UPDATE.withDelay(10 * 60 * 1000));
         }
 
@@ -1175,6 +1315,14 @@ public enum Task implements Serializable {
             }
         }
 
+        @Override
+        public boolean runAsTransaction() {
+            // Streams up to REGISTRY_OPTIONAL_LOAD_BATCH_SIZE nanopubs from peers and loads them
+            // through worker threads that each open their own session. Neither can join a
+            // transaction. See #128.
+            return false;
+        }
+
     },
 
     CHECK_NEW {
@@ -1294,6 +1442,14 @@ public enum Task implements Serializable {
     private static final int MAX_USER_QUOTA = Integer.parseInt(
             Utils.getEnv("REGISTRY_MAX_USER_QUOTA", "100000"));
 
+    /**
+     * The scratch collections a trust state cycle builds up, in the order in which
+     * {@link #RELEASE_DATA} renames them into their live counterparts. {@link #INIT_COLLECTIONS}
+     * resets them at the start of every cycle; nothing outside a cycle reads them.
+     */
+    private static final List<String> LOADING_COLLECTIONS = List.of(
+            "accounts_loading", "trustPaths_loading", "agents_loading", "endorsements_loading");
+
     private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
 
     private static volatile String currentTaskName;
@@ -1330,7 +1486,7 @@ public enum Task implements Serializable {
                         try {
                             s.startTransaction();
                             logger.debug("Transaction started for task {}", task.name());
-                            runTask(task, taskDoc);
+                            runTask(s, task, taskDoc);
                             s.commitTransaction();
                             logger.info("Transaction committed for task {}", task.name());
                         } catch (Exception ex) {
@@ -1343,7 +1499,7 @@ public enum Task implements Serializable {
                         }
                     } else {
                         try {
-                            runTask(task, taskDoc);
+                            runTask(s, task, taskDoc);
                         } catch (Exception ex) {
                             logger.warn("Non-transactional task {} failed: {}", task.name(), ex.getMessage(), ex);
                         }
@@ -1359,12 +1515,25 @@ public enum Task implements Serializable {
         }
     }
 
-    static void runTask(Task task, Document taskDoc) throws Exception {
+    /**
+     * Runs a single task on the given session.
+     *
+     * <p>The session belongs to the caller and carries the transaction, if any: for a task with
+     * {@link #runAsTransaction()}, {@link #runTasks} has already called
+     * {@code startTransaction()} on it, so the task's writes and the removal of the task from the
+     * queue below both join that transaction and commit together. Opening a session here instead
+     * would silently place both outside it (issue #128).
+     *
+     * @param s       the session to run on, with an active transaction for transactional tasks
+     * @param task    the task to run
+     * @param taskDoc the queue document describing this invocation
+     */
+    static void runTask(ClientSession s, Task task, Document taskDoc) throws Exception {
         currentTaskName = task.name();
         currentTaskStartTime = System.currentTimeMillis();
         logger.info("Starting task {} with request: {}", currentTaskName, taskDoc);
 
-        try (ClientSession s = RegistryDB.getClient().startSession()) {
+        try {
             task.run(s, taskDoc);
             long duration = System.currentTimeMillis() - currentTaskStartTime;
             tasksCollection.deleteOne(s, eq("_id", taskDoc.get("_id")));

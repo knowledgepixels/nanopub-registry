@@ -131,6 +131,21 @@ public class RegistryDB {
     }
 
     /**
+     * Drops a collection, if it exists.
+     *
+     * <p>Like {@link #rename}, this is a catalog operation and therefore runs outside of any
+     * transaction, and it is idempotent: dropping a collection that is not there is a no-op.
+     *
+     * @param collectionName the name of the collection to drop
+     */
+    public static void drop(String collectionName) {
+        if (hasCollection(collectionName)) {
+            collection(collectionName).drop();
+            logger.debug("Dropped collection '{}'", collectionName);
+        }
+    }
+
+    /**
      * Checks if a collection with the given name exists in the database.
      *
      * @param collectionName the name of the collection to check
