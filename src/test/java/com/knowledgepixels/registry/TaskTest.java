@@ -218,6 +218,51 @@ class TaskTest {
         assertDoesNotThrow(() -> Task.runTask(mongoSession, Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument()));
     }
 
+    /**
+     * A fresh registry's first computed trust state is the near-empty bootstrap one: every account
+     * is still 'toLoad' and therefore excluded from the hash and the snapshot (issue #119).
+     * PUBLISH_TRUST_STATE holds that state back — nothing is recorded until a cycle finds the
+     * initial full load complete — so consumers never see a trust state containing essentially
+     * nobody, replaced right afterwards without any change in the network.
+     */
+    @Test
+    void publishTrustStateHoldsBackBootstrapState() throws Exception {
+        ClientSession mongoSession = RegistryDB.getClient().startSession();
+        Task.runTask(mongoSession, Task.INIT_DB, Task.INIT_DB.asDocument());
+        Task.runTask(mongoSession, Task.LOAD_CONFIG, Task.LOAD_CONFIG.asDocument());
+
+        TestUtils.copyResourceToDataDir("setting.trig");
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", TestUtils.getDataDir().resolve("setting.trig").toString()).build();
+        Task.runTask(mongoSession, Task.LOAD_SETTING, Task.LOAD_SETTING.asDocument());
+
+        long counterBefore = trustStateCounter(mongoSession);
+
+        // As after RELEASE_DATA on a fresh instance: the released accounts still await the full load
+        RegistryDB.insert(mongoSession, Collection.ACCOUNTS.toString(),
+                new Document("agent", "testAgent").append("pubkey", "testPubkey").append("status", EntryStatus.toLoad.getValue()));
+
+        Task.runTask(mongoSession, Task.PUBLISH_TRUST_STATE,
+                Task.PUBLISH_TRUST_STATE.asDocument().append("newTrustStateHash", "bootstrapHash"));
+
+        assertNull(getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash"), "the bootstrap state must not be recorded");
+        assertEquals(0, collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(mongoSession));
+        assertEquals(counterBefore, trustStateCounter(mongoSession), "the bootstrap state must not bump the trust state counter");
+        assertEquals(ServerStatus.coreReady.toString(), getValue(mongoSession, Collection.SERVER_INFO.toString(), "status"),
+                "holding back the state must not hold back the status transition");
+
+        // The initial full load completes, and the next cycle publishes its state as the first one
+        collection(Collection.ACCOUNTS.toString()).updateMany(mongoSession, new Document(),
+                new Document("$set", new Document("status", EntryStatus.loaded.getValue())));
+
+        Task.runTask(mongoSession, Task.PUBLISH_TRUST_STATE,
+                Task.PUBLISH_TRUST_STATE.asDocument().append("newTrustStateHash", "fullHash"));
+
+        assertEquals("fullHash", getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateHash"));
+        assertEquals(counterBefore + 1, trustStateCounter(mongoSession));
+        assertNotNull(collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).find(mongoSession, new Document("_id", "fullHash")).first(),
+                "the first published snapshot should be the post-load state");
+    }
+
     private static long trustStateCounter(ClientSession mongoSession) {
         return ((Number) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter")).longValue();
     }
