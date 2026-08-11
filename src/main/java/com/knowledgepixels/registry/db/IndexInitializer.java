@@ -60,7 +60,7 @@ public final class IndexInitializer {
 
         collection(Collection.PEER_STATE.toString()).createIndex(mongoSession, ascending("setupId"));
 
-        // Supports pruning in RELEASE_DATA: sort by trustStateCounter desc, skip N, delete the tail.
+        // Supports pruning in PUBLISH_TRUST_STATE: sort by trustStateCounter desc, skip N, delete the tail.
         collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).createIndex(mongoSession, descending("trustStateCounter"));
     }
 
