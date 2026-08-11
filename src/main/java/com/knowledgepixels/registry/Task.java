@@ -114,7 +114,7 @@ public enum Task implements Serializable {
             // potentially currently hardcoded in the nanopub lib
             setValue(s, Collection.SETTING.toString(), "bootstrap-services", bootstrapServices);
 
-            boolean performFullLoad = !"false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"));
+            boolean performFullLoad = !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null));
             if (performFullLoad) {
                 logger.debug("REGISTRY_PERFORM_FULL_LOAD not disabled; scheduling LOAD_FULL task");
                 schedule(s, LOAD_FULL);
@@ -947,6 +947,10 @@ public enum Task implements Serializable {
          * snapshot, the retention pruning and the server status transition. Transactional — every
          * write here is an ordinary document write on collections {@link #RELEASE_DATA} has
          * already renamed into place.
+         *
+         * <p>The very first state of a fresh registry is held back: nothing is recorded until a
+         * cycle finds the initial full load complete, so consumers never see the near-empty
+         * bootstrap state (see below).
          */
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
@@ -954,8 +958,24 @@ public enum Task implements Serializable {
 
             String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
             String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
+            String storedTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");  // null until the first publication
 
-            if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
+            if (storedTrustStateHash == null
+                    && !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null))
+                    && has(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument())) {
+                // Bootstrap: nothing has ever been published and the just-released accounts are
+                // still waiting for their initial full load, so the computed state is the
+                // near-empty bootstrap one — every account still 'toLoad' is excluded from the
+                // hash and the snapshot (issue #119, calculateTrustStateHash). Publishing it would
+                // hand consumers a trust state containing essentially nobody, replaced as soon as
+                // loading finishes without any change in the network. Hold off instead until a
+                // cycle finds the initial load complete. Checked against the database rather than
+                // the server status because the initial load can span several update cycles, and
+                // because a re-run of the non-transactional RELEASE_DATA enqueues this task twice.
+                // Once something has been published, 'toLoad' accounts are normal between-cycles
+                // state (#119) and must not suppress publication.
+                logger.info("Initial full load not complete yet; not publishing bootstrap trust state {}", newTrustStateHash);
+            } else if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
                 logger.info("Trust state changed ({} -> {}); recording new state and snapshot", previousTrustStateHash, newTrustStateHash);
                 // Bump the counter and record the hash only once per distinct trust state. This
                 // task is transactional, so it cannot half-apply — but RELEASE_DATA is not, and an
@@ -963,7 +983,6 @@ public enum Task implements Serializable {
                 // check has to be against the stored hash rather than against
                 // previousTrustStateHash from the task document, which still holds the value from
                 // before the first run and would let the counter drift on every duplicate.
-                String storedTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");
                 if (newTrustStateHash.equals(storedTrustStateHash)) {
                     logger.info("Trust state {} was already recorded by an earlier run of this task; not bumping the counter again", newTrustStateHash);
                 } else {
@@ -1079,7 +1098,7 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.debug("LOAD_FULL invoked; taskDoc={}", taskDoc);
 
-            if ("false".equals(System.getenv("REGISTRY_PERFORM_FULL_LOAD"))) {
+            if ("false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null))) {
                 logger.info("REGISTRY_PERFORM_FULL_LOAD=false; skipping full load");
                 return;
             }
