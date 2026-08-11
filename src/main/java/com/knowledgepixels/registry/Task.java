@@ -31,6 +31,7 @@ import static com.knowledgepixels.registry.NanopubLoader.*;
 import static com.knowledgepixels.registry.RegistryDB.*;
 import static com.knowledgepixels.registry.ServerStatus.*;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Sorts.*;
 
 public enum Task implements Serializable {
@@ -151,15 +152,12 @@ public enum Task implements Serializable {
                 throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
 
-            // This task cannot run as a transaction (see runAsTransaction below), so it has to be
-            // idempotent instead: an interrupted run is re-executed from the same queue document.
-            // The _loading collections are scratch space that RELEASE_DATA renames away at the end
-            // of a cycle and that SEED_TRUST_STATE fills from scratch, so discarding whatever is
-            // there is always safe, and it is what keeps a retry from colliding with the fixed
-            // keys seeded by that task (issue #50).
-            for (String c : LOADING_COLLECTIONS) {
-                drop(c);
-            }
+            // A cycle always builds its staging collections from scratch, so anything still there
+            // is a half-built cycle left by an interrupted run and has to go before SEED_TRUST_STATE
+            // starts inserting (issue #50). Done outside the transaction, as dropping a collection
+            // is a DDL operation; it is idempotent, so a retry of this task is unaffected, and it
+            // is what keeps such a retry from colliding with the fixed keys that task seeds under.
+            dropLoadingCollections();
 
             IndexInitializer.initLoadingCollections(s);
 
@@ -917,10 +915,7 @@ public enum Task implements Serializable {
 
             // Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
             logger.debug("Renaming loading collections into live collections");
-            rename("accounts_loading", Collection.ACCOUNTS.toString());
-            rename("trustPaths_loading", "trustPaths");
-            rename("agents_loading", Collection.AGENTS.toString());
-            rename("endorsements_loading", "endorsements");
+            promoteLoadingCollections();
 
             schedule(s, PUBLISH_TRUST_STATE
                     .with("newTrustStateHash", newTrustStateHash)
@@ -1461,15 +1456,27 @@ public enum Task implements Serializable {
     private static final int MAX_USER_QUOTA = Integer.parseInt(
             Utils.getEnv("REGISTRY_MAX_USER_QUOTA", "100000"));
 
-    /**
-     * The scratch collections a trust state cycle builds up, in the order in which
-     * {@link #RELEASE_DATA} renames them into their live counterparts. {@link #INIT_COLLECTIONS}
-     * resets them at the start of every cycle; nothing outside a cycle reads them.
-     */
-    private static final List<String> LOADING_COLLECTIONS = List.of(
-            "accounts_loading", "trustPaths_loading", "agents_loading", "endorsements_loading");
-
     private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
+
+    /**
+     * The tasks that make up one trust-state cycle, from building the staging collections to
+     * promoting them to their live names.
+     *
+     * @see #recoverInterruptedCycle
+     */
+    private static final Set<Task> TRUST_CYCLE_TASKS = EnumSet.of(
+            INIT_COLLECTIONS, SEED_TRUST_STATE, LOAD_DECLARATIONS, EXPAND_TRUST_PATHS, LOAD_CORE,
+            FINISH_ITERATION, CALCULATE_TRUST_SCORES, AGGREGATE_AGENTS, ASSIGN_PUBKEYS,
+            DETERMINE_UPDATES, FINALIZE_TRUST_STATE, RELEASE_DATA, PUBLISH_TRUST_STATE);
+
+    /**
+     * The tail of a trust-state cycle: the computation is finished by the time these run, and both
+     * are idempotent, so an interrupted cycle that has reached them is left to finish rather than
+     * recomputed.
+     *
+     * @see #recoverInterruptedCycle
+     */
+    private static final Set<Task> TRUST_CYCLE_TAIL_TASKS = EnumSet.of(RELEASE_DATA, PUBLISH_TRUST_STATE);
 
     private static volatile String currentTaskName;
     private static volatile long currentTaskStartTime;
@@ -1483,12 +1490,68 @@ public enum Task implements Serializable {
     }
 
     /**
+     * Restarts a trust-state cycle that a shutdown interrupted, so the registry can recover on its
+     * own (issue #50).
+     *
+     * <p>Task writes are not atomic with the removal of the task from the queue, so a task that was
+     * running when the process died is picked up again on restart and re-executes writes it already
+     * performed. For most of the cycle that is harmless — the tasks pick their work by entry status
+     * — but the unconditional inserts in {@link #INIT_COLLECTIONS} then fail on duplicate keys, and
+     * that task retries forever without ever getting past them. A crash can also leave both a task
+     * and the successor it scheduled in the queue, making the rest of the cycle run twice.
+     *
+     * <p>Rather than resuming a half-built cycle, we therefore restart it: the queued cycle tasks
+     * are dropped and a fresh {@link #INIT_COLLECTIONS} is scheduled, which discards the staging
+     * collections and rebuilds them. This costs one recomputation and nothing else — the staging
+     * collections only become live at the end of the cycle, so the trust state currently served
+     * (status {@code updating}) is untouched.
+     *
+     * <p>The exception is a queued tail task ({@link #TRUST_CYCLE_TAIL_TASKS}): the computation is
+     * then complete and both tail tasks are idempotent by design, so they are kept and left to
+     * finish rather than recomputed. Their siblings are still dropped, so a duplicate predecessor
+     * cannot run the cycle a second time.
+     *
+     * @param mongoSession the MongoDB client session
+     */
+    static void recoverInterruptedCycle(ClientSession mongoSession) {
+        Object statusValue = getValue(mongoSession, Collection.SERVER_INFO.toString(), "status");
+        if (statusValue == null) {
+            return;
+        }
+        ServerStatus status = ServerStatus.valueOf(statusValue.toString());
+        if (status != coreLoading && status != updating) {
+            // No cycle was in progress; if one is due, a queued UPDATE starts it from scratch.
+            logger.debug("Server status is {}; no interrupted trust-state cycle to recover", status);
+            return;
+        }
+
+        List<String> tailNames = TRUST_CYCLE_TAIL_TASKS.stream().map(Task::name).toList();
+        boolean releasePending = tasksCollection.find(mongoSession, in("action", tailNames)).first() != null;
+        List<String> obsolete = TRUST_CYCLE_TASKS.stream()
+                .filter(task -> !releasePending || !TRUST_CYCLE_TAIL_TASKS.contains(task))
+                .map(Task::name)
+                .toList();
+        long removed = tasksCollection.deleteMany(mongoSession, in("action", obsolete)).getDeletedCount();
+
+        if (releasePending) {
+            logger.info("Recovering trust-state cycle interrupted in status {}: dropped {} queued task(s), letting the pending tail task(s) {} finish the cycle",
+                    status, removed, tailNames);
+        } else {
+            logger.info("Recovering trust-state cycle interrupted in status {}: dropped {} queued task(s), restarting the cycle at {}",
+                    status, removed, INIT_COLLECTIONS.name());
+            schedule(mongoSession, INIT_COLLECTIONS);
+        }
+    }
+
+    /**
      * The super important base entry point!
      */
     static void runTasks() {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             if (!RegistryDB.isInitialized(s)) {
                 schedule(s, INIT_DB); // does not yet execute, only schedules
+            } else {
+                recoverInterruptedCycle(s);
             }
 
             logger.info("Task runner started");

@@ -115,9 +115,12 @@ Steps 2–4 can be skipped with `REGISTRY_ENABLE_TRUST_CALCULATION=false`, which
 Some tasks run inside a MongoDB transaction, so that their writes commit atomically with their own removal from the queue; `Task.runAsTransaction()` says which, and defaults to true.
 A task opts out when it does network I/O or catalog operations (creating indexes, renaming or dropping collections), neither of which belongs in a transaction.
 Several pairs above exist for exactly that reason — `INIT_COLLECTIONS` prepares and fetches so that `SEED_TRUST_STATE` can write transactionally, and `RELEASE_DATA` renames so that `PUBLISH_TRUST_STATE` can.
-A task that stays non-transactional is re-executed after a crash and must be idempotent.
 
-See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java).
+A task that stays non-transactional is re-executed after a crash and must be idempotent, since its writes are not atomic with its own removal from the queue.
+On startup, a trust state cycle (steps 2–4) interrupted that way is therefore not resumed but restarted: the queued cycle tasks are dropped and `INIT_COLLECTIONS` is scheduled afresh, which discards the `_loading` collections and rebuilds them.
+The exception is the tail of the cycle, `RELEASE_DATA` and `PUBLISH_TRUST_STATE`: the computation is complete by then and both are idempotent, so they are kept and left to finish rather than recomputed.
+
+See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`recoverInterruptedCycle`).
 
 
 ## Updating from peers
@@ -244,7 +247,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { notBefore^:1710672000000, action^:CHECK_NEW }
       { notBefore^:1710672000100, action^:LOAD_FULL }
 
-During trust state computation, intermediate `_loading` collections (`endorsements_loading`, `accounts_loading`, `agents_loading`, `trustPaths_loading`) are used and then renamed to replace the live collections in `RELEASE_DATA`.
+During trust state computation, intermediate `_loading` collections (`endorsements_loading`, `accounts_loading`, `agents_loading`, `trustPaths_loading`) are used and then renamed to replace the live collections in `RELEASE_DATA`. They are always built from scratch: `INIT_COLLECTIONS` drops whatever is still there before it starts inserting, so a cycle left half-built by a shutdown is discarded rather than added to.
 
 See also [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java).
 

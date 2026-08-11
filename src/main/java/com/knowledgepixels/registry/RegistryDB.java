@@ -31,7 +31,10 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static com.mongodb.client.model.Indexes.ascending;
@@ -115,6 +118,54 @@ public class RegistryDB {
     }
 
     /**
+     * The staging collections that a trust-state cycle rebuilds from scratch, each mapped to the
+     * live collection it is promoted to when the cycle completes.
+     *
+     * @see #promoteLoadingCollections()
+     * @see #dropLoadingCollections()
+     */
+    private static final Map<String, String> LOADING_COLLECTIONS = createLoadingCollectionsMap();
+
+    private static Map<String, String> createLoadingCollectionsMap() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("accounts_loading", Collection.ACCOUNTS.toString());
+        map.put("trustPaths_loading", "trustPaths");
+        map.put("agents_loading", Collection.AGENTS.toString());
+        map.put("endorsements_loading", "endorsements");
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Discards all staging collections of a trust-state cycle.
+     *
+     * <p>Designed as an idempotent operation: in a healthy run the collections do not exist at this
+     * point, as {@link #promoteLoadingCollections()} renamed them away at the end of the previous
+     * cycle. Anything left behind is a half-built cycle from an interrupted run, which must be
+     * discarded rather than added to: the cycle tasks insert into these collections unconditionally
+     * and would otherwise fail on duplicate keys forever (issue #50).
+     */
+    public static void dropLoadingCollections() {
+        for (String loadingCollectionName : LOADING_COLLECTIONS.keySet()) {
+            if (hasCollection(loadingCollectionName)) {
+                logger.info("Discarding leftover staging collection '{}'", loadingCollectionName);
+                collection(loadingCollectionName).drop();
+            }
+        }
+    }
+
+    /**
+     * Promotes the staging collections of a completed trust-state cycle to their live names,
+     * replacing the previous cycle's data.
+     *
+     * <p>Designed as an idempotent operation, since {@link #rename} is.
+     */
+    public static void promoteLoadingCollections() {
+        for (Map.Entry<String, String> entry : LOADING_COLLECTIONS.entrySet()) {
+            rename(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /**
      * Renames a collection in the database. If the new collection name already exists, it will be dropped first.
      *
      * @param oldCollectionName the current name of the collection
@@ -127,21 +178,6 @@ public class RegistryDB {
                 collection(newCollectionName).drop();
             }
             collection(oldCollectionName).renameCollection(new MongoNamespace(REGISTRY_DB_NAME, newCollectionName));
-        }
-    }
-
-    /**
-     * Drops a collection, if it exists.
-     *
-     * <p>Like {@link #rename}, this is a catalog operation and therefore runs outside of any
-     * transaction, and it is idempotent: dropping a collection that is not there is a no-op.
-     *
-     * @param collectionName the name of the collection to drop
-     */
-    public static void drop(String collectionName) {
-        if (hasCollection(collectionName)) {
-            collection(collectionName).drop();
-            logger.debug("Dropped collection '{}'", collectionName);
         }
     }
 
