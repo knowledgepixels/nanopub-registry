@@ -10,13 +10,16 @@ import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.eclipse.rdf4j.model.vocabulary.RDF;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubCreator;
 import org.nanopub.NanopubImpl;
 import org.nanopub.testsuite.NanopubTestSuite;
+import org.nanopub.vocabulary.NPX;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
@@ -702,6 +705,64 @@ class RegistryDBTest {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         assertEquals(1, RegistryDB.collection(Collection.NANOPUBS.toString())
                 .countDocuments(session, new Document("_id", ac)));
+    }
+
+    /**
+     * Builds a minimal trusty nanopub, with the npx:ProtectedNanopub type either in the
+     * pubinfo graph (making it a protected nanopub) or in the assertion graph (where it
+     * has no such effect).
+     */
+    private Nanopub buildTestNanopub(boolean protectedTypeInPubinfo) throws Exception {
+        NanopubCreator creator = new NanopubCreator("http://example.org/protected-test-np/");
+        SimpleValueFactory vf = SimpleValueFactory.getInstance();
+        IRI thing = vf.createIRI("http://example.org/thing");
+        creator.addAssertionStatement(thing, vf.createIRI("http://www.w3.org/2000/01/rdf-schema#label"), vf.createLiteral("A thing"));
+        creator.addProvenanceStatement(vf.createIRI("http://www.w3.org/ns/prov#wasAttributedTo"), thing);
+        creator.addPubinfoStatement(vf.createIRI("http://purl.org/dc/terms/description"), vf.createLiteral("Test nanopub"));
+        if (protectedTypeInPubinfo) {
+            creator.addPubinfoStatement(RDF.TYPE, NPX.PROTECTED_NANOPUB);
+        } else {
+            creator.addAssertionStatement(thing, RDF.TYPE, NPX.PROTECTED_NANOPUB);
+        }
+        return creator.finalizeTrustyNanopub();
+    }
+
+    @Test
+    void loadNanopubVerifiedRejectsProtectedNanopub() throws Exception {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        Nanopub nanopub = buildTestNanopub(true);
+        assertFalse(RegistryDB.loadNanopubVerified(session, nanopub, "test-pubkey", null));
+
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        assertFalse(RegistryDB.has(session, Collection.NANOPUBS.toString(), ac));
+    }
+
+    @Test
+    void loadNanopubVerifiedAcceptsProtectedNanopubOnLocalInstance() throws Exception {
+        fakeEnv.addVariable("REGISTRY_LOCAL_INSTANCE", "true").build();
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        Nanopub nanopub = buildTestNanopub(true);
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, "test-pubkey", null));
+
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        assertTrue(RegistryDB.has(session, Collection.NANOPUBS.toString(), ac));
+    }
+
+    @Test
+    void loadNanopubVerifiedAcceptsProtectedTypeOutsidePubinfo() throws Exception {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        // npx:ProtectedNanopub only takes effect as a pubinfo type of the nanopub itself
+        Nanopub nanopub = buildTestNanopub(false);
+        assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, "test-pubkey", null));
+
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        assertTrue(RegistryDB.has(session, Collection.NANOPUBS.toString(), ac));
     }
 
     @Test

@@ -68,6 +68,23 @@ class UtilsTest {
     }
 
     @Test
+    void isLocalInstanceDefaultsToFalse() {
+        assertFalse(Utils.isLocalInstance());
+    }
+
+    @Test
+    void isLocalInstanceWhenEnvVarSetToTrue() {
+        fakeEnv.addVariable("REGISTRY_LOCAL_INSTANCE", "true").build();
+        assertTrue(Utils.isLocalInstance());
+    }
+
+    @Test
+    void isLocalInstanceWhenEnvVarSetToOtherValue() {
+        fakeEnv.addVariable("REGISTRY_LOCAL_INSTANCE", "yes").build();
+        assertFalse(Utils.isLocalInstance());
+    }
+
+    @Test
     void getTypeWithInvalidExtension() {
         assertNull(Utils.getType("invalidExtension"));
     }

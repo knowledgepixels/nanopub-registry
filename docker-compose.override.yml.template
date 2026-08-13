@@ -44,6 +44,8 @@ services:
 #     - REGISTRY_ENABLE_OPTIONAL_LOAD=false  # Disable loading nanopubs for non-approved pubkeys (discovered via peers)
 #     - REGISTRY_ENABLE_TRUST_CALCULATION=false  # Skip trust path calculation (use with explicit REGISTRY_COVERAGE_AGENTS)
 #     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
+#     - REGISTRY_LOCAL_INSTANCE=true  # Local/private instance: accept nanopubs of type npx:ProtectedNanopub
+#                                     # (public instances reject them; do NOT enable on a public instance)
 #     - REGISTRY_SETTING_FILE=/data/registry.trig
 
       # ----------------------------------------------------------------------
