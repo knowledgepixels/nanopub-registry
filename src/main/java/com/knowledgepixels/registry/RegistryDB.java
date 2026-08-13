@@ -21,6 +21,7 @@ import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.security.MalformedCryptoElementException;
+import org.nanopub.extra.server.NanopubServerUtils;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
 import org.nanopub.jelly.JellyUtils;
@@ -520,6 +521,10 @@ public class RegistryDB {
         }
         if (nanopub.getByteCount() > 1000000) {
             logger.error("Rejecting nanopub {}: size {} bytes exceeds limit of 1000000", nanopub.getUri(), nanopub.getByteCount());
+            return false;
+        }
+        if (!Utils.isLocalInstance() && NanopubServerUtils.isProtectedNanopub(nanopub)) {
+            logger.error("Rejecting nanopub {}: has type npx:ProtectedNanopub, which is only accepted on local/private instances", nanopub.getUri());
             return false;
         }
         Calendar creationTime;

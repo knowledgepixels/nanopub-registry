@@ -81,6 +81,7 @@ public class MainPage extends Page {
             println("<li><em>coverageAgents:</em> " + (serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents") : "viaSetting") + "</li>");
             println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD")) + "</li>");
             println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION")) + "</li>");
+            println("<li><em>localInstance:</em> " + Utils.isLocalInstance() + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
             println("<li><em>loadCounter:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</li>");
             println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");

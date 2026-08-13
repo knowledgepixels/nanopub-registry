@@ -85,6 +85,7 @@ class RegistryInfoTest {
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
+                                  + "\"isLocalInstance\":false,"
                                   + "\"optionalLoadEnabled\":true,"
                                   + "\"trustCalculationEnabled\":true"
                                   + "}";
@@ -152,6 +153,7 @@ class RegistryInfoTest {
                                   + "\"nanopubCount\":" + NANOPUB_COUNT + ","
                                   + "\"loadCounter\":" + LOAD_COUNTER + ","
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
+                                  + "\"isLocalInstance\":false,"
                                   + "\"optionalLoadEnabled\":true,"
                                   + "\"trustCalculationEnabled\":true"
                                   + "}";
