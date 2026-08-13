@@ -267,6 +267,71 @@ class TaskTest {
         return ((Number) getValue(mongoSession, Collection.SERVER_INFO.toString(), "trustStateCounter")).longValue();
     }
 
+    /**
+     * The snapshot carries the agent-level endorsement edges of the published state
+     * (nanopub-query#184). trustEdges is cumulative and never rebuilt, so the export must
+     * filter: invalidated edges, bootstrap seed edges (from the "$" account) and edges with
+     * an endpoint outside the published account set — such as an account that dropped out
+     * of the trust state in an earlier cycle — must all stay out. The 'source' artifact
+     * code is resolved to the endorsement nanopub's full URI via the local nanopub store,
+     * with the w3id.org resolver form as the fallback for a missing local copy.
+     */
+    @Test
+    void publishTrustStateExportsEndorsementEdges() throws Exception {
+        ClientSession mongoSession = RegistryDB.getClient().startSession();
+        Task.runTask(mongoSession, Task.INIT_DB, Task.INIT_DB.asDocument());
+        Task.runTask(mongoSession, Task.LOAD_CONFIG, Task.LOAD_CONFIG.asDocument());
+
+        TestUtils.copyResourceToDataDir("setting.trig");
+        fakeEnv.addVariable("REGISTRY_SETTING_FILE", TestUtils.getDataDir().resolve("setting.trig").toString()).build();
+        Task.runTask(mongoSession, Task.LOAD_SETTING, Task.LOAD_SETTING.asDocument());
+
+        // Published accounts: alice and bob; the "$" base account is excluded from the
+        // snapshot by the pubkey filter, and charlie left the trust state in an earlier
+        // cycle, so only his stale trustEdges rows remain.
+        RegistryDB.insert(mongoSession, Collection.ACCOUNTS.toString(),
+                new Document("agent", "$").append("pubkey", "$").append("status", EntryStatus.loaded.getValue()));
+        RegistryDB.insert(mongoSession, Collection.ACCOUNTS.toString(),
+                new Document("agent", "alice").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
+        RegistryDB.insert(mongoSession, Collection.ACCOUNTS.toString(),
+                new Document("agent", "bob").append("pubkey", "pkB").append("status", EntryStatus.loaded.getValue()));
+
+        RegistryDB.insert(mongoSession, "trustEdges", new Document("fromAgent", "alice").append("fromPubkey", "pkA")
+                .append("toAgent", "bob").append("toPubkey", "pkB").append("source", "RAresolvable").append("invalidated", false));
+        RegistryDB.insert(mongoSession, "trustEdges", new Document("fromAgent", "bob").append("fromPubkey", "pkB")
+                .append("toAgent", "alice").append("toPubkey", "pkA").append("source", "RAunresolvable").append("invalidated", false));
+        RegistryDB.insert(mongoSession, "trustEdges", new Document("fromAgent", "alice").append("fromPubkey", "pkA")
+                .append("toAgent", "bob").append("toPubkey", "pkB").append("source", "RAretracted").append("invalidated", true));
+        RegistryDB.insert(mongoSession, "trustEdges", new Document("fromAgent", "alice").append("fromPubkey", "pkA")
+                .append("toAgent", "charlie").append("toPubkey", "pkC").append("source", "RAtostale").append("invalidated", false));
+        RegistryDB.insert(mongoSession, "trustEdges", new Document("fromAgent", "$").append("fromPubkey", "$")
+                .append("toAgent", "alice").append("toPubkey", "pkA").append("source", "RAseed").append("invalidated", false));
+
+        // Local copy of the resolvable endorsement nanopub, carrying its full URI.
+        RegistryDB.insert(mongoSession, Collection.NANOPUBS.toString(),
+                new Document("_id", "RAresolvable").append("fullId", "http://purl.org/np/RAresolvable"));
+
+        Task.runTask(mongoSession, Task.PUBLISH_TRUST_STATE,
+                Task.PUBLISH_TRUST_STATE.asDocument().append("newTrustStateHash", "edgeHash"));
+
+        Document snapshot = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
+                .find(mongoSession, new Document("_id", "edgeHash")).first();
+        assertNotNull(snapshot);
+        List<Document> edges = snapshot.getList("edges", Document.class);
+        assertEquals(2, edges.size(), "only non-invalidated edges between published accounts are exported");
+
+        Document aliceToBob = edges.stream().filter(e -> "alice".equals(e.getString("fromAgent"))).findFirst().orElseThrow();
+        assertEquals("bob", aliceToBob.getString("toAgent"));
+        assertEquals("pkA", aliceToBob.getString("fromPubkey"));
+        assertEquals("pkB", aliceToBob.getString("toPubkey"));
+        assertEquals("http://purl.org/np/RAresolvable", aliceToBob.getString("viaNanopub"),
+                "source artifact code is resolved to the locally stored full URI");
+
+        Document bobToAlice = edges.stream().filter(e -> "bob".equals(e.getString("fromAgent"))).findFirst().orElseThrow();
+        assertEquals("https://w3id.org/np/RAunresolvable", bobToAlice.getString("viaNanopub"),
+                "a source without a local copy falls back to the resolver-form URI");
+    }
+
     @Test
     void recoverInterruptedCycleRestartsTheCycle() throws Exception {
         ClientSession mongoSession = startCycleInterruptedAs(ServerStatus.updating);

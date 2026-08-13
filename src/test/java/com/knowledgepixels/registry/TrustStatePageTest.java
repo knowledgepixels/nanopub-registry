@@ -16,6 +16,7 @@ import org.mockito.MockedStatic;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -33,10 +34,16 @@ class TrustStatePageTest {
                         .append("status", "loaded").append("depth", 2).append("pathCount", 1)
                         .append("ratio", 0.25).append("quota", 500)
         );
+        List<Document> edges = List.of(
+                new Document("fromAgent", "https://orcid.org/0000-0000-0000-0001").append("fromPubkey", "pk1")
+                        .append("toAgent", "https://orcid.org/0000-0000-0000-0002").append("toPubkey", "pk2")
+                        .append("viaNanopub", "http://purl.org/np/RAendorsement1")
+        );
         return new Document("_id", HASH)
                 .append("trustStateCounter", 42L)
                 .append("createdAt", "2026-04-15T12:00:00Z")
-                .append("accounts", accounts);
+                .append("accounts", accounts)
+                .append("edges", edges);
     }
 
     @Test
@@ -55,6 +62,24 @@ class TrustStatePageTest {
             assertTrue(fullBody.contains("\"trustStateCounter\""), "envelope includes counter");
             assertTrue(fullBody.contains("\"accounts\""), "envelope includes accounts array");
             assertTrue(fullBody.contains("pk1") && fullBody.contains("pk2"), "accounts are serialized");
+            assertTrue(fullBody.contains("\"edges\""), "envelope includes edges array (nanopub-query#184)");
+            assertTrue(fullBody.contains("RAendorsement1"), "edges are serialized");
+        }
+    }
+
+    @Test
+    void omitsEdgesFieldForSnapshotsRecordedBeforeIt() {
+        // Snapshots stored before nanopub-query#184 have no edges array; the
+        // envelope must simply omit the field rather than emit an explicit null.
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            Document legacy = makeSnapshot();
+            legacy.remove("edges");
+            HttpServerResponse response = setupMocks(dbMock, "/trust-state/" + HASH + ".json", legacy);
+
+            ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+            verify(response, atLeastOnce()).write(body.capture());
+            String fullBody = String.join("", body.getAllValues());
+            assertFalse(fullBody.contains("\"edges\""), "no edges key for a pre-#184 snapshot");
         }
     }
 
