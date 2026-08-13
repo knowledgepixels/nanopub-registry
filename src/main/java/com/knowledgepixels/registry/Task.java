@@ -1,12 +1,18 @@
 package com.knowledgepixels.registry;
 
-import com.knowledgepixels.registry.db.IndexInitializer;
-import com.mongodb.client.ClientSession;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.ReplaceOptions;
-import net.trustyuri.TrustyUriUtils;
+import java.io.Serializable;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.commons.lang.Validate;
 import org.bson.Document;
 import org.eclipse.rdf4j.model.IRI;
@@ -21,18 +27,58 @@ import org.nanopub.extra.setting.NanopubSetting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Serializable;
-import java.time.ZonedDateTime;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static com.knowledgepixels.registry.EntryStatus.*;
-import static com.knowledgepixels.registry.NanopubLoader.*;
-import static com.knowledgepixels.registry.RegistryDB.*;
-import static com.knowledgepixels.registry.ServerStatus.*;
+import static com.knowledgepixels.registry.EntryStatus.aggregated;
+import static com.knowledgepixels.registry.EntryStatus.approved;
+import static com.knowledgepixels.registry.EntryStatus.capped;
+import static com.knowledgepixels.registry.EntryStatus.contested;
+import static com.knowledgepixels.registry.EntryStatus.discarded;
+import static com.knowledgepixels.registry.EntryStatus.encountered;
+import static com.knowledgepixels.registry.EntryStatus.expanded;
+import static com.knowledgepixels.registry.EntryStatus.loaded;
+import static com.knowledgepixels.registry.EntryStatus.loading;
+import static com.knowledgepixels.registry.EntryStatus.processed;
+import static com.knowledgepixels.registry.EntryStatus.retrieved;
+import static com.knowledgepixels.registry.EntryStatus.seen;
+import static com.knowledgepixels.registry.EntryStatus.skipped;
+import static com.knowledgepixels.registry.EntryStatus.toLoad;
+import static com.knowledgepixels.registry.EntryStatus.toRetrieve;
+import static com.knowledgepixels.registry.EntryStatus.visited;
+import static com.knowledgepixels.registry.NanopubLoader.ENDORSE_TYPE;
+import static com.knowledgepixels.registry.NanopubLoader.ENDORSE_TYPE_HASH;
+import static com.knowledgepixels.registry.NanopubLoader.INTRO_TYPE;
+import static com.knowledgepixels.registry.NanopubLoader.INTRO_TYPE_HASH;
+import static com.knowledgepixels.registry.RegistryDB.buildChecksumFallbacks;
+import static com.knowledgepixels.registry.RegistryDB.collection;
+import static com.knowledgepixels.registry.RegistryDB.dropLoadingCollections;
+import static com.knowledgepixels.registry.RegistryDB.get;
+import static com.knowledgepixels.registry.RegistryDB.getBootstrapSettingAcs;
+import static com.knowledgepixels.registry.RegistryDB.getOne;
+import static com.knowledgepixels.registry.RegistryDB.getValue;
+import static com.knowledgepixels.registry.RegistryDB.has;
+import static com.knowledgepixels.registry.RegistryDB.increaseStateCounter;
+import static com.knowledgepixels.registry.RegistryDB.insert;
+import static com.knowledgepixels.registry.RegistryDB.loadNanopub;
+import static com.knowledgepixels.registry.RegistryDB.promoteLoadingCollections;
+import static com.knowledgepixels.registry.RegistryDB.set;
+import static com.knowledgepixels.registry.RegistryDB.setValue;
+import static com.knowledgepixels.registry.ServerStatus.coreLoading;
+import static com.knowledgepixels.registry.ServerStatus.coreReady;
+import static com.knowledgepixels.registry.ServerStatus.launching;
+import static com.knowledgepixels.registry.ServerStatus.ready;
+import static com.knowledgepixels.registry.ServerStatus.updating;
+import com.knowledgepixels.registry.db.IndexInitializer;
+import com.mongodb.client.ClientSession;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Filters.in;
-import static com.mongodb.client.model.Sorts.*;
+import com.mongodb.client.model.ReplaceOptions;
+import static com.mongodb.client.model.Sorts.ascending;
+import static com.mongodb.client.model.Sorts.descending;
+import static com.mongodb.client.model.Sorts.orderBy;
+
+import net.trustyuri.TrustyUriUtils;
 
 public enum Task implements Serializable {
 
@@ -59,7 +105,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     LOAD_CONFIG {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running LOAD_CONFIG task");
@@ -90,7 +135,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     LOAD_SETTING {
         public void run(ClientSession s, Document taskDoc) throws Exception {
             logger.info("Running LOAD_SETTING task");
@@ -128,21 +172,22 @@ public enum Task implements Serializable {
             schedule(s, INIT_COLLECTIONS);
         }
     },
-
     INIT_COLLECTIONS {
 
         // DB read from: setting
         // DB write to:  nanopubs
         // This state is periodically executed
-
         /**
-         * Prepares the ground for a trust state cycle: resets the loading collections, creates
-         * their indexes, and fetches the agent intro collection into the local nanopub store.
+         * Prepares the ground for a trust state cycle: resets the loading
+         * collections, creates their indexes, and fetches the agent intro
+         * collection into the local nanopub store.
          *
-         * <p>Everything here is either a catalog operation or network I/O, so this task cannot be
-         * transactional. It deliberately holds no derived writes: those live in
-         * {@link #SEED_TRUST_STATE}, which runs afterwards and, because the intro collection is
-         * local by then, needs neither (issue #128).
+         * <p>
+         * Everything here is either a catalog operation or network I/O, so this
+         * task cannot be transactional. It deliberately holds no derived
+         * writes: those live in {@link #SEED_TRUST_STATE}, which runs
+         * afterwards and, because the intro collection is local by then, needs
+         * neither (issue #128).
          */
         public void run(ClientSession s, Document taskDoc) throws Exception {
             logger.info("Running INIT_COLLECTIONS task");
@@ -194,16 +239,15 @@ public enum Task implements Serializable {
         }
 
     },
-
     SEED_TRUST_STATE {
 
         // DB read from: nanopubs, setting
         // DB write to:  trustPaths, endorsements, accounts
-
         /**
          * Seeds the loading collections for a fresh cycle, from data that
-         * {@link #INIT_COLLECTIONS} has already made local. Transactional: on a crash the whole
-         * seeding is rolled back and re-run, rather than half-applied (issue #128).
+         * {@link #INIT_COLLECTIONS} has already made local. Transactional: on a
+         * crash the whole seeding is rolled back and re-run, rather than
+         * half-applied (issue #128).
          */
         public void run(ClientSession s, Document taskDoc) throws Exception {
             logger.info("Running SEED_TRUST_STATE task");
@@ -259,7 +303,6 @@ public enum Task implements Serializable {
                                 .append("endorsedNanopub", declarationAc)
                                 .append("source", currentSetting)
                                 .append("status", toRetrieve.getValue())
-
                 );
 
             }
@@ -287,9 +330,7 @@ public enum Task implements Serializable {
         // ------------------------------------------------------------
         // Only one endorses-link to an introduction is shown here,
         // but there are typically several.
-
     },
-
     LOAD_DECLARATIONS {
 
         // In general, we have at this point accounts with
@@ -304,10 +345,8 @@ public enum Task implements Serializable {
         //    ========[X] trust path
         //
         // ------------------------------------------------------------
-
         // DB read from: endorsements, trustEdges, accounts
         // DB write to:  endorsements, trustEdges, accounts
-
         public void run(ClientSession s, Document taskDoc) {
 
             int depth = taskDoc.getInteger("depth");
@@ -371,7 +410,7 @@ public enum Task implements Serializable {
                             // timestamp exists; otherwise compare and replace iff strictly newer.
                             Date currentCreatedAt = existing.getDate("nameCreatedAt");
                             if (currentCreatedAt == null
-                                || (introCreatedAt != null && introCreatedAt.after(currentCreatedAt))) {
+                                    || (introCreatedAt != null && introCreatedAt.after(currentCreatedAt))) {
                                 set(s, "accounts_loading", existing
                                         .append("name", introName)
                                         .append("nameCreatedAt", introCreatedAt)
@@ -406,7 +445,6 @@ public enum Task implements Serializable {
         // ------------------------------------------------------------
         // Only one trust edge per introduction is shown here, but
         // there can be several.
-
         @Override
         public boolean runAsTransaction() {
             // Retrieves an agent intro over the network for every pending endorsement, each with
@@ -415,12 +453,10 @@ public enum Task implements Serializable {
         }
 
     },
-
     EXPAND_TRUST_PATHS {
 
         // DB read from: accounts, trustPaths, trustEdges
         // DB write to:  accounts, trustPaths
-
         public void run(ClientSession s, Document taskDoc) {
 
             int depth = taskDoc.getInteger("depth");
@@ -510,9 +546,7 @@ public enum Task implements Serializable {
         // ------------------------------------------------------------
         // Only one trust path is shown here, but they branch out if
         // several trust edges are present.
-
     },
-
     LOAD_CORE {
 
         // From here on, we refocus on the head of the trust paths:
@@ -526,10 +560,8 @@ public enum Task implements Serializable {
         //    ========[X] trust path
         //
         // ------------------------------------------------------------
-
         // DB read from: accounts, trustPaths, endorsements, lists
         // DB write to:  accounts, endorsements, lists
-
         public void run(ClientSession s, Document taskDoc) {
 
             int depth = taskDoc.getInteger("depth");
@@ -673,7 +705,6 @@ public enum Task implements Serializable {
         // ------------------------------------------------------------
         // Only one endorsement is shown here, but there are typically
         // several.
-
         @Override
         public boolean runAsTransaction() {
             // Streams intros and endorsements from peers, and loads them through worker threads
@@ -682,7 +713,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     FINISH_ITERATION {
         public void run(ClientSession s, Document taskDoc) {
 
@@ -703,12 +733,10 @@ public enum Task implements Serializable {
         }
 
     },
-
     CALCULATE_TRUST_SCORES {
 
         // DB read from: accounts, trustPaths
         // DB write to:  accounts
-
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running CALCULATE_TRUST_SCORES task");
 
@@ -762,12 +790,10 @@ public enum Task implements Serializable {
         }
 
     },
-
     AGGREGATE_AGENTS {
 
         // DB read from: accounts, agents
         // DB write to:  accounts, agents
-
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running AGGREGATE_AGENTS task");
 
@@ -796,7 +822,7 @@ public enum Task implements Serializable {
                         totalRatio += r;
                         String n = d.getString("name");
                         if (n != null && (r > chosenRatio
-                                          || (r == chosenRatio && (chosenName == null || n.compareTo(chosenName) < 0)))) {
+                                || (r == chosenRatio && (chosenName == null || n.compareTo(chosenName) < 0)))) {
                             chosenName = n;
                             chosenRatio = r;
                         }
@@ -817,12 +843,10 @@ public enum Task implements Serializable {
         }
 
     },
-
     ASSIGN_PUBKEYS {
 
         // DB read from: accounts
         // DB write to:  accounts
-
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running ASSIGN_PUBKEYS task");
             int approvedCount = 0;
@@ -853,12 +877,10 @@ public enum Task implements Serializable {
         }
 
     },
-
     DETERMINE_UPDATES {
 
         // DB read from: accounts
         // DB write to:  accounts
-
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running DETERMINE_UPDATES task");
 
@@ -880,7 +902,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     FINALIZE_TRUST_STATE {
         // We do this is a separate task/transaction, because if we do it at the beginning of RELEASE_DATA, that task hangs and cannot
         // properly re-run (as some renaming outside of transactions will have taken place).
@@ -895,17 +916,19 @@ public enum Task implements Serializable {
         }
 
     },
-
     RELEASE_DATA {
 
         /**
-         * Publishes the cycle's results by renaming the loading collections over the live ones.
+         * Publishes the cycle's results by renaming the loading collections
+         * over the live ones.
          *
-         * <p>Renaming is a catalog operation and cannot run inside a transaction, which is the
-         * whole reason this task is separate: everything derived from the renamed collections —
-         * the counter, the snapshot, the status transition — is in {@link #PUBLISH_TRUST_STATE},
-         * which runs afterwards and so reads them through a snapshot that already includes them
-         * (issue #128).
+         * <p>
+         * Renaming is a catalog operation and cannot run inside a transaction,
+         * which is the whole reason this task is separate: everything derived
+         * from the renamed collections — the counter, the snapshot, the status
+         * transition — is in {@link #PUBLISH_TRUST_STATE}, which runs
+         * afterwards and so reads them through a snapshot that already includes
+         * them (issue #128).
          */
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running RELEASE_DATA task (current status: {})", getServerStatus(s));
@@ -932,20 +955,21 @@ public enum Task implements Serializable {
         }
 
     },
-
     PUBLISH_TRUST_STATE {
 
         private static final int TRUST_STATE_SNAPSHOT_RETENTION = 100;
 
         /**
-         * Records the newly released trust state: the counter, the debug row, the hash-keyed
-         * snapshot, the retention pruning and the server status transition. Transactional — every
-         * write here is an ordinary document write on collections {@link #RELEASE_DATA} has
-         * already renamed into place.
+         * Records the newly released trust state: the counter, the debug row,
+         * the hash-keyed snapshot, the retention pruning and the server status
+         * transition. Transactional — every write here is an ordinary document
+         * write on collections {@link #RELEASE_DATA} has already renamed into
+         * place.
          *
-         * <p>The very first state of a fresh registry is held back: nothing is recorded until a
-         * cycle finds the initial full load complete, so consumers never see the near-empty
-         * bootstrap state (see below).
+         * <p>
+         * The very first state of a fresh registry is held back: nothing is
+         * recorded until a cycle finds the initial full load complete, so
+         * consumers never see the near-empty bootstrap state (see below).
          */
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
@@ -1121,7 +1145,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     UPDATE {
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
@@ -1137,7 +1160,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     LOAD_FULL {
         public void run(ClientSession s, Document taskDoc) {
             logger.debug("LOAD_FULL invoked; taskDoc={}", taskDoc);
@@ -1246,7 +1268,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     RUN_OPTIONAL_LOAD {
 
         private static final int BATCH_SIZE = Integer.parseInt(
@@ -1364,7 +1385,7 @@ public enum Task implements Serializable {
             if (prioritizeAllPubkeys()) {
                 // Check if there are more pubkeys waiting to be processed
                 boolean moreWork = has(s, "lists", new Document("type", INTRO_TYPE_HASH).append("status", encountered.getValue()))
-                                   || has(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
+                        || has(s, "lists", new Document("type", "$").append("status", encountered.getValue()));
                 if (moreWork) {
                     // Continue processing without a full CHECK_NEW cycle in between.
                     // CHECK_NEW will run naturally once all encountered lists are processed.
@@ -1387,7 +1408,6 @@ public enum Task implements Serializable {
         }
 
     },
-
     CHECK_NEW {
         public void run(ClientSession s, Document taskDoc) {
             logger.debug("Running CHECK_NEW task: checking peers and legacy source for new nanopubs");
@@ -1418,29 +1438,38 @@ public enum Task implements Serializable {
     public abstract void run(ClientSession s, Document taskDoc) throws Exception;
 
     /**
-     * Which trust edges out of {@code (agentId, pubkeyHash)} the trust calculation follows.
+     * Which trust edges out of {@code (agentId, pubkeyHash)} the trust
+     * calculation follows.
      *
-     * <p>Normally: edges that are not invalidated. Plus, always: edges sourced from a setting
-     * nanopub this instance was bootstrapped from, <em>even when they are invalidated</em>
+     * <p>
+     * Normally: edges that are not invalidated. Plus, always: edges sourced
+     * from a setting nanopub this instance was bootstrapped from, <em>even when
+     * they are invalidated</em>
      * (issue #60).
      *
-     * <p>Those edges are correctly marked invalidated — a superseded setting is invalidated
-     * like anything else, and {@code RegistryDB} records that faithfully. But the root
-     * endorsements of a running instance are all sourced from its setting
-     * ({@link #INIT_COLLECTIONS}), so honouring that invalidation here severs every root edge
-     * at once and collapses the trust network to the base agent. It cannot recover either:
-     * {@link #LOAD_SETTING} runs only at {@code status == launching}, so the instance keeps
-     * using the superseded setting.
+     * <p>
+     * Those edges are correctly marked invalidated — a superseded setting is
+     * invalidated like anything else, and {@code RegistryDB} records that
+     * faithfully. But the root endorsements of a running instance are all
+     * sourced from its setting ({@link #INIT_COLLECTIONS}), so honouring that
+     * invalidation here severs every root edge at once and collapses the trust
+     * network to the base agent. It cannot recover either:
+     * {@link #LOAD_SETTING} runs only at {@code status == launching}, so the
+     * instance keeps using the superseded setting.
      *
-     * <p>That happened on 2026-08-05. A setting superseding the deployed one was published,
-     * changing only its trust-range algorithm — a field no code reads — and the next iteration
-     * produced a trust state with 14 accounts instead of 777, identically on three independent
-     * registries. Adopting a superseding setting is a deliberate act (deploy it as
-     * {@code REGISTRY_SETTING_FILE} and re-bootstrap); merely publishing one must not do it.
+     * <p>
+     * That happened on 2026-08-05. A setting superseding the deployed one was
+     * published, changing only its trust-range algorithm — a field no code
+     * reads — and the next iteration produced a trust state with 14 accounts
+     * instead of 777, identically on three independent registries. Adopting a
+     * superseding setting is a deliberate act (deploy it as
+     * {@code REGISTRY_SETTING_FILE} and re-bootstrap); merely publishing one
+     * must not do it.
      *
-     * @param agentId          the source agent
-     * @param pubkeyHash       the source pubkey hash
-     * @param bootstrapSettings artifact codes from {@link RegistryDB#getBootstrapSettingAcs}
+     * @param agentId the source agent
+     * @param pubkeyHash the source pubkey hash
+     * @param bootstrapSettings artifact codes from
+     * {@link RegistryDB#getBootstrapSettingAcs}
      * @return the MongoDB filter for the edges to follow
      */
     static Document trustEdgeFilter(String agentId, String pubkeyHash, Set<String> bootstrapSettings) {
@@ -1477,14 +1506,16 @@ public enum Task implements Serializable {
     }
 
     /**
-     * Returns the type hashes to load for a given pubkey. When coverage is unrestricted,
-     * returns just "$" (all types in one request). When restricted, returns each covered
-     * type hash for per-type fetching with checksum skip-ahead.
+     * Returns the type hashes to load for a given pubkey. When coverage is
+     * unrestricted, returns just "$" (all types in one request). When
+     * restricted, returns each covered type hash for per-type fetching with
+     * checksum skip-ahead.
      * <p>
-     * TODO: Fetching "$" from peers with type restrictions will only return their covered
-     * types, not all types. To get full coverage, we'd need to fetch per-type from such peers.
-     * Additionally, checksum-based skip-ahead won't work correctly against such peers, because
-     * their "$" list has different checksums due to the differing type subset. This means full
+     * TODO: Fetching "$" from peers with type restrictions will only return
+     * their covered types, not all types. To get full coverage, we'd need to
+     * fetch per-type from such peers. Additionally, checksum-based skip-ahead
+     * won't work correctly against such peers, because their "$" list has
+     * different checksums due to the differing type subset. This means full
      * re-downloads on every cycle. Per-type fetching would solve both issues.
      */
     private static java.util.List<String> getLoadTypeHashes(ClientSession s, String pubkeyHash) {
@@ -1508,8 +1539,8 @@ public enum Task implements Serializable {
     private static MongoCollection<Document> tasksCollection = collection(Collection.TASKS.toString());
 
     /**
-     * The tasks that make up one trust-state cycle, from building the staging collections to
-     * promoting them to their live names.
+     * The tasks that make up one trust-state cycle, from building the staging
+     * collections to promoting them to their live names.
      *
      * @see #recoverInterruptedCycle
      */
@@ -1519,9 +1550,9 @@ public enum Task implements Serializable {
             DETERMINE_UPDATES, FINALIZE_TRUST_STATE, RELEASE_DATA, PUBLISH_TRUST_STATE);
 
     /**
-     * The tail of a trust-state cycle: the computation is finished by the time these run, and both
-     * are idempotent, so an interrupted cycle that has reached them is left to finish rather than
-     * recomputed.
+     * The tail of a trust-state cycle: the computation is finished by the time
+     * these run, and both are idempotent, so an interrupted cycle that has
+     * reached them is left to finish rather than recomputed.
      *
      * @see #recoverInterruptedCycle
      */
@@ -1539,26 +1570,33 @@ public enum Task implements Serializable {
     }
 
     /**
-     * Restarts a trust-state cycle that a shutdown interrupted, so the registry can recover on its
-     * own (issue #50).
+     * Restarts a trust-state cycle that a shutdown interrupted, so the registry
+     * can recover on its own (issue #50).
      *
-     * <p>Task writes are not atomic with the removal of the task from the queue, so a task that was
-     * running when the process died is picked up again on restart and re-executes writes it already
-     * performed. For most of the cycle that is harmless — the tasks pick their work by entry status
-     * — but the unconditional inserts in {@link #INIT_COLLECTIONS} then fail on duplicate keys, and
-     * that task retries forever without ever getting past them. A crash can also leave both a task
-     * and the successor it scheduled in the queue, making the rest of the cycle run twice.
+     * <p>
+     * Task writes are not atomic with the removal of the task from the queue,
+     * so a task that was running when the process died is picked up again on
+     * restart and re-executes writes it already performed. For most of the
+     * cycle that is harmless — the tasks pick their work by entry status — but
+     * the unconditional inserts in {@link #INIT_COLLECTIONS} then fail on
+     * duplicate keys, and that task retries forever without ever getting past
+     * them. A crash can also leave both a task and the successor it scheduled
+     * in the queue, making the rest of the cycle run twice.
      *
-     * <p>Rather than resuming a half-built cycle, we therefore restart it: the queued cycle tasks
-     * are dropped and a fresh {@link #INIT_COLLECTIONS} is scheduled, which discards the staging
-     * collections and rebuilds them. This costs one recomputation and nothing else — the staging
-     * collections only become live at the end of the cycle, so the trust state currently served
+     * <p>
+     * Rather than resuming a half-built cycle, we therefore restart it: the
+     * queued cycle tasks are dropped and a fresh {@link #INIT_COLLECTIONS} is
+     * scheduled, which discards the staging collections and rebuilds them. This
+     * costs one recomputation and nothing else — the staging collections only
+     * become live at the end of the cycle, so the trust state currently served
      * (status {@code updating}) is untouched.
      *
-     * <p>The exception is a queued tail task ({@link #TRUST_CYCLE_TAIL_TASKS}): the computation is
-     * then complete and both tail tasks are idempotent by design, so they are kept and left to
-     * finish rather than recomputed. Their siblings are still dropped, so a duplicate predecessor
-     * cannot run the cycle a second time.
+     * <p>
+     * The exception is a queued tail task ({@link #TRUST_CYCLE_TAIL_TASKS}):
+     * the computation is then complete and both tail tasks are idempotent by
+     * design, so they are kept and left to finish rather than recomputed. Their
+     * siblings are still dropped, so a duplicate predecessor cannot run the
+     * cycle a second time.
      *
      * @param mongoSession the MongoDB client session
      */
@@ -1617,7 +1655,7 @@ public enum Task implements Serializable {
                         try {
                             s.startTransaction();
                             logger.debug("Transaction started for task {}", task.name());
-                            runTask(s, task, taskDoc);
+                            runTask(task, taskDoc);
                             s.commitTransaction();
                             logger.info("Transaction committed for task {}", task.name());
                         } catch (Exception ex) {
@@ -1630,7 +1668,7 @@ public enum Task implements Serializable {
                         }
                     } else {
                         try {
-                            runTask(s, task, taskDoc);
+                            runTask(task, taskDoc);
                         } catch (Exception ex) {
                             logger.warn("Non-transactional task {} failed: {}", task.name(), ex.getMessage(), ex);
                         }
@@ -1649,22 +1687,23 @@ public enum Task implements Serializable {
     /**
      * Runs a single task on the given session.
      *
-     * <p>The session belongs to the caller and carries the transaction, if any: for a task with
-     * {@link #runAsTransaction()}, {@link #runTasks} has already called
-     * {@code startTransaction()} on it, so the task's writes and the removal of the task from the
-     * queue below both join that transaction and commit together. Opening a session here instead
-     * would silently place both outside it (issue #128).
+     * <p>
+     * The session belongs to the caller and carries the transaction, if any:
+     * for a task with {@link #runAsTransaction()}, {@link #runTasks} has
+     * already called {@code startTransaction()} on it, so the task's writes and
+     * the removal of the task from the queue below both join that transaction
+     * and commit together. Opening a session here instead would silently place
+     * both outside it (issue #128).
      *
-     * @param s       the session to run on, with an active transaction for transactional tasks
-     * @param task    the task to run
+     * @param task the task to run
      * @param taskDoc the queue document describing this invocation
      */
-    static void runTask(ClientSession s, Task task, Document taskDoc) throws Exception {
+    static void runTask(Task task, Document taskDoc) throws Exception {
         currentTaskName = task.name();
         currentTaskStartTime = System.currentTimeMillis();
         logger.info("Starting task {} with request: {}", currentTaskName, taskDoc);
 
-        try {
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
             task.run(s, taskDoc);
             long duration = System.currentTimeMillis() - currentTaskStartTime;
             tasksCollection.deleteOne(s, eq("_id", taskDoc.get("_id")));
@@ -1729,7 +1768,6 @@ public enum Task implements Serializable {
         loadNanopub(mongoSession, agentIntro.getNanopub());
         return agentIntro;
     }
-
 
     private static void setServerStatus(ClientSession mongoSession, ServerStatus status) {
         setValue(mongoSession, Collection.SERVER_INFO.toString(), "status", status.toString());
