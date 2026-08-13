@@ -31,7 +31,10 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static com.mongodb.client.model.Indexes.ascending;
@@ -112,6 +115,54 @@ public class RegistryDB {
         boolean initialized = getValue(mongoSession, Collection.SERVER_INFO.toString(), "setupId") != null;
         logger.debug("isInitialized check for database '{}': {}", REGISTRY_DB_NAME, initialized);
         return initialized;
+    }
+
+    /**
+     * The staging collections that a trust-state cycle rebuilds from scratch, each mapped to the
+     * live collection it is promoted to when the cycle completes.
+     *
+     * @see #promoteLoadingCollections()
+     * @see #dropLoadingCollections()
+     */
+    private static final Map<String, String> LOADING_COLLECTIONS = createLoadingCollectionsMap();
+
+    private static Map<String, String> createLoadingCollectionsMap() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("accounts_loading", Collection.ACCOUNTS.toString());
+        map.put("trustPaths_loading", "trustPaths");
+        map.put("agents_loading", Collection.AGENTS.toString());
+        map.put("endorsements_loading", "endorsements");
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Discards all staging collections of a trust-state cycle.
+     *
+     * <p>Designed as an idempotent operation: in a healthy run the collections do not exist at this
+     * point, as {@link #promoteLoadingCollections()} renamed them away at the end of the previous
+     * cycle. Anything left behind is a half-built cycle from an interrupted run, which must be
+     * discarded rather than added to: the cycle tasks insert into these collections unconditionally
+     * and would otherwise fail on duplicate keys forever (issue #50).
+     */
+    public static void dropLoadingCollections() {
+        for (String loadingCollectionName : LOADING_COLLECTIONS.keySet()) {
+            if (hasCollection(loadingCollectionName)) {
+                logger.info("Discarding leftover staging collection '{}'", loadingCollectionName);
+                collection(loadingCollectionName).drop();
+            }
+        }
+    }
+
+    /**
+     * Promotes the staging collections of a completed trust-state cycle to their live names,
+     * replacing the previous cycle's data.
+     *
+     * <p>Designed as an idempotent operation, since {@link #rename} is.
+     */
+    public static void promoteLoadingCollections() {
+        for (Map.Entry<String, String> entry : LOADING_COLLECTIONS.entrySet()) {
+            rename(entry.getKey(), entry.getValue());
+        }
     }
 
     /**
@@ -219,6 +270,43 @@ public class RegistryDB {
         Object value = d.get("value");
         logger.debug("Found element '{}' in collection '{}' with value type {}", elementName, collection, value == null ? "null" : value.getClass().getSimpleName());
         return value;
+    }
+
+    /**
+     * Artifact codes of the setting nanopub(s) this instance was bootstrapped from.
+     *
+     * <p>Used by {@code Task.EXPAND_TRUST_PATHS} to decide which invalidated trust edges the
+     * trust calculation should still follow (issue #60).
+     *
+     * <p>This is deliberately <em>not</em> an exemption from invalidation. A superseded setting
+     * is invalidated like any other nanopub: the {@code invalidations} record is written, its
+     * {@code listEntries} are marked, and the trust edges it is the {@code source} of are
+     * marked {@code invalidated: true}. All of that is true and stays recorded. The one thing
+     * that changes is how the trust calculation <em>reads</em> those edges — it keeps following
+     * them, because the root endorsements of a running instance are sourced from its setting
+     * (Task.INIT_COLLECTIONS), and superseding a setting must not sever the trust root of an
+     * instance already running on it.
+     *
+     * <p>Returns both {@code original} and {@code current}. They hold the same value today —
+     * {@code LOAD_SETTING} writes both and only runs at {@code status == launching} — but they
+     * are read separately elsewhere, so returning both keeps the rule correct if {@code current}
+     * ever starts tracking supersession.
+     *
+     * <p>Empty while {@code LOAD_SETTING} has not recorded the setting yet. Nothing has been
+     * built at that point, so there are no trust edges to consider.
+     *
+     * @param mongoSession the MongoDB client session
+     * @return the bootstrap setting artifact codes, possibly empty, never null
+     */
+    static Set<String> getBootstrapSettingAcs(ClientSession mongoSession) {
+        Set<String> acs = new HashSet<>();
+        for (String key : new String[] { "original", "current" }) {
+            Object v = getValue(mongoSession, Collection.SETTING.toString(), key);
+            if (v != null) {
+                acs.add(v.toString());
+            }
+        }
+        return acs;
     }
 
     /**
@@ -514,6 +602,7 @@ public class RegistryDB {
                     }
 
                     collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
+
                     collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
                     logger.debug("Marked invalidated entries and trust edges for invalidated artifact {}", invalidatedAc);
                 }
