@@ -96,10 +96,10 @@ public class TrustStatePage extends Page {
     private void showList(String format) {
         int listed = 0;
         logger.debug("Querying trust-state snapshots collection (format={})", format);
-        // Metadata only — the accounts array is heavy and not needed in the index.
+        // Metadata only — the accounts and edges arrays are heavy and not needed in the index.
         try (MongoCursor<Document> it = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
                 .find(mongoSession)
-                .projection(exclude("accounts"))
+                .projection(exclude("accounts", "edges"))
                 .sort(descending("trustStateCounter"))
                 .cursor()) {
             if (TYPE_JSON.equals(format)) {
@@ -166,6 +166,12 @@ public class TrustStatePage extends Page {
                     .append("trustStateCounter", snapshot.get("trustStateCounter"))
                     .append("createdAt", snapshot.get("createdAt"))
                     .append("accounts", snapshot.get("accounts"));
+            // Additive field (nanopub-query#184): snapshots recorded before it exist
+            // without the array; keep the envelope free of an explicit null for those.
+            Object edges = snapshot.get("edges");
+            if (edges != null) {
+                output.append("edges", edges);
+            }
             print(output.toJson());
             return;
         }
@@ -191,6 +197,10 @@ public class TrustStatePage extends Page {
         Object accountsObj = snapshot.get("accounts");
         int accountCount = (accountsObj instanceof List) ? ((List<?>) accountsObj).size() : 0;
         println("<li><em>accountCount:</em> " + accountCount + "</li>");
+        Object edgesObj = snapshot.get("edges");
+        if (edgesObj instanceof List) {
+            println("<li><em>edgeCount:</em> " + ((List<?>) edgesObj).size() + "</li>");
+        }
         logger.debug("Snapshot {} has {} account entries (accountsObj type: {})", hash, accountCount, accountsObj == null ? "null" : accountsObj.getClass().getSimpleName());
         println("</ul>");
         println("<h3>Accounts</h3>");

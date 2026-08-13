@@ -1023,17 +1023,66 @@ public enum Task implements Serializable {
                             .append("ratio", a.get("ratio"))
                             .append("quota", a.get("quota")));
                 }
+                // Agent-level endorsement edges between published accounts
+                // (nanopub-query#184). trustEdges is cumulative across cycles and
+                // never rebuilt, so membership in this state comes from filtering:
+                // only non-invalidated edges whose endpoints are both in the account
+                // set published above. The bootstrap seed rows (agent "$") fall out
+                // of the same filter, as "$" accounts are excluded from the snapshot.
+                // Additive envelope field, like 'name' (#113) and 'introNanopub'
+                // (#117/#118): older consumers ignore it.
+                Set<String> publishedAccountKeys = new HashSet<>();
+                for (Document a : snapshotAccounts) {
+                    publishedAccountKeys.add(a.getString("agent") + "|" + a.getString("pubkey"));
+                }
+                List<Document> publishedEdges = new ArrayList<>();
+                Set<String> edgeSourceAcs = new HashSet<>();
+                for (Document e : collection("trustEdges").find(s, new Document("invalidated", false))) {
+                    if (!publishedAccountKeys.contains(e.getString("fromAgent") + "|" + e.getString("fromPubkey"))
+                            || !publishedAccountKeys.contains(e.getString("toAgent") + "|" + e.getString("toPubkey"))) {
+                        continue;
+                    }
+                    publishedEdges.add(e);
+                    edgeSourceAcs.add(e.getString("source"));
+                }
+                // An edge's 'source' is the endorsement nanopub's artifact code; the
+                // envelope carries its full URI (matching the introNanopub field),
+                // resolved from the local nanopub store. An endorsement was by
+                // definition loaded, so the fallback for a missing local copy is a
+                // resolver-form URI rather than dropping the edge.
+                Map<String, String> sourceUriByAc = new HashMap<>();
+                if (!edgeSourceAcs.isEmpty()) {
+                    for (Document d : collection(Collection.NANOPUBS.toString())
+                            .find(s, new Document("_id", new Document("$in", new ArrayList<>(edgeSourceAcs))))
+                            .projection(new Document("fullId", 1))) {
+                        if (d.getString("fullId") != null) {
+                            sourceUriByAc.put(d.getString("_id"), d.getString("fullId"));
+                        }
+                    }
+                }
+                List<Document> snapshotEdges = new ArrayList<>(publishedEdges.size());
+                for (Document e : publishedEdges) {
+                    String sourceAc = e.getString("source");
+                    snapshotEdges.add(new Document()
+                            .append("fromAgent", e.getString("fromAgent"))
+                            .append("fromPubkey", e.getString("fromPubkey"))
+                            .append("toAgent", e.getString("toAgent"))
+                            .append("toPubkey", e.getString("toPubkey"))
+                            .append("viaNanopub", sourceUriByAc.getOrDefault(sourceAc, "https://w3id.org/np/" + sourceAc)));
+                }
+
                 Document snapshot = new Document()
                         .append("_id", newTrustStateHash)
                         .append("trustStateCounter", trustStateCounter)
                         .append("createdAt", ZonedDateTime.now().toString())
-                        .append("accounts", snapshotAccounts);
+                        .append("accounts", snapshotAccounts)
+                        .append("edges", snapshotEdges);
                 collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).replaceOne(
                         s,
                         new Document("_id", newTrustStateHash),
                         snapshot,
                         new ReplaceOptions().upsert(true));
-                logger.debug("Saved trust state snapshot {} with {} account(s)", newTrustStateHash, snapshotAccounts.size());
+                logger.debug("Saved trust state snapshot {} with {} account(s) and {} edge(s)", newTrustStateHash, snapshotAccounts.size(), snapshotEdges.size());
 
                 // Prune beyond retention: collect _ids of snapshots past the Nth most recent, delete them.
                 // trustStateCounter is monotonically increasing (see increaseStateCounter above), so ordering is well-defined.
