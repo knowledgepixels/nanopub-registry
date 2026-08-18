@@ -87,7 +87,7 @@ public class RegistryInfo implements Serializable {
 
         ri.isTestInstance = si.get("testInstance") != null && (Boolean) si.get("testInstance");
         ri.isLocalInstance = Utils.isLocalInstance();
-        ri.optionalLoadEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"));
+        ri.optionalLoadEnabled = !"false".equals(Utils.getEnv("REGISTRY_ENABLE_OPTIONAL_LOAD", null));
 
         logger.info("RegistryInfo snapshot ready: version={}, status={}, setupId={}, isTestInstance={}, isLocalInstance={}, optionalLoadEnabled={}, trustCalculationEnabled={}", ri.registryVersion, ri.status, ri.setupId, ri.isTestInstance, ri.isLocalInstance, ri.optionalLoadEnabled, ri.trustCalculationEnabled);
 
