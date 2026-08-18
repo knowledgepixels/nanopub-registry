@@ -158,6 +158,17 @@ public class Utils {
     }
 
     /**
+     * Checks whether this registry is configured as a local/private instance
+     * (environment variable REGISTRY_LOCAL_INSTANCE set to "true"). Local instances
+     * accept nanopubs of type npx:ProtectedNanopub, which are rejected otherwise.
+     *
+     * @return true if this registry is configured as a local/private instance
+     */
+    public static boolean isLocalInstance() {
+        return "true".equals(getEnv("REGISTRY_LOCAL_INSTANCE", "false"));
+    }
+
+    /**
      * Get the type hash for a given type, recording it in the database if necessary.
      *
      * @param mongoSession the MongoDB client session

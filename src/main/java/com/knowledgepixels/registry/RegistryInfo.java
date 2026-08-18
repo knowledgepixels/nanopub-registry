@@ -32,6 +32,7 @@ public class RegistryInfo implements Serializable {
     private Long nanopubCount;
     private Long loadCounter;
     private Boolean isTestInstance;
+    private Boolean isLocalInstance;
     private Boolean optionalLoadEnabled;
     private Boolean trustCalculationEnabled;
 
@@ -85,9 +86,10 @@ public class RegistryInfo implements Serializable {
         logger.debug("Counts: accountCount={}, nanopubCount={}", ri.accountCount, ri.nanopubCount);
 
         ri.isTestInstance = si.get("testInstance") != null && (Boolean) si.get("testInstance");
-        ri.optionalLoadEnabled = !"false".equals(Utils.getEnv("REGISTRY_ENABLE_OPTIONAL_LOAD", null));
+        ri.isLocalInstance = Utils.isLocalInstance();
+        ri.optionalLoadEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"));
 
-        logger.info("RegistryInfo snapshot ready: version={}, status={}, setupId={}, isTestInstance={}, optionalLoadEnabled={}, trustCalculationEnabled={}", ri.registryVersion, ri.status, ri.setupId, ri.isTestInstance, ri.optionalLoadEnabled, ri.trustCalculationEnabled);
+        logger.info("RegistryInfo snapshot ready: version={}, status={}, setupId={}, isTestInstance={}, isLocalInstance={}, optionalLoadEnabled={}, trustCalculationEnabled={}", ri.registryVersion, ri.status, ri.setupId, ri.isTestInstance, ri.isLocalInstance, ri.optionalLoadEnabled, ri.trustCalculationEnabled);
 
         return ri;
     }
