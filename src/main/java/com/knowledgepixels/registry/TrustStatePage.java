@@ -207,10 +207,9 @@ public class TrustStatePage extends Page {
         println("<ol>");
         if (accountsObj instanceof List) {
             for (Object entry : (List<?>) accountsObj) {
-                if (!(entry instanceof Document)) {
+                if (!(entry instanceof Document a)) {
                     continue;
                 }
-                Document a = (Document) entry;
                 String pubkey = a.getString("pubkey");
                 String agent = a.getString("agent");
                 String name = a.getString("name");

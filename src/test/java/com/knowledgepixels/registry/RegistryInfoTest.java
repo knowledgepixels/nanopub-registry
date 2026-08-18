@@ -1,11 +1,16 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.utils.FakeEnv;
+import com.knowledgepixels.registry.utils.PageMocks;
+import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 class RegistryInfoTest {
@@ -24,6 +29,31 @@ class RegistryInfoTest {
     public static final Long NANOPUB_COUNT = 0L;
     public static final Long LOAD_COUNTER = 0L;
     public static final Boolean IS_TEST_INSTANCE = Boolean.FALSE;
+
+    @Test
+    void reportsDisabledFeatureFlags() {
+        FakeEnv fakeEnv = TestUtils.setupFakeEnv();
+        fakeEnv.addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false")
+                .addVariable("REGISTRY_ENABLE_OPTIONAL_LOAD", "false").build();
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            PageMocks.Db db = PageMocks.mockDb(registry);
+            registry.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "current")).thenReturn(CURRENT_SETTING);
+            registry.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "original")).thenReturn(ORIGINAL_SETTING);
+            when(db.collection(Collection.ACCOUNTS.toString()).countDocuments(db.session)).thenReturn(ACCOUNT_COUNT);
+            when(db.collection(Collection.NANOPUBS.toString()).countDocuments(db.session)).thenReturn(NANOPUB_COUNT);
+
+            String json = RegistryInfo.getLocal(db.session).asJson();
+
+            assertTrue(json.contains("\"trustCalculationEnabled\":false"));
+            assertTrue(json.contains("\"optionalLoadEnabled\":false"));
+            // agentCount stays null and Gson drops it, so consumers can tell "not computed"
+            // apart from "zero agents".
+            assertFalse(json.contains("agentCount"));
+            assertTrue(json.contains("\"accountCount\":" + ACCOUNT_COUNT), "the other counts are still reported");
+        } finally {
+            fakeEnv.reset();
+        }
+    }
 
     @Test
     void getLocal() {

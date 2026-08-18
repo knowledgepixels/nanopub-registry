@@ -200,14 +200,15 @@ public class RegistryDB {
      * @param mongoSession the MongoDB client session
      */
     public static void increaseStateCounter(ClientSession mongoSession) {
-        MongoCursor<Document> cursor = collection(Collection.SERVER_INFO.toString()).find(mongoSession, new Document("_id", "trustStateCounter")).cursor();
-        if (cursor.hasNext()) {
-            long counter = cursor.next().getLong("value");
-            collection(Collection.SERVER_INFO.toString()).updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
-            logger.debug("Incremented trustStateCounter from {} to {}", counter, counter + 1);
-        } else {
-            collection(Collection.SERVER_INFO.toString()).insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0L));
-            logger.info("Initialized trustStateCounter to 0 in collection '{}'", Collection.SERVER_INFO);
+        try (MongoCursor<Document> cursor = collection(Collection.SERVER_INFO.toString()).find(mongoSession, new Document("_id", "trustStateCounter")).cursor()) {
+            if (cursor.hasNext()) {
+                long counter = cursor.next().getLong("value");
+                collection(Collection.SERVER_INFO.toString()).updateOne(mongoSession, new Document("_id", "trustStateCounter"), new Document("$set", new Document("value", counter + 1)));
+                logger.debug("Incremented trustStateCounter from {} to {}", counter, counter + 1);
+            } else {
+                collection(Collection.SERVER_INFO.toString()).insertOne(mongoSession, new Document("_id", "trustStateCounter").append("value", 0L));
+                logger.info("Initialized trustStateCounter to 0 in collection '{}'", Collection.SERVER_INFO);
+            }
         }
     }
 
@@ -383,12 +384,13 @@ public class RegistryDB {
      */
     public static void set(ClientSession mongoSession, String collection, Document update) {
         Bson find = new Document("_id", update.get("_id"));
-        MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).cursor();
-        if (cursor.hasNext()) {
-            collection(collection).updateOne(mongoSession, find, new Document("$set", update));
-            logger.debug("Updated document with _id={} in collection '{}'", update.get("_id"), collection);
-        } else {
-            logger.debug("set: no existing document with _id={} in collection '{}'; update skipped", update.get("_id"), collection);
+        try (MongoCursor<Document> cursor = collection(collection).find(mongoSession, find).cursor()) {
+            if (cursor.hasNext()) {
+                collection(collection).updateOne(mongoSession, find, new Document("$set", update));
+                logger.debug("Updated document with _id={} in collection '{}'", update.get("_id"), collection);
+            } else {
+                logger.debug("set: no existing document with _id={} in collection '{}'; update skipped", update.get("_id"), collection);
+            }
         }
     }
 
@@ -597,10 +599,11 @@ public class RegistryDB {
                     // Add this nanopub also to all lists of invalidated nanopubs:
                     logger.debug("Nanopub {} invalidates {}; updating list entries and trust edges", nanopub.getUri(), invalidatedId);
                     collection("invalidations").insertOne(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc));
-                    MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph)).cursor();
-                    while (invalidatedEntries.hasNext()) {
-                        Document invalidatedEntry = invalidatedEntries.next();
-                        addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"));
+                    try (MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph)).cursor()) {
+                        while (invalidatedEntries.hasNext()) {
+                            Document invalidatedEntry = invalidatedEntries.next();
+                            addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"));
+                        }
                     }
 
                     collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
@@ -808,15 +811,17 @@ public class RegistryDB {
             }
         }
 
-        MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor();
-        // TODO Improve this so we don't create the full string just for calculating its hash:
-        String s = "";
-        while (tp.hasNext()) {
-            Document d = tp.next();
-            if (toLoadAccounts.contains(d.getString("agent") + "|" + d.getString("pubkey"))) {
-                continue;
+        String s;
+        try (MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor()) {
+            // TODO Improve this so we don't create the full string just for calculating its hash:
+            s = "";
+            while (tp.hasNext()) {
+                Document d = tp.next();
+                if (toLoadAccounts.contains(d.getString("agent") + "|" + d.getString("pubkey"))) {
+                    continue;
+                }
+                s += d.getString("_id") + " (" + d.getString("type") + ")\n";
             }
-            s += d.getString("_id") + " (" + d.getString("type") + ")\n";
         }
         String hash = Utils.getHash(s);
         logger.debug("Calculated trust state hash: {}", hash);

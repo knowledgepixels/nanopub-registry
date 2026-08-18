@@ -382,56 +382,24 @@ class RegistryDBTest {
         assertEquals(doc3, retrieved);
     }
 
+    /**
+     * {@code loadNanopub} derives the public key from the signature before running any of
+     * the size, timestamp or graph-URI checks, so an unsigned nanopub never reaches them.
+     * Those guards are covered against {@code loadNanopubVerified} in
+     * {@link RegistryDBLoadNanopubTest}, which is the only way to actually exercise them.
+     */
     @Test
-    void loadNanopubRejectsFutureTimestamp() {
+    void loadNanopubIgnoresANanopubWithoutAVerifiableSignature() {
         RegistryDB.init();
         ClientSession session = RegistryDB.getClient().startSession();
 
         Nanopub nanopub = mock(Nanopub.class);
-        when(nanopub.getTripleCount()).thenReturn(10);
-        when(nanopub.getByteCount()).thenReturn(100L);
-        IRI uri = SimpleValueFactory.getInstance().createIRI("http://example.org/test");
+        IRI uri = SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/RA3QeEArKrJhMi5hGQJwjizvDEPKnaM2wME9iuKItk_nE");
         when(nanopub.getUri()).thenReturn(uri);
 
-        Calendar futureTime = Calendar.getInstance();
-        futureTime.add(Calendar.HOUR, 1);
-        when(nanopub.getCreationTime()).thenReturn(futureTime);
-
         assertFalse(RegistryDB.loadNanopub(session, nanopub));
-    }
-
-    @Test
-    void loadNanopubAcceptsNullCreationTime() {
-        RegistryDB.init();
-        ClientSession session = RegistryDB.getClient().startSession();
-
-        Nanopub nanopub = mock(Nanopub.class);
-        when(nanopub.getTripleCount()).thenReturn(10);
-        when(nanopub.getByteCount()).thenReturn(100L);
-        IRI uri = SimpleValueFactory.getInstance().createIRI("http://example.org/test");
-        when(nanopub.getUri()).thenReturn(uri);
-        when(nanopub.getCreationTime()).thenReturn(null);
-        when(nanopub.getGraphUris()).thenReturn(Set.of());
-
-        // Will pass the timestamp check but fail on signature validation (no pubkey)
-        assertFalse(RegistryDB.loadNanopub(session, nanopub));
-    }
-
-    @Test
-    void loadNanopubRejectsMismatchedGraphUris() {
-        RegistryDB.init();
-        ClientSession session = RegistryDB.getClient().startSession();
-
-        Nanopub nanopub = mock(Nanopub.class);
-        when(nanopub.getTripleCount()).thenReturn(10);
-        when(nanopub.getByteCount()).thenReturn(100L);
-        when(nanopub.getCreationTime()).thenReturn(null);
-        IRI nanopubUri = SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/RA3QeEArKrJhMi5hGQJwjizvDEPKnaM2wME9iuKItk_nE");
-        IRI mismatchedGraphUri = SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/RA54f2f2ef2408bf88c12fbb8fd62844263ab83ef5c22/Head");
-        when(nanopub.getUri()).thenReturn(nanopubUri);
-        when(nanopub.getGraphUris()).thenReturn(Set.of(mismatchedGraphUri));
-
-        assertFalse(RegistryDB.loadNanopub(session, nanopub));
+        assertFalse(RegistryDB.has(session, Collection.NANOPUBS.toString(), "RA3QeEArKrJhMi5hGQJwjizvDEPKnaM2wME9iuKItk_nE"),
+                "a nanopub without a verifiable pubkey must not be stored");
     }
 
     @Test

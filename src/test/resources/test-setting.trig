@@ -1,0 +1,41 @@
+# Test fixture only — NOT a real registry setting.
+#
+# A minimal, unsigned nanopub setting whose agent intro collection points at an index
+# nanopub that the nanopub test suite ships (RApww43dy8...), so INIT_COLLECTIONS can
+# resolve it from the local store instead of reaching out to the network.
+
+@prefix this: <http://example.org/np/test-setting> .
+@prefix sub: <http://example.org/np/test-setting/> .
+@prefix np: <http://www.nanopub.org/nschema#> .
+@prefix npx: <http://purl.org/nanopub/x/> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix orcid: <https://orcid.org/> .
+
+sub:Head {
+  this: a np:Nanopublication ;
+    np:hasAssertion sub:assertion ;
+    np:hasProvenance sub:provenance ;
+    np:hasPublicationInfo sub:pubinfo .
+}
+
+sub:assertion {
+  sub:setting a npx:NanopubSetting ;
+    npx:hasAgents <https://w3id.org/fair/fip/np/index/RApww43dy8UvCoEc8QKOaXhojCTgao3ZXX_d6V_jVBo6s> ;
+    npx:hasBootstrapService <https://registry.example.org/> ;
+    npx:hasTrustRangeAlgorithm npx:TransitiveTrust ;
+    npx:hasUpdateStrategy npx:UpdatesByCreator ;
+    rdfs:label "test setting" .
+}
+
+sub:provenance {
+  sub:assertion prov:wasAttributedTo orcid:0000-0000-0000-0001 .
+}
+
+sub:pubinfo {
+  this: dct:created "2026-01-01T00:00:00.000Z"^^xsd:dateTime ;
+    npx:introduces sub:setting ;
+    rdfs:label "Nanopublication setting: test setting" .
+}

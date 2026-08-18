@@ -120,92 +120,94 @@ public class ListPage extends Page {
                     logger.info("Finished streaming Jelly nanopubs for pubkey={} type={}", getLabel(pubkey), getLabel(type));
                 }
             } else {
-                MongoCursor<Document> c = collection("listEntries").find(mongoSession, new Document("pubkey", pubkey).append("type", type)).projection(exclude("_id")).sort(ascending("position")).cursor();
+                try (MongoCursor<Document> c = collection("listEntries").find(mongoSession, new Document("pubkey", pubkey).append("type", type)).projection(exclude("_id")).sort(ascending("position")).cursor()) {
 
-                if (TYPE_JSON.equals(format)) {
-                    int count = 0;
-                    println("[");
-                    while (c.hasNext()) {
-                        Document d = c.next();
-                        // Transforming long to int, so the JSON output looks nice:
-                        // TODO Make this scale beyond the int range
-                        d.replace("position", d.getLong("position").intValue());
-                        print(d.toJson());
-                        println(c.hasNext() ? "," : "");
-                        count++;
+                    if (TYPE_JSON.equals(format)) {
+                        int count = 0;
+                        println("[");
+                        while (c.hasNext()) {
+                            Document d = c.next();
+                            // Transforming long to int, so the JSON output looks nice:
+                            // TODO Make this scale beyond the int range
+                            d.replace("position", d.getLong("position").intValue());
+                            print(d.toJson());
+                            println(c.hasNext() ? "," : "");
+                            count++;
+                        }
+                        println("]");
+                        logger.info("Served {} list entries for pubkey={} type={} (format=json)", count, getLabel(pubkey), getLabel(type));
+                    } else {
+                        int listed = 0;
+                        printHtmlHeader("List for pubkey " + getLabel(pubkey) + " / type " + getLabel(type) + " - Nanopub Registry");
+                        println("<h1>List</h1>");
+                        println("<p><a href=\"/list/" + pubkey + "\">&lt; Pubkey</a></p>");
+                        println("<h3>Formats</h3>");
+                        println("<p>");
+                        println("<a href=\"/list/" + pubkey + "/" + type + ".json\">.json</a> |");
+                        println("<a href=\"/list/" + pubkey + "/" + type + ".json.txt\">.json.txt</a>");
+                        println("</p>");
+                        println("<h3>Pubkey Hash</h3>");
+                        println("<p><code>" + pubkey + "</code></p>");
+                        println("<h3>Type Hash</h3>");
+                        println("<p><code>" + type + "</code></p>");
+                        println("<h3>Entries</h3>");
+                        println("<ol>");
+                        while (c.hasNext()) {
+                            Document d = c.next();
+                            println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + getLabel(d.getString("np")) + "</code></a></li>");
+                            listed++;
+                        }
+                        println("</ol>");
+                        printHtmlFooter();
+                        logger.info("Listed {} entries for pubkey={} type={} (format=html)", listed, getLabel(pubkey), getLabel(type));
                     }
-                    println("]");
-                    logger.info("Served {} list entries for pubkey={} type={} (format=json)", count, getLabel(pubkey), getLabel(type));
-                } else {
-                    int listed = 0;
-                    printHtmlHeader("List for pubkey " + getLabel(pubkey) + " / type " + getLabel(type) + " - Nanopub Registry");
-                    println("<h1>List</h1>");
-                    println("<p><a href=\"/list/" + pubkey + "\">&lt; Pubkey</a></p>");
-                    println("<h3>Formats</h3>");
-                    println("<p>");
-                    println("<a href=\"/list/" + pubkey + "/" + type + ".json\">.json</a> |");
-                    println("<a href=\"/list/" + pubkey + "/" + type + ".json.txt\">.json.txt</a>");
-                    println("</p>");
-                    println("<h3>Pubkey Hash</h3>");
-                    println("<p><code>" + pubkey + "</code></p>");
-                    println("<h3>Type Hash</h3>");
-                    println("<p><code>" + type + "</code></p>");
-                    println("<h3>Entries</h3>");
-                    println("<ol>");
-                    while (c.hasNext()) {
-                        Document d = c.next();
-                        println("<li><a href=\"/np/" + d.getString("np") + "\"><code>" + getLabel(d.getString("np")) + "</code></a></li>");
-                        listed++;
-                    }
-                    println("</ol>");
-                    printHtmlFooter();
-                    logger.info("Listed {} entries for pubkey={} type={} (format=html)", listed, getLabel(pubkey), getLabel(type));
                 }
             }
         } else if (req.matches("/list/[0-9a-f]{64}")) {
             String pubkey = req.replaceFirst("/list/([0-9a-f]{64})", "$1");
-            MongoCursor<Document> c = collection("lists").find(mongoSession, new Document("pubkey", pubkey)).projection(exclude("_id")).cursor();
-            if (TYPE_JSON.equals(format)) {
-                int count = 0;
-                println("[");
-                while (c.hasNext()) {
-                    print(c.next().toJson());
-                    println(c.hasNext() ? "," : "");
-                    count++;
-                }
-                println("]");
-                logger.info("Served {} account documents for pubkey={} (format=json)", count, getLabel(pubkey));
-            } else {
-                int listed = 0;
-                printHtmlHeader("Accounts for Pubkey " + getLabel(pubkey) + " - Nanopub Registry");
-                println("<h1>Accounts for Pubkey " + getLabel(pubkey) + "</h1>");
-                println("<p><a href=\"/list\">&lt; Current Trust State</a></p>");
-                println("<h3>Formats</h3>");
-                println("<p>");
-                println("<a href=\"/list/" + pubkey + ".json\">.json</a> |");
-                println("<a href=\"/list/" + pubkey + ".json.txt\">.json.txt</a>");
-                println("</p>");
-                println("<h3>Pubkey Hash</h3>");
-                println("<p><code>" + pubkey + "</code></p>");
-                println("<h3>Entry Lists</h3>");
-                println("<ol>");
-                while (c.hasNext()) {
-                    Document d = c.next();
-                    String type = d.getString("type");
-                    println("<li>");
-                    println("<a href=\"/list/" + pubkey + "/" + type + "\"><code>" + getLabel(type) + "</code></a> ");
-                    if (type.equals("$")) {
-                        println("(all types)");
-                    } else {
-                        String typeUri = unhash(type);
-                        println("(type " + (typeUri != null ? typeUri : type) + ")");
+            try (MongoCursor<Document> c = collection("lists").find(mongoSession, new Document("pubkey", pubkey)).projection(exclude("_id")).cursor()) {
+                if (TYPE_JSON.equals(format)) {
+                    int count = 0;
+                    println("[");
+                    while (c.hasNext()) {
+                        print(c.next().toJson());
+                        println(c.hasNext() ? "," : "");
+                        count++;
                     }
-                    println("</li>");
-                    listed++;
+                    println("]");
+                    logger.info("Served {} account documents for pubkey={} (format=json)", count, getLabel(pubkey));
+                } else {
+                    int listed = 0;
+                    printHtmlHeader("Accounts for Pubkey " + getLabel(pubkey) + " - Nanopub Registry");
+                    println("<h1>Accounts for Pubkey " + getLabel(pubkey) + "</h1>");
+                    println("<p><a href=\"/list\">&lt; Current Trust State</a></p>");
+                    println("<h3>Formats</h3>");
+                    println("<p>");
+                    println("<a href=\"/list/" + pubkey + ".json\">.json</a> |");
+                    println("<a href=\"/list/" + pubkey + ".json.txt\">.json.txt</a>");
+                    println("</p>");
+                    println("<h3>Pubkey Hash</h3>");
+                    println("<p><code>" + pubkey + "</code></p>");
+                    println("<h3>Entry Lists</h3>");
+                    println("<ol>");
+                    while (c.hasNext()) {
+                        Document d = c.next();
+                        String type = d.getString("type");
+                        println("<li>");
+                        println("<a href=\"/list/" + pubkey + "/" + type + "\"><code>" + getLabel(type) + "</code></a> ");
+                        if (type.equals("$")) {
+                            println("(all types)");
+                        } else {
+                            String typeUri = unhash(type);
+                            println("(type " + (typeUri != null ? typeUri : type) + ")");
+                        }
+                        println("</li>");
+                        listed++;
+                    }
+                    println("</ol>");
+                    printHtmlFooter();
+                    logger.info("Listed {} entry lists for pubkey={} (format=html)", listed, getLabel(pubkey));
                 }
-                println("</ol>");
-                printHtmlFooter();
-                logger.info("Listed {} entry lists for pubkey={} (format=html)", listed, getLabel(pubkey));
             }
         } else if (req.equals("/list")) {
             try (var c = collection(Collection.ACCOUNTS.toString()).find(mongoSession).sort(ascending("pubkey")).projection(exclude("_id")).cursor()) {
@@ -306,90 +308,92 @@ public class ListPage extends Page {
         } else if (req.equals("/agentAccounts") && context.request().getParam("id") != null) {
             String agentId = context.request().getParam("id");
             logger.info("Serving agent accounts for id={} format={}", Utils.getAgentLabel(agentId), format);
-            MongoCursor<Document> c = collection(Collection.ACCOUNTS.toString()).find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor();
-            if (TYPE_JSON.equals(format)) {
-                int count = 0;
-                println("[");
-                while (c.hasNext()) {
-                    print(c.next().toJson());
-                    println(c.hasNext() ? "," : "");
-                    count++;
+            try (MongoCursor<Document> c = collection(Collection.ACCOUNTS.toString()).find(mongoSession, new Document("agent", agentId)).projection(exclude("_id")).cursor()) {
+                if (TYPE_JSON.equals(format)) {
+                    int count = 0;
+                    println("[");
+                    while (c.hasNext()) {
+                        print(c.next().toJson());
+                        println(c.hasNext() ? "," : "");
+                        count++;
+                    }
+                    println("]");
+                    logger.info("Served {} agent accounts for id={} (format=json)", count, Utils.getAgentLabel(agentId));
+                } else {
+                    Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
+                    String agentName = (agentDoc != null) ? agentDoc.getString("name") : null;
+                    String headingSuffix = (agentName != null && !agentName.isBlank()) ? " (" + agentName + ")" : "";
+                    printHtmlHeader("Accounts of Agent " + Utils.getAgentLabel(agentId) + headingSuffix + " - Nanopub Registry");
+                    println("<h1>Accounts of Agent " + Utils.getAgentLabel(agentId) + headingSuffix + "</h1>");
+                    println("<p><a href=\"/agent?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">&lt; Agent</a></p>");
+                    println("<h3>Formats</h3>");
+                    println("<p>");
+                    println("<a href=\"agentAccounts.json?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json</a> |");
+                    println("<a href=\"agentAccounts.json.txt?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json.txt</a>");
+                    println("</p>");
+                    println("<h3>Account List</h3>");
+                    println("<ul>");
+                    int listed = 0;
+                    while (c.hasNext()) {
+                        Document d = c.next();
+                        String pubkey = d.getString("pubkey");
+                        //				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
+                        //				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
+                        //				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
+                        Document dollarList = RegistryDB.getOne(mongoSession, "lists",
+                                new Document("pubkey", pubkey).append("type", "$"));
+                        long npCount = (dollarList != null && dollarList.get("maxPosition") != null)
+                                ? dollarList.getLong("maxPosition") + 1 : 0;
+                        String accountName = d.getString("name");
+                        String nameSuffix = (accountName != null && !accountName.isBlank()) ? " (" + accountName + ")" : "";
+                        println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>" + nameSuffix + " (" + d.get("status") + "), " + "count " + npCount + ", " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
+                        listed++;
+                    }
+                    println("</ul>");
+                    printHtmlFooter();
+                    logger.info("Listed {} accounts for agent id={} (format=html)", listed, Utils.getAgentLabel(agentId));
                 }
-                println("]");
-                logger.info("Served {} agent accounts for id={} (format=json)", count, Utils.getAgentLabel(agentId));
-            } else {
-                Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
-                String agentName = (agentDoc != null) ? agentDoc.getString("name") : null;
-                String headingSuffix = (agentName != null && !agentName.isBlank()) ? " (" + agentName + ")" : "";
-                printHtmlHeader("Accounts of Agent " + Utils.getAgentLabel(agentId) + headingSuffix + " - Nanopub Registry");
-                println("<h1>Accounts of Agent " + Utils.getAgentLabel(agentId) + headingSuffix + "</h1>");
-                println("<p><a href=\"/agent?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">&lt; Agent</a></p>");
-                println("<h3>Formats</h3>");
-                println("<p>");
-                println("<a href=\"agentAccounts.json?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json</a> |");
-                println("<a href=\"agentAccounts.json.txt?id=" + URLEncoder.encode(agentId, "UTF-8") + "\">.json.txt</a>");
-                println("</p>");
-                println("<h3>Account List</h3>");
-                println("<ul>");
-                int listed = 0;
-                while (c.hasNext()) {
-                    Document d = c.next();
-                    String pubkey = d.getString("pubkey");
-                    //				Object iCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", INTRO_TYPE_HASH), "position");
-                    //				Object eCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", ENDORSE_TYPE), "position");
-                    //				Object fCount = getMaxValue("listEntries", new Document("pubkey", pubkey).append("type", "$"), "position");
-                    Document dollarList = RegistryDB.getOne(mongoSession, "lists",
-                            new Document("pubkey", pubkey).append("type", "$"));
-                    long npCount = (dollarList != null && dollarList.get("maxPosition") != null)
-                            ? dollarList.getLong("maxPosition") + 1 : 0;
-                    String accountName = d.getString("name");
-                    String nameSuffix = (accountName != null && !accountName.isBlank()) ? " (" + accountName + ")" : "";
-                    println("<li><a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>" + nameSuffix + " (" + d.get("status") + "), " + "count " + npCount + ", " + "quota " + d.get("quota") + ", " + "ratio " + df8.format(d.get("ratio")) + ", " + "path count " + d.get("pathCount") + "</li>");
-                    listed++;
-                }
-                println("</ul>");
-                printHtmlFooter();
-                logger.info("Listed {} accounts for agent id={} (format=html)", listed, Utils.getAgentLabel(agentId));
             }
         } else if (req.equals("/agents")) {
-            MongoCursor<Document> c = collection(Collection.AGENTS.toString()).find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor();
-            if (TYPE_JSON.equals(format)) {
-                int count = 0;
-                println("[");
-                while (c.hasNext()) {
-                    print(c.next().toJson());
-                    println(c.hasNext() ? "," : "");
-                    count++;
-                }
-                println("]");
-                logger.info("Served {} agents (format=json)", count);
-            } else {
-                int listed = 0;
-                printHtmlHeader("Agent List - Nanopub Registry");
-                println("<h1>Agent List</h1>");
-                println("<p><a href=\"/\">&lt; Home</a></p>");
-                println("<h3>Formats</h3>");
-                println("<p>");
-                println("<a href=\"agents.json\">.json</a> |");
-                println("<a href=\"agents.json.txt\">.json.txt</a>");
-                println("</p>");
-                println("<h3>Agents</h3>");
-                println("<ol>");
-                while (c.hasNext()) {
-                    Document d = c.next();
-                    if (d.get("agent").equals("$")) {
-                        continue;
+            try (MongoCursor<Document> c = collection(Collection.AGENTS.toString()).find(mongoSession).sort(descending("totalRatio")).projection(exclude("_id")).cursor()) {
+                if (TYPE_JSON.equals(format)) {
+                    int count = 0;
+                    println("[");
+                    while (c.hasNext()) {
+                        print(c.next().toJson());
+                        println(c.hasNext() ? "," : "");
+                        count++;
                     }
-                    String a = d.getString("agent");
-                    int accountCount = d.getInteger("accountCount");
-                    String name = d.getString("name");
-                    String nameSuffix = (name != null && !name.isBlank()) ? " (" + name + ")" : "";
-                    println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>" + nameSuffix + ", " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
-                    listed++;
+                    println("]");
+                    logger.info("Served {} agents (format=json)", count);
+                } else {
+                    int listed = 0;
+                    printHtmlHeader("Agent List - Nanopub Registry");
+                    println("<h1>Agent List</h1>");
+                    println("<p><a href=\"/\">&lt; Home</a></p>");
+                    println("<h3>Formats</h3>");
+                    println("<p>");
+                    println("<a href=\"agents.json\">.json</a> |");
+                    println("<a href=\"agents.json.txt\">.json.txt</a>");
+                    println("</p>");
+                    println("<h3>Agents</h3>");
+                    println("<ol>");
+                    while (c.hasNext()) {
+                        Document d = c.next();
+                        if (d.get("agent").equals("$")) {
+                            continue;
+                        }
+                        String a = d.getString("agent");
+                        int accountCount = d.getInteger("accountCount");
+                        String name = d.getString("name");
+                        String nameSuffix = (name != null && !name.isBlank()) ? " (" + name + ")" : "";
+                        println("<li><a href=\"/agent?id=" + URLEncoder.encode(a, "UTF-8") + "\">" + Utils.getAgentLabel(a) + "</a>" + nameSuffix + ", " + accountCount + " account" + (accountCount == 1 ? "" : "s") + ", " + "ratio " + df8.format(d.get("totalRatio")) + ", " + "avg. path count " + df1.format(d.get("avgPathCount")) + "</li>");
+                        listed++;
+                    }
+                    println("</ol>");
+                    printHtmlFooter();
+                    logger.info("Listed {} agents (format=html)", listed);
                 }
-                println("</ol>");
-                printHtmlFooter();
-                logger.info("Listed {} agents (format=html)", listed);
             }
         } else if (req.equals("/nanopubs")) {
             if (TYPE_JELLY.equals(format)) {
@@ -398,7 +402,7 @@ public class ListPage extends Page {
                 try {
                     afterCounter = Long.parseLong(getParam("afterCounter", "-1"));
                 } catch (NumberFormatException ex) {
-                    logger.warn("Invalid afterCounter parameter for {}: {} ({})", getFullRequest(), getParam("afterCounter", ""), ex);
+                    logger.warn("Invalid afterCounter parameter for {}: {}", getFullRequest(), getParam("afterCounter", ""), ex);
                     context.response().setStatusCode(400).setStatusMessage("Invalid afterCounter parameter.");
                     return;
                 }

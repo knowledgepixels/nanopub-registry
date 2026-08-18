@@ -73,8 +73,8 @@ public class RegistryInfo implements Serializable {
             logger.debug("Setting lookup incomplete: currentSetting={}, originalSetting={}", ri.currentSetting, ri.originalSetting);
         }
 
-        ri.trustCalculationEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"));
-        if (!"false".equals(System.getenv("REGISTRY_ENABLE_TRUST_CALCULATION"))) {
+        ri.trustCalculationEnabled = !"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null));
+        if (!"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
             ri.agentCount = collection(Collection.AGENTS.toString()).countDocuments(mongoSession);
             logger.debug("Trust calculation enabled; agentCount={}", ri.agentCount);
         } else {
@@ -87,7 +87,7 @@ public class RegistryInfo implements Serializable {
 
         ri.isTestInstance = si.get("testInstance") != null && (Boolean) si.get("testInstance");
         ri.isLocalInstance = Utils.isLocalInstance();
-        ri.optionalLoadEnabled = !"false".equals(System.getenv("REGISTRY_ENABLE_OPTIONAL_LOAD"));
+        ri.optionalLoadEnabled = !"false".equals(Utils.getEnv("REGISTRY_ENABLE_OPTIONAL_LOAD", null));
 
         logger.info("RegistryInfo snapshot ready: version={}, status={}, setupId={}, isTestInstance={}, isLocalInstance={}, optionalLoadEnabled={}, trustCalculationEnabled={}", ri.registryVersion, ri.status, ri.setupId, ri.isTestInstance, ri.isLocalInstance, ri.optionalLoadEnabled, ri.trustCalculationEnabled);
 

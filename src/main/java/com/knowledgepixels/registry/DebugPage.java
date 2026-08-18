@@ -52,22 +52,26 @@ public class DebugPage extends Page {
             }
             setRespContentType("text/plain");
         } else if (getRequestString().matches("/debug/endorsements")) {
-            MongoCursor<Document> tp = collection("endorsements").find(mongoSession).cursor();
-            int count = 0;
-            while (tp.hasNext()) {
-                Document d = tp.next();
-                println(d.get("agent") + ">" + d.get("pubkey") + " " + d.get("endorsedNanopub") + " " + d.get("source") + " (" + d.get("status") + ")");
-                count++;
+            int count;
+            try (MongoCursor<Document> tp = collection("endorsements").find(mongoSession).cursor()) {
+                count = 0;
+                while (tp.hasNext()) {
+                    Document d = tp.next();
+                    println(d.get("agent") + ">" + d.get("pubkey") + " " + d.get("endorsedNanopub") + " " + d.get("source") + " (" + d.get("status") + ")");
+                    count++;
+                }
             }
             setRespContentType("text/plain");
             logger.info("Listed {} endorsements for {}", count, getFullRequest());
         } else if (getRequestString().matches("/debug/accounts")) {
-            MongoCursor<Document> tp = collection("accounts").find(mongoSession).cursor();
-            int count = 0;
-            while (tp.hasNext()) {
-                Document d = tp.next();
-                println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
-                count++;
+            int count;
+            try (MongoCursor<Document> tp = collection("accounts").find(mongoSession).cursor()) {
+                count = 0;
+                while (tp.hasNext()) {
+                    Document d = tp.next();
+                    println(d.getString("agent") + ">" + d.get("pubkey") + " " + d.get("depth") + " (" + d.get("status") + ")");
+                    count++;
+                }
             }
             logger.info("Listed {} accounts for {}", count, getFullRequest());
         } else if (getRequestString().matches("/debug/tasks")) {
@@ -81,12 +85,14 @@ public class DebugPage extends Page {
                     println("Currently running: (none)");
                 }
                 println("");
-                MongoCursor<Document> tasks = collection(Collection.TASKS.toString()).find(mongoSession)
-                        .sort(ascending("not-before")).cursor();
-                int count = 0;
-                while (tasks.hasNext()) {
-                    println(tasks.next().toJson());
-                    count++;
+                int count;
+                try (MongoCursor<Document> tasks = collection(Collection.TASKS.toString()).find(mongoSession)
+                        .sort(ascending("not-before")).cursor()) {
+                    count = 0;
+                    while (tasks.hasNext()) {
+                        println(tasks.next().toJson());
+                        count++;
+                    }
                 }
                 println("Total queued tasks: " + count);
                 logger.info("Listed {} queued tasks for {}", count, getFullRequest());
@@ -99,11 +105,13 @@ public class DebugPage extends Page {
             try {
                 long count = collection(Collection.PEER_STATE.toString()).countDocuments(mongoSession);
                 println("peerState documents: " + count);
-                MongoCursor<Document> ps = collection(Collection.PEER_STATE.toString()).find(mongoSession).cursor();
-                int listed = 0;
-                while (ps.hasNext()) {
-                    println(ps.next().toJson());
-                    listed++;
+                int listed;
+                try (MongoCursor<Document> ps = collection(Collection.PEER_STATE.toString()).find(mongoSession).cursor()) {
+                    listed = 0;
+                    while (ps.hasNext()) {
+                        println(ps.next().toJson());
+                        listed++;
+                    }
                 }
                 logger.info("Listed {} peerState documents for {}", listed, getFullRequest());
             } catch (Exception ex) {
@@ -118,15 +126,16 @@ public class DebugPage extends Page {
 
     public static String getTrustPathsTxt(ClientSession mongoSession) {
         String s = "";
-        MongoCursor<Document> tp = collection("trustPaths").find(mongoSession).sort(ascending("_id")).cursor();
-        while (tp.hasNext()) {
-            Document d = tp.next();
-            String path = d.getString("_id");
-            path = path.replace(" ", " > ");
-            if (d.getString("type").equals("extended")) {
-                path = path.replaceFirst(" > ([^ ]+)$", " ~ $1");
+        try (MongoCursor<Document> tp = collection("trustPaths").find(mongoSession).sort(ascending("_id")).cursor()) {
+            while (tp.hasNext()) {
+                Document d = tp.next();
+                String path = d.getString("_id");
+                path = path.replace(" ", " > ");
+                if (d.getString("type").equals("extended")) {
+                    path = path.replaceFirst(" > ([^ ]+)$", " ~ $1");
+                }
+                s += path + "\n";
             }
-            s += path + "\n";
         }
         return s;
     }
