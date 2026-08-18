@@ -5,6 +5,9 @@ import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -92,17 +95,27 @@ class TaskTransactionTest {
     }
 
     @Test
-    void tasksRunInATransactionUnlessTheyStreamFromPeers() {
+    void tasksRunInATransactionUnlessTheyCannot() {
         try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
-            // Long-running streaming fetches would blow MongoDB's transaction timeout,
-            // so exactly these two opt out; every other task must stay transactional.
-            assertFalse(Task.LOAD_FULL.runAsTransaction(), "LOAD_FULL streams from peers");
-            assertFalse(Task.CHECK_NEW.runAsTransaction(), "CHECK_NEW streams from peers");
+            // Exactly these tasks opt out, because they do something a MongoDB transaction cannot
+            // hold: DDL (collection drops, indexes, renames), network fetches from peers that would
+            // blow the transaction timeout, or worker threads that each open their own session.
+            // See #128. Every other task must stay transactional.
+            Set<Task> exempt = EnumSet.of(
+                    Task.INIT_COLLECTIONS,
+                    Task.LOAD_DECLARATIONS,
+                    Task.LOAD_CORE,
+                    Task.RELEASE_DATA,
+                    Task.LOAD_FULL,
+                    Task.RUN_OPTIONAL_LOAD,
+                    Task.CHECK_NEW);
+
             for (Task task : Task.values()) {
-                if (task == Task.LOAD_FULL || task == Task.CHECK_NEW) {
-                    continue;
+                if (exempt.contains(task)) {
+                    assertFalse(task.runAsTransaction(), task.name() + " cannot run as a transaction");
+                } else {
+                    assertTrue(task.runAsTransaction(), task.name() + " runs as a transaction");
                 }
-                assertTrue(task.runAsTransaction(), task.name() + " runs as a transaction");
             }
         }
     }

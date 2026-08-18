@@ -188,6 +188,21 @@ class TaskTest {
     }
 
     /**
+     * Runs the task {@code predecessor} just queued, and removes it from the queue so that
+     * {@link #queuedActions()} still reports only what the chain scheduled last.
+     * <p>
+     * Issue #128 split every task that cannot be transactional away from the writes it used
+     * to make: the DDL and network half stays in the original task, the derived writes move
+     * to a successor it schedules. Tests that assert on those writes have to run both halves.
+     */
+    private void runQueuedSuccessor(Task predecessor, Task successor) throws Exception {
+        Document taskDoc = queuedTask(successor);
+        assertNotNull(taskDoc, predecessor.name() + " schedules " + successor.name());
+        collection(Collection.TASKS.toString()).deleteMany(session, new Document("action", successor.name()));
+        Task.runTask(successor, taskDoc);
+    }
+
+    /**
      * Puts the registry in a state where a task operating on the {@code *_loading}
      * collections can run: indexes created, setting id available, queue empty.
      */
@@ -307,6 +322,7 @@ class TaskTest {
         clearQueue();
 
         Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
 
         // With no trust network to walk there is nothing to expand: the explicitly
         // configured pubkeys become accounts directly and the cycle jumps to the end.
@@ -331,7 +347,9 @@ class TaskTest {
 
         // INIT_COLLECTIONS runs once per update cycle, so seeding has to be idempotent.
         Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
         Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
 
         assertEquals(1, all("accounts_loading").size());
     }
@@ -346,6 +364,7 @@ class TaskTest {
         clearQueue();
 
         Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
 
         // The root of the trust network: the base agent, at depth 0, holding the full ratio.
         Document root = one("trustPaths_loading", new Document("_id", "$"));
@@ -893,11 +912,15 @@ class TaskTest {
     @Test
     void releaseDataPublishesTheLoadingCollectionsAndSnapshotsTheState() throws Exception {
         prepareLoadingCollections();
+        // Without a full load there is no backlog to wait for, so the first cycle publishes
+        // straight away rather than being held back as a bootstrap state (see the test below).
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
         setStatus(ServerStatus.coreLoading);
         seedReleasableState();
 
         Task.runTask(Task.RELEASE_DATA,
                 Task.RELEASE_DATA.asDocument().append("newTrustStateHash", "hash1"));
+        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
 
         // The *_loading collections become the live ones.
         assertEquals(3, all(Collection.ACCOUNTS.toString()).size());
@@ -932,6 +955,7 @@ class TaskTest {
 
         Task.runTask(Task.RELEASE_DATA, Task.RELEASE_DATA.asDocument()
                 .append("newTrustStateHash", "hash1").append("previousTrustStateHash", "hash1"));
+        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
 
         // Consumers poll the hash; re-emitting an identical state would churn their caches.
         assertTrue(all(Collection.TRUST_STATE_SNAPSHOTS.toString()).isEmpty());
@@ -939,6 +963,27 @@ class TaskTest {
         // The collections are still published, and an updating registry returns to ready.
         assertEquals(3, all(Collection.ACCOUNTS.toString()).size());
         assertEquals(ServerStatus.ready.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"));
+    }
+
+    @Test
+    void releaseDataHoldsBackTheBootstrapTrustState() throws Exception {
+        prepareLoadingCollections();
+        setStatus(ServerStatus.coreLoading);
+        seedReleasableState();
+
+        Task.runTask(Task.RELEASE_DATA,
+                Task.RELEASE_DATA.asDocument().append("newTrustStateHash", "hash1"));
+        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
+
+        // Nothing has ever been published and an account is still waiting for the initial full
+        // load, so the computed state is the near-empty bootstrap one: publishing it would hand
+        // consumers a trust state containing essentially nobody (issue #119). The collections are
+        // still promoted; only the hash, counter and snapshot are held back until a later cycle
+        // finds the load complete.
+        assertEquals(3, all(Collection.ACCOUNTS.toString()).size());
+        assertNull(getValue(session, Collection.SERVER_INFO.toString(), "trustStateHash"));
+        assertEquals(0L, getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter"));
+        assertTrue(all(Collection.TRUST_STATE_SNAPSHOTS.toString()).isEmpty());
     }
 
     // ------------------------------------------------------------------ UPDATE
