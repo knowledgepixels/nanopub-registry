@@ -17,6 +17,7 @@ import org.eclipse.rdf4j.rio.Rio;
 import org.nanopub.MalformedNanopubException;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubImpl;
+import org.nanopub.extra.server.NanopubServerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,6 +145,11 @@ public class MainVerticle extends AbstractVerticle {
                                 // Check if this nanopub's types are covered by this registry
                                 if (!CoverageFilter.isCovered(np)) {
                                     throw new RuntimeException("Nanopub types not covered by this registry: " + np.getUri());
+                                }
+
+                                // Protected nanopubs are only accepted on local/private instances:
+                                if (!Utils.isLocalInstance() && NanopubServerUtils.isProtectedNanopub(np)) {
+                                    throw new RuntimeException("Nanopub is protected and cannot be published to this registry: " + np.getUri());
                                 }
 
                                 // Verify signature once, pass through to avoid redundant verification:
