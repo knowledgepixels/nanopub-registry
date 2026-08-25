@@ -110,7 +110,21 @@ Tasks are scheduled and executed sequentially from a `tasks` collection. The mai
 
 Steps 2–4 can be skipped with `REGISTRY_ENABLE_TRUST_CALCULATION=false`, which makes `SEED_TRUST_STATE` jump straight to `FINALIZE_TRUST_STATE`. Useful when only explicit `REGISTRY_COVERAGE_AGENTS` pubkeys are needed.
 5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`. Optional loading can be disabled with `REGISTRY_ENABLE_OPTIONAL_LOAD=false`
-6. `UPDATE` (10min after the previous recalculation finished) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
+6. `UPDATE` (by default 10min after the previous recalculation finished, `REGISTRY_UPDATE_INTERVAL`) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
+
+### Early updates
+
+Waiting out the full interval means a new approval, introduction or revocation is published up to that long after this registry learned about it, so `TrustUpdateTrigger` pulls the queued `UPDATE` forward when trust-relevant data arrives.
+Nanopubs entering through the ingest channels — peer sync, the legacy connector, the POST endpoint — are classified as they arrive: an `npx:approvesOf` or `npx:declaredBy`/`npx:introduces` assertion, or an invalidation of a nanopub that currently sources a trust edge, is something the next cycle would compute differently.
+The trust calculation itself is unchanged; only when it runs is.
+
+A cycle fetches the intro and endorsement list of every account from the peers, so triggering is bounded:
+
+- **Floor** (`REGISTRY_UPDATE_MIN_INTERVAL`, default 2min): no two cycles ever start closer together than this, whatever arrives. It is stamped on the queued task as `not-before-floor` when the task is scheduled, so a second trigger cannot compute a floor from an already-triggered task and walk the update arbitrarily close.
+- **Debounce**: arrivals set a single flag and the trigger moves the one queued `UPDATE` rather than scheduling another, so a burst collapses into one early update. While a cycle is running there is no queued `UPDATE` to move — it left the queue when the cycle started — and the request is kept for the next round rather than dropped.
+- **Jitter** (`REGISTRY_UPDATE_TRIGGER_JITTER`, default 30s): registries feed each other, so an unjittered trigger would have every registry that sees the same publication recompute at the same moment.
+
+Misclassifying is cheap either way: a missed arrival waits for the regular interval, and a false positive costs one cycle that finds the trust state unchanged and publishes nothing.
 
 Some tasks run inside a MongoDB transaction, so that their writes commit atomically with their own removal from the queue; `Task.runAsTransaction()` says which, and defaults to true.
 A task opts out when it does network I/O or catalog operations (creating indexes, renaming or dropping collections), neither of which belongs in a transaction.

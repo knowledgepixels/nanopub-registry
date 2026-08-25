@@ -1138,10 +1138,10 @@ public enum Task implements Serializable {
                 setServerStatus(s, ready);
             }
 
-            // Run update 10min after this cycle finishes (the delay is measured from the end of the
-            // recompute, since this is the last task in the chain):
-            logger.debug("PUBLISH_TRUST_STATE complete; scheduling next UPDATE in 10min");
-            schedule(s, UPDATE.withDelay(10 * 60 * 1000));
+            // Run the next update one interval after this cycle finishes (the delay is measured
+            // from the end of the recompute, since this is the last task in the chain):
+            logger.debug("PUBLISH_TRUST_STATE complete; scheduling next UPDATE in {}ms", UPDATE_INTERVAL_MS);
+            scheduleUpdate(s);
         }
 
     },
@@ -1154,7 +1154,9 @@ public enum Task implements Serializable {
                 schedule(s, INIT_COLLECTIONS);
             } else {
                 logger.info("Postponing update; currently in status {}", status);
-                schedule(s, UPDATE.withDelay(10 * 60 * 1000));
+                // Re-scheduling also re-arms the floor, so an early trigger cannot pull an
+                // update forward into a registry that is busy with something else.
+                scheduleUpdate(s);
             }
 
         }
@@ -1419,6 +1421,10 @@ public enum Task implements Serializable {
             LegacyConnector.checkForNewNanopubs(s);
             // TODO Somehow throttle the loading of such potentially non-approved nanopubs
 
+            // If any of what just arrived (here or through the POST endpoint) can change the
+            // trust state, run the next update early rather than waiting out the full interval.
+            TrustUpdateTrigger.applyIfPending(s);
+
             long delay = 100;
             logger.debug("CHECK_NEW complete; scheduling LOAD_FULL with {}ms delay", delay);
             schedule(s, LOAD_FULL.withDelay(delay));
@@ -1524,6 +1530,29 @@ public enum Task implements Serializable {
         }
         return java.util.List.copyOf(CoverageFilter.getCoveredTypeHashes());
     }
+
+    /**
+     * How long after the end of a trust state cycle the next one starts.
+     */
+    static final long UPDATE_INTERVAL_MS = 1000L * Long.parseLong(
+            Utils.getEnv("REGISTRY_UPDATE_INTERVAL", "600"));
+
+    /**
+     * The floor for {@link TrustUpdateTrigger}: however much trust-relevant data
+     * arrives, two cycles never start closer together than this. A cycle fetches
+     * the intro and endorsement list of every account from the peers, so this is
+     * what keeps that load bounded once cycle timing depends on incoming data.
+     */
+    static final long UPDATE_MIN_INTERVAL_MS = 1000L * Long.parseLong(
+            Utils.getEnv("REGISTRY_UPDATE_MIN_INTERVAL", "120"));
+
+    /**
+     * Upper bound on the random delay added to a triggered update, so that
+     * registries reacting to the same publication spread their recomputes out
+     * instead of phase-locking onto it.
+     */
+    static final long UPDATE_TRIGGER_JITTER_MS = 1000L * Long.parseLong(
+            Utils.getEnv("REGISTRY_UPDATE_TRIGGER_JITTER", "30"));
 
     // TODO Move these to setting:
     private static final int MAX_TRUST_PATH_DEPTH = 10;
@@ -1783,6 +1812,64 @@ public enum Task implements Serializable {
 
     private static void schedule(ClientSession mongoSession, Task task) {
         schedule(mongoSession, task.asDocument());
+    }
+
+    /**
+     * Queues the next {@link #UPDATE}, one interval from now, and records the
+     * earliest point {@link TrustUpdateTrigger} may move it to.
+     *
+     * <p>
+     * The floor travels on the task document rather than being derived from its
+     * {@code not-before}: once an update has been pulled forward, its remaining
+     * delay no longer says when the last cycle ended, and a second trigger would
+     * compute a floor from a floor and walk the update arbitrarily close to it.
+     *
+     * @param mongoSession the MongoDB client session
+     */
+    private static void scheduleUpdate(ClientSession mongoSession) {
+        long now = System.currentTimeMillis();
+        schedule(mongoSession, new Document()
+                .append("not-before", now + UPDATE_INTERVAL_MS)
+                .append("not-before-floor", now + UPDATE_MIN_INTERVAL_MS)
+                .append("action", UPDATE.name()));
+    }
+
+    /**
+     * Moves the queued {@link #UPDATE} to the earliest point its floor allows,
+     * plus jitter.
+     *
+     * <p>
+     * Never moves it later, and never past the floor, so calling this repeatedly
+     * during a burst of arrivals is the same as calling it once.
+     *
+     * @param mongoSession the MongoDB client session
+     * @return whether there was a queued update to act on; {@code false} while a
+     * cycle is running, since the update that started it has left the queue
+     */
+    static boolean pullUpdateForward(ClientSession mongoSession) {
+        Document queued = tasksCollection.find(mongoSession, new Document("action", UPDATE.name())).first();
+        if (queued == null) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        // An update queued before this registry knew about floors (an upgrade with one already in
+        // the queue) gets one starting now, rather than counting as having no floor at all.
+        long floor = queued.getLong("not-before-floor") == null
+                ? now + UPDATE_MIN_INTERVAL_MS
+                : queued.getLong("not-before-floor");
+        long jitter = UPDATE_TRIGGER_JITTER_MS <= 0 ? 0L : Utils.getRandom().nextLong(UPDATE_TRIGGER_JITTER_MS);
+        long target = Math.max(now + jitter, floor);
+        long current = queued.getLong("not-before");
+        if (current <= target) {
+            logger.info("Early trust state update requested, but the queued UPDATE is already due in {}ms", current - System.currentTimeMillis());
+            return true;
+        }
+        tasksCollection.updateOne(mongoSession,
+                new Document("_id", queued.get("_id")).append("not-before", current),
+                new Document("$set", new Document("not-before", target)));
+        logger.info("Pulled the next trust state update forward by {}ms; now due in {}ms",
+                current - target, target - System.currentTimeMillis());
+        return true;
     }
 
     private static void schedule(ClientSession mongoSession, Document taskDoc) {
