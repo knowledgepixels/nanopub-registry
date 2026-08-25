@@ -1,3 +1,49 @@
+## [1.12.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.4...nanopub-registry-1.12.0) (2026-08-25)
+
+### Features
+
+* export endorsement edges in the trust state snapshot ([9668353](https://github.com/knowledgepixels/nanopub-registry/commit/9668353ae69aac5051f7b673ee61770e8fcc7274)), closes [#113](https://github.com/knowledgepixels/nanopub-registry/issues/113) [117/#118](https://github.com/117/nanopub-registry/issues/118) [knowledgepixels/nanopub-query#184](https://github.com/knowledgepixels/nanopub-query/issues/184)
+* recognize npx:ProtectedNanopub type ([62cc0ca](https://github.com/knowledgepixels/nanopub-registry/commit/62cc0cab5d3a18e028ecedd8103acc0404841613)), closes [#132](https://github.com/knowledgepixels/nanopub-registry/issues/132)
+* **update:** trigger a trust state update early when trust data arrives ([20db869](https://github.com/knowledgepixels/nanopub-registry/commit/20db8696178c6672d636522fd840f0d4888de2a2))
+
+### Dependency updates
+
+* **core-deps:** update dependency org.nanopub:nanopub to v1.92.0 ([#160](https://github.com/knowledgepixels/nanopub-registry/issues/160)) ([371014d](https://github.com/knowledgepixels/nanopub-registry/commit/371014da3830d8afd88382b4e97c40969ca4c0e2))
+* **core-deps:** update jelly.version to v3.7.3 ([#138](https://github.com/knowledgepixels/nanopub-registry/issues/138)) ([128c324](https://github.com/knowledgepixels/nanopub-registry/commit/128c324ed91ad2b2364780ae3306f1b3c52d6b12))
+* **deps:** update dependency maven to v3.9.16 ([#140](https://github.com/knowledgepixels/nanopub-registry/issues/140)) ([938c582](https://github.com/knowledgepixels/nanopub-registry/commit/938c582238d37f15d18a0b463916d0c147b1a9e7))
+
+### Bug Fixes
+
+* hold back the bootstrap trust state until the initial full load completes ([38a5b95](https://github.com/knowledgepixels/nanopub-registry/commit/38a5b953e5642c80bdd4fd3599f513c8186a0780)), closes [#119](https://github.com/knowledgepixels/nanopub-registry/issues/119)
+* make task transactions real, and split the tasks that cannot use them ([#128](https://github.com/knowledgepixels/nanopub-registry/issues/128)) ([6574f55](https://github.com/knowledgepixels/nanopub-registry/commit/6574f552278d081bec03e2161095859acadd61b9)), closes [#50](https://github.com/knowledgepixels/nanopub-registry/issues/50) [#127](https://github.com/knowledgepixels/nanopub-registry/issues/127)
+* recover from a shutdown during a trust-state update ([#50](https://github.com/knowledgepixels/nanopub-registry/issues/50)) ([8aa7867](https://github.com/knowledgepixels/nanopub-registry/commit/8aa786779dd20e63bc9ca94f61fb1a4210ab7a7f))
+
+### Documentation
+
+* **compose:** restructure override template to prevent setup confusion ([7d89718](https://github.com/knowledgepixels/nanopub-registry/commit/7d8971883db5e44a673118e0a7377ed2da2e6783))
+* correct the trust-state update interval in design.md ([93aff01](https://github.com/knowledgepixels/nanopub-registry/commit/93aff01c1202db0ce8833b89461fb4009184eaac))
+
+### Tests
+
+* add unit tests for existing functionality ([#123](https://github.com/knowledgepixels/nanopub-registry/issues/123)) ([638c3da](https://github.com/knowledgepixels/nanopub-registry/commit/638c3da02d362b5d47aaea94ada9ff3255f45814)), closes [#128](https://github.com/knowledgepixels/nanopub-registry/issues/128) [#128](https://github.com/knowledgepixels/nanopub-registry/issues/128) [#128](https://github.com/knowledgepixels/nanopub-registry/issues/128) [#119](https://github.com/knowledgepixels/nanopub-registry/issues/119) [#132](https://github.com/knowledgepixels/nanopub-registry/issues/132) [#132](https://github.com/knowledgepixels/nanopub-registry/issues/132)
+* **deps:** update dependency org.junit.jupiter:junit-jupiter to v5.14.4 ([#146](https://github.com/knowledgepixels/nanopub-registry/issues/146)) ([5532ff7](https://github.com/knowledgepixels/nanopub-registry/commit/5532ff76c6fdf3baf2935c7c9328942a9835eb1d))
+
+### Build and continuous integration
+
+* **deps:** update actions/checkout action to v7 ([#153](https://github.com/knowledgepixels/nanopub-registry/issues/153)) ([7a792f0](https://github.com/knowledgepixels/nanopub-registry/commit/7a792f036d4c53a6a138ee6cf8dcd77631f7ccc9))
+* **deps:** update actions/setup-java action to v5.7.0 ([#144](https://github.com/knowledgepixels/nanopub-registry/issues/144)) ([52c0e34](https://github.com/knowledgepixels/nanopub-registry/commit/52c0e347b9a6b88585b4973332f6aecc1bce923f))
+* **deps:** update actions/setup-java action to v6 ([#161](https://github.com/knowledgepixels/nanopub-registry/issues/161)) ([da9b70d](https://github.com/knowledgepixels/nanopub-registry/commit/da9b70d52bbe51d853b4fb3d3eb3a7ea3429ee09))
+* **deps:** update actions/setup-node action to v7 ([#155](https://github.com/knowledgepixels/nanopub-registry/issues/155)) ([a59012d](https://github.com/knowledgepixels/nanopub-registry/commit/a59012d36bd341c6ad711fc88eaf20ecfe9e3960))
+* **deps:** update coverallsapp/github-action action to v2.3.8 ([#141](https://github.com/knowledgepixels/nanopub-registry/issues/141)) ([459378c](https://github.com/knowledgepixels/nanopub-registry/commit/459378c3020954a7dd705c0f3e5ccf46e478c7b3))
+* **deps:** update dependency com.google.cloud.tools:jib-maven-plugin to v3.5.2 ([#134](https://github.com/knowledgepixels/nanopub-registry/issues/134)) ([a33feca](https://github.com/knowledgepixels/nanopub-registry/commit/a33fecad6b683fd4e22333a94fddbed1ad3b2874))
+* **deps:** update dependency org.jacoco:jacoco-maven-plugin to v0.8.15 ([#135](https://github.com/knowledgepixels/nanopub-registry/issues/135)) ([c231d1e](https://github.com/knowledgepixels/nanopub-registry/commit/c231d1eb6a295a5b2485e9646f29af538e3feea8))
+* **deps:** update maven-surefire-plugin.version to v3.5.6 ([#136](https://github.com/knowledgepixels/nanopub-registry/issues/136)) ([8e742c3](https://github.com/knowledgepixels/nanopub-registry/commit/8e742c3358a1c2ccf419f389f901b0fd3934b406))
+
+### General maintenance
+
+* **renovate:** add configuration ([8e9b69b](https://github.com/knowledgepixels/nanopub-registry/commit/8e9b69bcd61d30ed6e364812b456ec22e4007851))
+* setting next snapshot version [skip ci] ([4420bc8](https://github.com/knowledgepixels/nanopub-registry/commit/4420bc8f9f6891a4c861ce570d17809a6c813b70))
+
 ## [1.11.4](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.3...nanopub-registry-1.11.4) (2026-08-05)
 
 ### Bug Fixes
