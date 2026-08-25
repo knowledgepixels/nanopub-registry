@@ -43,6 +43,11 @@ services:
 #                                             # (all pubkeys are loaded eventually; this flag removes the throttling)
 #     - REGISTRY_ENABLE_OPTIONAL_LOAD=false  # Disable loading nanopubs for non-approved pubkeys (discovered via peers)
 #     - REGISTRY_ENABLE_TRUST_CALCULATION=false  # Skip trust path calculation (use with explicit REGISTRY_COVERAGE_AGENTS)
+#     - REGISTRY_UPDATE_INTERVAL=600  # Seconds between trust state recalculations, measured from the end of the previous one
+#     - REGISTRY_UPDATE_MIN_INTERVAL=120  # Seconds a recalculation triggered by incoming trust data can be brought forward to;
+#                                         # a cycle fetches every account's lists from the peers, so this bounds that load
+#     - REGISTRY_UPDATE_TRIGGER_JITTER=30  # Seconds of random delay on a triggered recalculation, so that registries seeing
+#                                          # the same publication do not all recompute at once
 #     - REGISTRY_TEST_INSTANCE=true  # Set as test instance; only has an effect on DB initialization
 #     - REGISTRY_LOCAL_INSTANCE=true  # Local/private instance: accept nanopubs of type npx:ProtectedNanopub
 #                                     # (public instances reject them; do NOT enable on a public instance)

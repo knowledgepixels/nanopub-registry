@@ -167,6 +167,10 @@ public class MainVerticle extends AbstractVerticle {
                                     throw new RuntimeException("Quota exceeded for pubkey: " + pubkeyHash);
                                 }
 
+                                // Noted before storing, since the trigger only fires on nanopubs
+                                // this registry does not have yet:
+                                TrustUpdateTrigger.noteIncoming(s, np);
+
                                 // Load to nanopub store:
                                 boolean success = RegistryDB.loadNanopubVerified(s, np, pubkey, null);
                                 if (!success) {

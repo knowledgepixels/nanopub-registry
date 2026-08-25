@@ -96,6 +96,8 @@ public class NanopubLoader {
      * to skip redundant signature verification.
      */
     public static void simpleLoad(ClientSession mongoSession, Nanopub np, String verifiedPubkey) {
+        // Checked before the nanopub is stored, as the trigger only fires on ones we don't have.
+        TrustUpdateTrigger.noteIncoming(mongoSession, np);
         String pubkeyHash = Utils.getHash(verifiedPubkey);
         // TODO Do we need to load anything else here, into the other DB collections?
         if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("status", "loaded"))) {
