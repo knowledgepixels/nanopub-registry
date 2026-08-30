@@ -66,6 +66,7 @@ import static com.knowledgepixels.registry.ServerStatus.coreReady;
 import static com.knowledgepixels.registry.ServerStatus.launching;
 import static com.knowledgepixels.registry.ServerStatus.ready;
 import static com.knowledgepixels.registry.ServerStatus.updating;
+import com.knowledgepixels.registry.db.DataRepair;
 import com.knowledgepixels.registry.db.IndexInitializer;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
@@ -99,6 +100,8 @@ public enum Task implements Serializable {
 
             setValue(s, Collection.SERVER_INFO.toString(), "setupId", setupId);
             setValue(s, Collection.SERVER_INFO.toString(), "testInstance", testInstance);
+            // Nothing to repair in a database this version created itself.
+            DataRepair.markUpToDate(s);
 
             logger.debug("INIT_DB complete; scheduling LOAD_CONFIG task");
             schedule(s, LOAD_CONFIG);
@@ -1667,6 +1670,7 @@ public enum Task implements Serializable {
             if (!RegistryDB.isInitialized(s)) {
                 schedule(s, INIT_DB); // does not yet execute, only schedules
             } else {
+                DataRepair.runIfNeeded(s);
                 recoverInterruptedCycle(s);
             }
 
