@@ -8,6 +8,7 @@ import org.bson.Document;
 import org.bson.types.Binary;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.eclipse.rdf4j.rio.RDFFormat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -98,6 +99,17 @@ class RegistryDBLoadNanopubTest {
 
     private static Nanopub testSuiteNanopub(String artifactCode) throws Exception {
         return new NanopubImpl(NanopubTestSuite.getLatest().getByArtifactCode(artifactCode).getFirst().toFile());
+    }
+
+    /**
+     * Rewrites a nanopub's artifact code, leaving everything else untouched. The signature stays
+     * valid: it is computed with the artifact code normalized out of all URIs, so a valid
+     * signature says nothing about whether the code belongs to this content.
+     */
+    private static Nanopub withArtifactCode(Nanopub nanopub, String replacementCode) throws Exception {
+        String originalCode = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        String trig = NanopubUtils.writeToString(nanopub, RDFFormat.TRIG);
+        return new NanopubImpl(trig.replace(originalCode, replacementCode), RDFFormat.TRIG);
     }
 
     private static IRI iri(String value) {
@@ -233,6 +245,42 @@ class RegistryDBLoadNanopubTest {
             doReturn(Set.<IRI>of()).when(nanopub).getGraphUris();
 
             assertFalse(RegistryDB.loadNanopubVerified(session, nanopub, "some-pubkey", null));
+        }
+
+        /**
+         * The incident behind issue #164: an artifact code that cannot be the hash of any content,
+         * because it has the wrong length for its module. Accepting it hands out a counter and a
+         * slot in the replication stream for an id that {@code /np/} cannot resolve.
+         */
+        @Test
+        void rejectsADegenerateArtifactCode() throws Exception {
+            String degenerateCode = "RA" + "A".repeat(40);
+            Nanopub nanopub = withArtifactCode(testSuiteNanopub(SIMPLE1_AC), degenerateCode);
+
+            String pubkey = RegistryDB.getPubkey(nanopub);
+            assertNotNull(pubkey, "rewriting the artifact code has to leave the signature verifiable, "
+                    + "otherwise this test would pass for the wrong reason");
+
+            assertFalse(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+            assertNull(nanopubDoc(degenerateCode));
+        }
+
+        /**
+         * Same, for a code that is well-formed for its module but is simply not the hash of this
+         * nanopub's content — the length pre-check cannot catch this one.
+         */
+        @Test
+        void rejectsAWellFormedArtifactCodeThatDoesNotMatchTheContent() throws Exception {
+            String wrongCode = artifactCode("notTheHashOfThisContent");
+            assertTrue(TrustyUriUtils.isPotentialArtifactCode(wrongCode));
+            Nanopub nanopub = withArtifactCode(testSuiteNanopub(SIMPLE1_AC), wrongCode);
+
+            String pubkey = RegistryDB.getPubkey(nanopub);
+            assertNotNull(pubkey, "rewriting the artifact code has to leave the signature verifiable, "
+                    + "otherwise this test would pass for the wrong reason");
+
+            assertFalse(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, null));
+            assertNull(nanopubDoc(wrongCode));
         }
 
         @Test

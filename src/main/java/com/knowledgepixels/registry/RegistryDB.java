@@ -25,6 +25,7 @@ import org.nanopub.extra.server.NanopubServerUtils;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
 import org.nanopub.jelly.JellyUtils;
+import org.nanopub.trusty.TrustyNanopubUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -552,7 +553,6 @@ public class RegistryDB {
             logger.error("Rejecting nanopub {}: provided pubkey hash {} does not match computed hash {}", nanopub.getUri(), pubkeyHash, ph);
             return false;
         }
-        recordHash(mongoSession, verifiedPubkey);
 
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         if (ac == null) {
@@ -560,6 +560,12 @@ public class RegistryDB {
             logger.error("Rejecting nanopub {}: could not extract artifact code from Trusty URI", nanopub.getUri());
             return false;
         }
+        if (!hasValidTrustyArtifactCode(nanopub)) {
+            logger.error("Rejecting nanopub {}: artifact code {} does not verify against its content", nanopub.getUri(), ac);
+            return false;
+        }
+        recordHash(mongoSession, verifiedPubkey);
+
         if (has(mongoSession, Collection.NANOPUBS.toString(), ac)) {
             logger.debug("Skipping nanopub {}: already present in the database", nanopub.getUri());
         } else {
@@ -763,6 +769,33 @@ public class RegistryDB {
         String result = sb.toString();
         logger.debug("buildChecksumFallbacks for pubkey={} type={} -> {}", pubkeyHash, typeHash, result);
         return result;
+    }
+
+    /**
+     * Checks whether the nanopub's artifact code is a well-formed Trusty artifact code that
+     * matches the nanopub's content.
+     * <p>
+     * A valid signature does not imply this. Signature verification normalizes the artifact code
+     * out of all URIs before hashing, so a correctly signed nanopub whose artifact code was
+     * replaced by an arbitrary string still verifies. Such a nanopub has to be rejected at ingest:
+     * it would be stored under an id this registry cannot serve on {@code /np/}, while still being
+     * counted and emitted to peers and consumers.
+     *
+     * @param nanopub the nanopub to check
+     * @return true if the artifact code is well-formed and verifies against the content
+     */
+    public static boolean hasValidTrustyArtifactCode(Nanopub nanopub) {
+        String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        if (ac == null) {
+            logger.debug("Nanopub {} has no artifact code in its URI", nanopub.getUri());
+            return false;
+        }
+        if (!TrustyUriUtils.isPotentialArtifactCode(ac)) {
+            // Cheap pre-check: wrong module or wrong length, so the hash cannot match either.
+            logger.debug("Artifact code '{}' of nanopub {} is not a well-formed Trusty artifact code", ac, nanopub.getUri());
+            return false;
+        }
+        return TrustyNanopubUtils.isValidTrustyNanopub(nanopub);
     }
 
     /**
