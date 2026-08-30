@@ -152,6 +152,13 @@ public class MainVerticle extends AbstractVerticle {
                                     throw new RuntimeException("Nanopub is protected and cannot be published to this registry: " + np.getUri());
                                 }
 
+                                // The artifact code has to verify against the content. A valid
+                                // signature does not cover this, as it is computed with the artifact
+                                // code normalized out (see RegistryDB.hasValidTrustyArtifactCode).
+                                if (!RegistryDB.hasValidTrustyArtifactCode(np)) {
+                                    throw new RuntimeException("Artifact code does not verify against the content: " + np.getUri());
+                                }
+
                                 // Verify signature once, pass through to avoid redundant verification:
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey == null) {
