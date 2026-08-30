@@ -1,3 +1,18 @@
+## [1.12.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.12.0...nanopub-registry-1.12.1) (2026-08-30)
+
+### Bug Fixes
+
+* **db:** remove stored nanopubs with a malformed artifact code at startup ([6ec1780](https://github.com/knowledgepixels/nanopub-registry/commit/6ec178013332f8be9973ae91116698a32c186e19)), closes [#164](https://github.com/knowledgepixels/nanopub-registry/issues/164)
+* **load:** verify the artifact code against the content at ingest ([6a083e4](https://github.com/knowledgepixels/nanopub-registry/commit/6a083e40995048ce8e2de701df9c6b84ef0e0a00)), closes [#164](https://github.com/knowledgepixels/nanopub-registry/issues/164)
+
+### Documentation
+
+* **db:** record the contract a startup repair has to meet ([f55fd38](https://github.com/knowledgepixels/nanopub-registry/commit/f55fd382f5ff18191cc392133328651b23bd4bcd))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([7b5f7c7](https://github.com/knowledgepixels/nanopub-registry/commit/7b5f7c79aa14172b186dcedb70f03b9a7d308d1c))
+
 ## [1.12.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.11.4...nanopub-registry-1.12.0) (2026-08-25)
 
 ### Features
