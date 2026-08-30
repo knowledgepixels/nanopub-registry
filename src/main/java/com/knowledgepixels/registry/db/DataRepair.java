@@ -20,8 +20,34 @@ import static com.knowledgepixels.registry.RegistryDB.setValue;
  * reject at ingest.
  *
  * <p>These run once per database, tracked by {@code serverInfo.repairVersion}, so an operator
- * only has to upgrade — no manual database surgery. A freshly initialized database is stamped
- * with the current version right away and never scans.
+ * only has to upgrade — no manual database surgery. That matters for registry instances we do not
+ * operate: we can neither repair them nor, in general, tell from the outside whether they are
+ * affected. A freshly initialized database is stamped with the current version right away and
+ * never scans.
+ *
+ * <p>To add a repair, bump {@link #CURRENT_REPAIR_VERSION} and run the new step for every stored
+ * version below it in {@link #runIfNeeded}. Since this code deletes data unattended on machines we
+ * do not control, a repair belongs here only if it meets all of the following:
+ *
+ * <ul>
+ * <li><em>Provable from the data alone.</em> A malformed artifact code qualifies because it cannot
+ *     be the hash of any content by construction, so there is no false positive to weigh against
+ *     the benefit. A record that merely looks wrong does not qualify.</li>
+ * <li><em>Idempotent.</em> A repair runs outside a transaction and cannot resume: if the process
+ *     dies partway, the stored version stays unbumped and the whole step re-runs from scratch on
+ *     the next startup.</li>
+ * <li><em>Cheap enough for startup.</em> The task runner has its own thread, so serving is not
+ *     blocked, but the first task waits for the repair to finish. A pass over an index is fine;
+ *     re-parsing or re-hashing every nanopub is not, and wants an explicitly triggered operation
+ *     instead.</li>
+ * <li><em>Conservative when entangled.</em> Anything still referenced elsewhere is kept and
+ *     reported at ERROR level rather than removed, so that an automated repair cannot turn a small
+ *     inconsistency into a broken list chain.</li>
+ * </ul>
+ *
+ * <p>Reshaping documents rather than removing broken ones is a different problem and does not
+ * belong here: a schema change wants backward-compatible reads, so that a half-migrated database
+ * still serves.
  */
 public final class DataRepair {
 
@@ -42,6 +68,10 @@ public final class DataRepair {
      * Fields that reference a nanopub by its artifact code, as {@code collection -> field}.
      * A malformed entry reached by any of these is entangled with the trust state or with a
      * list's position and checksum chain, and is left for a human rather than deleted.
+     *
+     * <p>This is meant to be the complete set of places a nanopub is referenced by its artifact
+     * code, so it has to be extended whenever a new referencing field is introduced. Accounts are
+     * checked separately, as they store the full nanopub URI instead.
      */
     private static final String[][] ARTIFACT_CODE_REFERENCES = {
             {"listEntries", "np"},
