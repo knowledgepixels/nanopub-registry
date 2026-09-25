@@ -13,7 +13,8 @@ The Nanopub Registry is the second-generation publication/lookup service for nan
 
 ## Status
 
-This code base is in beta phase.
+The Nanopub Registry is in production use, with several public instances running (see below). Parts of the trust
+model - in particular the handling of endorsements - are still evolving.
 
 ## Public Instance
 
