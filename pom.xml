@@ -26,7 +26,7 @@
     <maven-dependency-plugin.version>3.11.0</maven-dependency-plugin.version>
 
     <junit-jupiter.version>5.14.4</junit-jupiter.version>
-    <mockito.version>5.23.0</mockito.version>
+    <mockito.version>5.24.0</mockito.version>
     <nanopub-testsuite-connector.version>1.0.0</nanopub-testsuite-connector.version>
     <testcontainers.version>2.0.5</testcontainers.version>
 
