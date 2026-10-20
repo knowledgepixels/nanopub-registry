@@ -1,7 +1,7 @@
 package com.knowledgepixels.registry;
 
 import com.mongodb.client.ClientSession;
-import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
@@ -35,7 +35,7 @@ public class MainVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
         server.requestHandler(router);
 
-        server.listen(9292, ar -> {
+        server.listen(9292).onComplete(ar -> {
             if (ar.succeeded()) {
                 logger.info("HTTP server started and listening on port 9292");
             } else {
@@ -92,7 +92,7 @@ public class MainVerticle extends AbstractVerticle {
         // Metrics
         final var metricsHttpServer = vertx.createHttpServer();
         final var metricsRouter = Router.router(vertx);
-        metricsHttpServer.requestHandler(metricsRouter).listen(9293, ar -> {
+        metricsHttpServer.requestHandler(metricsRouter).listen(9293).onComplete(ar -> {
             if (ar.succeeded()) {
                 logger.info("Metrics HTTP server started and listening on port 9293");
             } else {
