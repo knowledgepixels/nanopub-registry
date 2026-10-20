@@ -2,10 +2,10 @@ package com.knowledgepixels.registry.utils;
 
 import com.knowledgepixels.registry.Collection;
 import com.knowledgepixels.registry.RegistryDB;
-import com.mongodb.MongoClient;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.DistinctIterable;
 import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import io.vertx.core.buffer.Buffer;

@@ -79,6 +79,15 @@
       <groupId>org.nanopub</groupId>
       <artifactId>nanopub</artifactId>
       <version>${nanopub.version}</version>
+      <exclusions>
+        <!-- nanopub-java still ships the legacy all-in-one 3.x driver
+             (Nanopublication/nanopub-java#166). Its com.mongodb and org.bson classes overlap
+             with the 4.x driver declared below, so only that one is kept. -->
+        <exclusion>
+          <groupId>org.mongodb</groupId>
+          <artifactId>mongo-java-driver</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.nanopub</groupId>
