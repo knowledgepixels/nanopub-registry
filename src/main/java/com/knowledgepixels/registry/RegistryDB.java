@@ -1,8 +1,13 @@
 package com.knowledgepixels.registry;
 
 import com.knowledgepixels.registry.db.IndexInitializer;
-import com.mongodb.*;
+import com.mongodb.ErrorCategory;
+import com.mongodb.MongoNamespace;
+import com.mongodb.MongoWriteException;
+import com.mongodb.ServerAddress;
 import com.mongodb.client.ClientSession;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -92,7 +97,7 @@ public class RegistryDB {
         final String REGISTRY_DB_HOST = Utils.getEnv("REGISTRY_DB_HOST", "mongodb");
         final int REGISTRY_DB_PORT = Integer.parseInt(Utils.getEnv("REGISTRY_DB_PORT", String.valueOf(ServerAddress.defaultPort())));
         logger.info("Initializing RegistryDB connection to database '{}' at {}:{}", REGISTRY_DB_NAME, REGISTRY_DB_HOST, REGISTRY_DB_PORT);
-        mongoClient = new MongoClient(REGISTRY_DB_HOST, REGISTRY_DB_PORT);
+        mongoClient = MongoClients.create("mongodb://" + REGISTRY_DB_HOST + ":" + REGISTRY_DB_PORT);
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
 
         try (ClientSession mongoSession = mongoClient.startSession()) {
