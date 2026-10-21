@@ -39,6 +39,10 @@ The registry serves plain HTTP on `localhost:9292` (plus a localhost-only metric
 make it publicly reachable via HTTPS, run a reverse proxy (e.g. nginx) on the host that terminates TLS and forwards
 to `localhost:9292`.
 
+If that proxy rate-limits publishing, make it answer `429` with a `Retry-After` header rather than nginx's default
+`503` (`limit_req_status 429;`). Publishing clients back off and retry on `429`, while a `503` reads as "this registry
+is down, try another one" — which makes a throttled bulk publish fail instead of slowing down.
+
 ## Development
 
 The recommended development environment is Docker Compose too. Optional development features like remote JVM
