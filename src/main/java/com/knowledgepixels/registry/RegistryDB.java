@@ -523,17 +523,37 @@ public class RegistryDB {
      * Use this when the caller has already verified the signature via getPubkey().
      */
     static boolean loadNanopubVerified(ClientSession mongoSession, Nanopub nanopub, String verifiedPubkey, String pubkeyHash, String... types) {
-        if (nanopub.getTripleCount() > 1200) {
-            logger.error("Rejecting nanopub {}: triple count {} exceeds limit of 1200", nanopub.getUri(), nanopub.getTripleCount());
+        try {
+            loadNanopubOrReject(mongoSession, nanopub, verifiedPubkey, pubkeyHash, types);
+            return true;
+        } catch (NanopubRejectedException ex) {
+            logger.error("Rejecting nanopub {}: {}", nanopub.getUri(), ex.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Same as {@link #loadNanopubVerified}, but says why a nanopublication was refused instead
+     * of collapsing every reason into {@code false}.
+     * <p>
+     * Callers with someone to answer to — the POST handler — use this one and pass the reason
+     * on to the publisher, who cannot read our log. The background loaders have nowhere to put
+     * a reason and keep using {@link #loadNanopubVerified}, which logs it.
+     *
+     * @throws NanopubRejectedException if the nanopublication fails one of the checks
+     */
+    static void loadNanopubOrReject(ClientSession mongoSession, Nanopub nanopub, String verifiedPubkey, String pubkeyHash, String... types) {
+        if (nanopub.getTripleCount() > 1200) {
+            throw new NanopubRejectedException(NanopubRejectedException.CONTENT_TOO_LARGE,
+                    "triple count " + nanopub.getTripleCount() + " exceeds limit of 1200");
         }
         if (nanopub.getByteCount() > 1000000) {
-            logger.error("Rejecting nanopub {}: size {} bytes exceeds limit of 1000000", nanopub.getUri(), nanopub.getByteCount());
-            return false;
+            throw new NanopubRejectedException(NanopubRejectedException.CONTENT_TOO_LARGE,
+                    "size " + nanopub.getByteCount() + " bytes exceeds limit of 1000000");
         }
         if (!Utils.isLocalInstance() && NanopubServerUtils.isProtectedNanopub(nanopub)) {
-            logger.error("Rejecting nanopub {}: has type npx:ProtectedNanopub, which is only accepted on local/private instances", nanopub.getUri());
-            return false;
+            throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
+                    "has type npx:ProtectedNanopub, which is only accepted on local/private instances");
         }
         Calendar creationTime;
         try {
@@ -543,31 +563,31 @@ public class RegistryDB {
             creationTime = null;
         }
         if (creationTime != null && creationTime.getTimeInMillis() > System.currentTimeMillis() + 60000) {
-            logger.error("Rejecting nanopub {}: timestamp {} is more than 60s in the future", nanopub.getUri(), creationTime.toInstant());
-            return false;
+            throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                    "timestamp " + creationTime.toInstant() + " is more than 60s in the future");
         }
         String nanopubUriStr = nanopub.getUri().stringValue();
         for (IRI graphUri : nanopub.getGraphUris()) {
             if (!graphUri.stringValue().startsWith(nanopubUriStr)) {
-                logger.error("Rejecting nanopub {}: graph URI {} does not start with the nanopub base URI", nanopub.getUri(), graphUri);
-                return false;
+                throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                        "graph URI " + graphUri + " does not start with the nanopub base URI");
             }
         }
         String ph = Utils.getHash(verifiedPubkey);
         if (pubkeyHash != null && !pubkeyHash.equals(ph)) {
-            logger.error("Rejecting nanopub {}: provided pubkey hash {} does not match computed hash {}", nanopub.getUri(), pubkeyHash, ph);
-            return false;
+            throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                    "provided pubkey hash " + pubkeyHash + " does not match computed hash " + ph);
         }
 
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
         if (ac == null) {
             // I don't think this ever happens, but checking here to be sure
-            logger.error("Rejecting nanopub {}: could not extract artifact code from Trusty URI", nanopub.getUri());
-            return false;
+            throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                    "could not extract artifact code from Trusty URI");
         }
         if (!hasValidTrustyArtifactCode(nanopub)) {
-            logger.error("Rejecting nanopub {}: artifact code {} does not verify against its content", nanopub.getUri(), ac);
-            return false;
+            throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                    "artifact code " + ac + " does not verify against its content");
         }
         recordHash(mongoSession, verifiedPubkey);
 
@@ -661,8 +681,6 @@ public class RegistryDB {
             }
 
         }
-
-        return true;
     }
 
     private static void addToList(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String typeHash) {

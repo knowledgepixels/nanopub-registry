@@ -305,6 +305,131 @@ class RegistryDBLoadNanopubTest {
         }
     }
 
+    /**
+     * The same guards seen through {@code loadNanopubOrReject}, which is what the POST handler
+     * calls: issue #187 is that each of them has to arrive at the publisher as its own reason and
+     * its own status, rather than as one {@code false} the HTTP layer can only render as
+     * "Nanopublication not supported".
+     */
+    @Nested
+    class RejectionReasons {
+
+        private NanopubRejectedException rejectionOf(Nanopub nanopub, String pubkey, String pubkeyHash) {
+            return assertThrows(NanopubRejectedException.class,
+                    () -> RegistryDB.loadNanopubOrReject(session, nanopub, pubkey, pubkeyHash));
+        }
+
+        @Test
+        void reportsTooManyTriplesAsContentTooLarge() throws Exception {
+            Nanopub nanopub = spy(testSuiteNanopub(SIMPLE1_AC));
+            doReturn(1201).when(nanopub).getTripleCount();
+
+            NanopubRejectedException ex = rejectionOf(nanopub, "some-pubkey", null);
+            assertEquals(413, ex.getStatusCode());
+            assertEquals("triple count 1201 exceeds limit of 1200", ex.getMessage());
+        }
+
+        @Test
+        void reportsAnOversizedNanopubAsContentTooLarge() throws Exception {
+            Nanopub nanopub = spy(testSuiteNanopub(SIMPLE1_AC));
+            doReturn(1_000_001L).when(nanopub).getByteCount();
+
+            NanopubRejectedException ex = rejectionOf(nanopub, "some-pubkey", null);
+            assertEquals(413, ex.getStatusCode());
+            assertEquals("size 1000001 bytes exceeds limit of 1000000", ex.getMessage());
+        }
+
+        /**
+         * The reason from the issue report: the registry knew the timestamp was in the future and
+         * said so in its log, while the publisher got the same sentence as every other refusal.
+         */
+        @Test
+        void reportsAFutureTimestampAsUnprocessable() throws Exception {
+            Nanopub nanopub = spy(testSuiteNanopub(SIMPLE1_AC));
+            Calendar future = Calendar.getInstance();
+            future.add(Calendar.HOUR, 2);
+            doReturn(future).when(nanopub).getCreationTime();
+
+            NanopubRejectedException ex = rejectionOf(nanopub, "some-pubkey", null);
+            assertEquals(422, ex.getStatusCode());
+            assertTrue(ex.getMessage().contains("is more than 60s in the future"), ex.getMessage());
+            assertTrue(ex.getMessage().contains(future.toInstant().toString()), ex.getMessage());
+        }
+
+        @Test
+        void reportsAGraphUriOutsideTheNanopubAsUnprocessable() throws Exception {
+            Nanopub nanopub = spy(testSuiteNanopub(SIMPLE1_AC));
+            doReturn(Set.of(iri("http://elsewhere.example.org/np/Head"))).when(nanopub).getGraphUris();
+
+            NanopubRejectedException ex = rejectionOf(nanopub, "some-pubkey", null);
+            assertEquals(422, ex.getStatusCode());
+            assertEquals("graph URI http://elsewhere.example.org/np/Head does not start with the nanopub base URI",
+                    ex.getMessage());
+        }
+
+        @Test
+        void reportsAMismatchedPubkeyHashAsUnprocessable() throws Exception {
+            Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
+            String pubkey = RegistryDB.getPubkey(nanopub);
+
+            NanopubRejectedException ex = rejectionOf(nanopub, pubkey, "not-the-right-hash");
+            assertEquals(422, ex.getStatusCode());
+            assertTrue(ex.getMessage().startsWith("provided pubkey hash not-the-right-hash does not match computed hash "),
+                    ex.getMessage());
+        }
+
+        @Test
+        void reportsAMissingArtifactCodeAsUnprocessable() throws Exception {
+            Nanopub nanopub = spy(testSuiteNanopub(SIMPLE1_AC));
+            doReturn(iri("http://example.org/not-a-trusty-uri")).when(nanopub).getUri();
+            doReturn(Set.<IRI>of()).when(nanopub).getGraphUris();
+
+            NanopubRejectedException ex = rejectionOf(nanopub, "some-pubkey", null);
+            assertEquals(422, ex.getStatusCode());
+            assertEquals("could not extract artifact code from Trusty URI", ex.getMessage());
+        }
+
+        @Test
+        void reportsAnArtifactCodeThatDoesNotMatchTheContentAsUnprocessable() throws Exception {
+            String wrongCode = artifactCode("notTheHashOfThisContent");
+            Nanopub nanopub = withArtifactCode(testSuiteNanopub(SIMPLE1_AC), wrongCode);
+
+            NanopubRejectedException ex = rejectionOf(nanopub, RegistryDB.getPubkey(nanopub), null);
+            assertEquals(422, ex.getStatusCode());
+            assertEquals("artifact code " + wrongCode + " does not verify against its content", ex.getMessage());
+        }
+
+        @Test
+        void saysNothingWhenTheNanopubIsAcceptable() throws Exception {
+            Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
+            RegistryDB.loadNanopubOrReject(session, nanopub, RegistryDB.getPubkey(nanopub), null);
+            assertNotNull(nanopubDoc(SIMPLE1_AC));
+        }
+
+        /**
+         * Only a refusal is a {@link NanopubRejectedException}; a storage failure still comes out
+         * as itself, so the POST handler does not answer 4xx for a problem on our side.
+         */
+        @Test
+        void doesNotDressUpAStorageFailureAsARejection() throws Exception {
+            Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
+            String pubkey = RegistryDB.getPubkey(nanopub);
+
+            try (MockedStatic<NanopubUtils> nanopubUtils = mockStatic(NanopubUtils.class, CALLS_REAL_METHODS)) {
+                nanopubUtils.when(() -> NanopubUtils.writeToString(org.mockito.ArgumentMatchers.any(),
+                                org.mockito.ArgumentMatchers.any()))
+                        .thenThrow(new IOException("disk on fire"));
+
+                RuntimeException thrown = assertThrows(RuntimeException.class,
+                        () -> RegistryDB.loadNanopubOrReject(session, nanopub, pubkey, null));
+                assertFalse(thrown instanceof NanopubRejectedException);
+                assertTrue(thrown.getCause() instanceof IOException,
+                        "the serialization failure has to survive as the cause, got: " + thrown.getCause());
+            }
+        }
+    }
+
+
     // --- concurrent-insert handling -----------------------------------------
 
     @Nested
