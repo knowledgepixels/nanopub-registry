@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.knowledgepixels.registry.RegistryDB.has;
 
@@ -125,70 +126,79 @@ public class MainVerticle extends AbstractVerticle {
                 int bodySize = bh.length();
                 logger.debug("POST content-type={} body-size={} for {}", contentType, bodySize, c.request().remoteAddress());
 
+                AtomicReference<String> npUri = new AtomicReference<>();
                 vertx.<Void>executeBlocking(() -> {
-                    Nanopub np = null;
+                    Nanopub np;
                     try {
                         np = new NanopubImpl(bh.toString(), Rio.getParserFormatForMIMEType(contentType).orElse(RDFFormat.TRIG));
                     } catch (MalformedNanopubException ex) {
                         logger.warn("Malformed nanopub received on {}: {}", c.request().path(), ex.getMessage(), ex);
+                        throw new NanopubRejectedException(NanopubRejectedException.BAD_REQUEST,
+                                "body is not a well-formed nanopublication: " + ex.getMessage());
                     } catch (Exception ex) {
                         logger.warn("Failed to parse nanopub on {}: {}", c.request().path(), ex.getMessage(), ex);
+                        throw new NanopubRejectedException(NanopubRejectedException.BAD_REQUEST,
+                                "body could not be read as "
+                                        + (contentType == null ? "RDF" : contentType) + ": " + ex.getMessage());
                     }
-                    if (np != null) {
-                        try (ClientSession s = RegistryDB.getClient().startSession()) {
-                            String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
-                            if (has(s, Collection.NANOPUBS.toString(), ac)) {
-                                logger.info("POST: known nanopub {}", ac);
-                            } else {
-                                logger.info("POST: new nanopub {}", ac);
+                    npUri.set(np.getUri().stringValue());
+                    try (ClientSession s = RegistryDB.getClient().startSession()) {
+                        String ac = TrustyUriUtils.getArtifactCode(np.getUri().toString());
+                        if (has(s, Collection.NANOPUBS.toString(), ac)) {
+                            logger.info("POST: known nanopub {}", ac);
+                        } else {
+                            logger.info("POST: new nanopub {}", ac);
 
-                                // Check if this nanopub's types are covered by this registry
-                                if (!CoverageFilter.isCovered(np)) {
-                                    throw new RuntimeException("Nanopub types not covered by this registry: " + np.getUri());
-                                }
-
-                                // Protected nanopubs are only accepted on local/private instances:
-                                if (!Utils.isLocalInstance() && NanopubServerUtils.isProtectedNanopub(np)) {
-                                    throw new RuntimeException("Nanopub is protected and cannot be published to this registry: " + np.getUri());
-                                }
-
-                                // The artifact code has to verify against the content. A valid
-                                // signature does not cover this, as it is computed with the artifact
-                                // code normalized out (see RegistryDB.hasValidTrustyArtifactCode).
-                                if (!RegistryDB.hasValidTrustyArtifactCode(np)) {
-                                    throw new RuntimeException("Artifact code does not verify against the content: " + np.getUri());
-                                }
-
-                                // Verify signature once, pass through to avoid redundant verification:
-                                String pubkey = RegistryDB.getPubkey(np);
-                                if (pubkey == null) {
-                                    throw new RuntimeException("Nanopublication not supported: " + np.getUri());
-                                }
-
-                                // Check agent/quota restrictions
-                                String pubkeyHash = Utils.getHash(pubkey);
-                                if (!AgentFilter.isAllowed(s, pubkeyHash)) {
-                                    throw new RuntimeException("Pubkey not authorized on this registry: " + pubkeyHash);
-                                }
-                                if (AgentFilter.isOverQuota(s, pubkeyHash)) {
-                                    throw new RuntimeException("Quota exceeded for pubkey: " + pubkeyHash);
-                                }
-
-                                // Noted before storing, since the trigger only fires on nanopubs
-                                // this registry does not have yet:
-                                TrustUpdateTrigger.noteIncoming(s, np);
-
-                                // Load to nanopub store:
-                                boolean success = RegistryDB.loadNanopubVerified(s, np, pubkey, null);
-                                if (!success) {
-                                    throw new RuntimeException("Nanopublication not supported: " + np.getUri());
-                                }
-                                // Load to lists, if applicable:
-                                NanopubLoader.simpleLoad(s, np, pubkey);
+                            // Check if this nanopub's types are covered by this registry
+                            if (!CoverageFilter.isCovered(np)) {
+                                throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
+                                        "none of its types are covered by this registry");
                             }
+
+                            // Protected nanopubs are only accepted on local/private instances:
+                            if (!Utils.isLocalInstance() && NanopubServerUtils.isProtectedNanopub(np)) {
+                                throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
+                                        "it is protected and cannot be published to this registry");
+                            }
+
+                            // The artifact code has to verify against the content. A valid
+                            // signature does not cover this, as it is computed with the artifact
+                            // code normalized out (see RegistryDB.hasValidTrustyArtifactCode).
+                            if (!RegistryDB.hasValidTrustyArtifactCode(np)) {
+                                throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                                        "artifact code does not verify against the content");
+                            }
+
+                            // Verify signature once, pass through to avoid redundant verification:
+                            String pubkey = RegistryDB.getPubkey(np);
+                            if (pubkey == null) {
+                                throw new NanopubRejectedException(NanopubRejectedException.UNPROCESSABLE_CONTENT,
+                                        "no valid public key / signature found");
+                            }
+
+                            // Check agent/quota restrictions
+                            String pubkeyHash = Utils.getHash(pubkey);
+                            if (!AgentFilter.isAllowed(s, pubkeyHash)) {
+                                throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
+                                        "pubkey " + pubkeyHash + " is not authorized on this registry");
+                            }
+                            if (AgentFilter.isOverQuota(s, pubkeyHash)) {
+                                // A lifetime cap on this registry, not a rate limit, so 403
+                                // (try another registry) rather than 429 (come back later).
+                                throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
+                                        "quota exceeded for pubkey " + pubkeyHash);
+                            }
+
+                            // Noted before storing, since the trigger only fires on nanopubs
+                            // this registry does not have yet:
+                            TrustUpdateTrigger.noteIncoming(s, np);
+
+                            // Load to nanopub store. This reports the reason it refused,
+                            // which the publisher cannot get out of our log:
+                            RegistryDB.loadNanopubOrReject(s, np, pubkey, null);
+                            // Load to lists, if applicable:
+                            NanopubLoader.simpleLoad(s, np, pubkey);
                         }
-                    } else {
-                        logger.debug("No nanopub parsed from POST body for {}", c.request().path());
                     }
                     return null;
                 }).onComplete(ar -> {
@@ -198,8 +208,7 @@ public class MainVerticle extends AbstractVerticle {
                     } else {
                         Throwable cause = ar.cause();
                         logger.warn("POST {} processing failed: {}", c.request().path(), cause == null ? "unknown error" : cause.getMessage(), cause);
-                        c.response().setStatusCode(400)
-                                .setStatusMessage("Error processing nanopub: " + ar.cause().getMessage()).end();
+                        respondRejected(c, cause, npUri.get());
                     }
                 });
             });
@@ -236,6 +245,42 @@ public class MainVerticle extends AbstractVerticle {
 
         logger.info("Route registration completed");
 
+    }
+
+    /**
+     * Answers a refused POST with the reason in the <em>body</em>, and a status saying what kind
+     * of refusal it is (see {@link NanopubRejectedException}).
+     * <p>
+     * The reason phrase is kept as a summary for HTTP/1.1 clients that show it, but it cannot be
+     * the only copy: HTTP/2 has no reason phrases, so anything in front of this registry speaking
+     * h2 to the client would drop it and leave the publisher with a bare status.
+     */
+    static void respondRejected(RoutingContext c, Throwable cause, String nanopubUri) {
+        int statusCode = 400;
+        String reason = "unknown error";
+        if (cause instanceof NanopubRejectedException rejected) {
+            statusCode = rejected.getStatusCode();
+            reason = rejected.getMessage();
+        } else if (cause != null && cause.getMessage() != null) {
+            reason = cause.getMessage();
+        }
+        String detail = nanopubUri == null
+                ? "Nanopub rejected: " + reason
+                : "Nanopub " + nanopubUri + " rejected: " + reason;
+        c.response().setStatusCode(statusCode)
+                .setStatusMessage(toReasonPhrase(detail))
+                .putHeader("Content-Type", "text/plain; charset=utf-8")
+                .end(detail + "\n");
+    }
+
+    /**
+     * Makes a message safe and sensible to put on the status line: no control characters (a stray
+     * CR or LF would split the response, and a parser error quotes the offending input), and short
+     * enough not to strain a client's header limits. The body carries the message in full.
+     */
+    static String toReasonPhrase(String message) {
+        String phrase = message.replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
+        return phrase.length() > 200 ? phrase.substring(0, 197) + "..." : phrase;
     }
 
 }

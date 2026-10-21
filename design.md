@@ -98,6 +98,29 @@ Endpoints:
 
 See [MainVerticle.java](src/main/java/com/knowledgepixels/registry/MainVerticle.java).
 
+### Publishing responses
+
+`POST /` answers `201` on success. A refusal puts the reason in the response **body** as plain text, and repeats it
+in the HTTP reason phrase as a summary — the body is the authoritative copy, since HTTP/2 has no reason phrases and
+many clients never surface them.
+
+The status says what *kind* of refusal it is, which is what a publishing client acts on. nanopub-java treats `400`,
+`409`, `413`, `415` and `422` as a permanent rejection of that nanopublication, retries `408`, `429` and `5xx` with
+backoff, and moves on to the next registry on `401`, `403`, `404` and `405`:
+
+| Status | Meaning | Causes |
+|---|---|---|
+| `400` | The body is not a nanopublication | malformed nanopub, unparseable RDF |
+| `403` | This registry will not take it, another one may | types not covered, pubkey not authorized, quota exhausted, `npx:ProtectedNanopub` on a public instance |
+| `413` | Over a limit every registry enforces | more than 1200 triples, over 1,000,000 bytes |
+| `422` | Breaks a content rule every registry enforces | `dct:created` more than 60 s in the future, graph URI outside the nanopub URI, artifact code that does not verify, no valid signature |
+
+The split that matters is `403` against `413`/`422`: a `403` is about *this* instance and should send the client to
+another registry, while `413` and `422` are about the nanopublication itself and no registry would accept it.
+
+A reverse proxy in front of the registry should keep to the same contract — in particular, a rate limit should answer
+`429` with `Retry-After`, not nginx's default `503`.
+
 
 ## Task Workflow
 

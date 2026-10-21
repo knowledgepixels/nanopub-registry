@@ -707,6 +707,25 @@ class RegistryDBTest {
         assertFalse(RegistryDB.has(session, Collection.NANOPUBS.toString(), ac));
     }
 
+    /**
+     * A protected nanopub is refused by this instance but a local one would take it, so the
+     * refusal is a 403 — the status that sends a publishing client on to the next registry,
+     * rather than one that tells it to drop the nanopublication for good (see issue #187).
+     */
+    @Test
+    void loadNanopubOrRejectReportsAProtectedNanopubAsForbidden() throws Exception {
+        RegistryDB.init();
+        ClientSession session = RegistryDB.getClient().startSession();
+
+        Nanopub nanopub = buildTestNanopub(true);
+        NanopubRejectedException ex = assertThrows(NanopubRejectedException.class,
+                () -> RegistryDB.loadNanopubOrReject(session, nanopub, "test-pubkey", null));
+
+        assertEquals(403, ex.getStatusCode());
+        assertEquals("has type npx:ProtectedNanopub, which is only accepted on local/private instances",
+                ex.getMessage());
+    }
+
     @Test
     void loadNanopubVerifiedAcceptsProtectedNanopubOnLocalInstance() throws Exception {
         fakeEnv.addVariable("REGISTRY_LOCAL_INSTANCE", "true").build();
