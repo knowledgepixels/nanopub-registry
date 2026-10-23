@@ -39,8 +39,19 @@ public class MainVerticle extends AbstractVerticle {
         server.listen(9292).onComplete(ar -> {
             if (ar.succeeded()) {
                 logger.info("HTTP server started and listening on port 9292");
+                // This has to be answered, or the deployment never completes: Vert.x 5's
+                // launcher gives a verticle a deployment timeout (120s by default) and shuts
+                // the JVM down once it expires, which under a restart policy is a loop that
+                // no trust-state cycle is ever given the time to finish. Vert.x 4's launcher
+                // did not time a deployment out, which is why a pending promise went unnoticed.
+                //
+                // The database initialization below deliberately does not gate this: it takes
+                // minutes to hours on a fresh registry, and the server is meant to serve its
+                // status pages meanwhile (that is what ServerStatus.launching is for).
+                startPromise.complete();
             } else {
                 logger.error("Failed to start HTTP server on port 9292", ar.cause());
+                startPromise.fail(ar.cause());
             }
         });
 
