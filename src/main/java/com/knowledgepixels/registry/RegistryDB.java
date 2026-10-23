@@ -879,6 +879,24 @@ public class RegistryDB {
                 s += d.getString("_id") + " (" + d.getString("type") + ")\n";
             }
         }
+
+        // Reaching a quota changes an account's published status without changing a single trust
+        // path, so without this a 'loaded' -> 'capped' transition would leave the hash alone, no
+        // new snapshot would be emitted, and the published state would keep calling a capped
+        // account 'loaded' (the same trap as issue #119, from the other side). Nothing is appended
+        // while no account is capped — which is every registry that does not enforce quotas — so
+        // this does not move any hash that exists today.
+        try (MongoCursor<Document> ac = collection("accounts_loading")
+                .find(mongoSession, new Document("status", EntryStatus.capped.getValue()))
+                .projection(new Document("agent", 1).append("pubkey", 1))
+                .sort(ascending("agent", "pubkey"))
+                .cursor()) {
+            while (ac.hasNext()) {
+                Document d = ac.next();
+                s += "capped " + d.getString("agent") + "|" + d.getString("pubkey") + "\n";
+            }
+        }
+
         String hash = Utils.getHash(s);
         logger.debug("Calculated trust state hash: {}", hash);
         return hash;

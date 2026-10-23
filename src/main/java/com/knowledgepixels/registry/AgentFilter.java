@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
@@ -101,6 +102,28 @@ public final class AgentFilter {
     }
 
     /**
+     * The account statuses a quota is read from: an account that is loaded, one that is
+     * approved and still being loaded, and one that is loaded as far as its quota allows.
+     * <p>
+     * {@link EntryStatus#capped} belongs here even though such an account can take nothing
+     * more: leaving it out would make {@link #getQuota} answer -1 for it, which reads as
+     * "no such agent" rather than "this agent is full", and would tell a publisher their
+     * pubkey is not authorized when in fact it is approved and has spent its quota.
+     */
+    private static final List<String> QUOTA_BEARING_STATUSES = List.of(
+            EntryStatus.loaded.getValue(), EntryStatus.toLoad.getValue(), EntryStatus.capped.getValue());
+
+    /**
+     * Returns the quota explicitly configured for a pubkey, if there is one.
+     *
+     * @param pubkeyHash the pubkey hash
+     * @return the configured quota, or null if this pubkey is not configured explicitly
+     */
+    public static Integer getExplicitQuota(String pubkeyHash) {
+        return explicitPubkeys.get(pubkeyHash);
+    }
+
+    /**
      * Returns the quota for a given pubkey, checking explicit config first,
      * then the accounts collection for trust-computed quotas.
      * Returns -1 if the pubkey is not allowed.
@@ -116,18 +139,11 @@ public final class AgentFilter {
         // Check trust network if enabled
         if (viaSetting) {
             Document account = collection(Collection.ACCOUNTS.toString()).find(session,
-                    new Document("pubkey", pubkeyHash).append("status", "loaded")).first();
+                    new Document("pubkey", pubkeyHash)
+                            .append("status", new Document("$in", QUOTA_BEARING_STATUSES))).first();
             if (account != null && account.get("quota") != null) {
                 int quota = account.getInteger("quota");
-                logger.trace("Pubkey {}: quota={} (account status=loaded)", pubkeyHash, quota);
-                return quota;
-            }
-            // Also accept toLoad accounts (approved but not yet fully loaded)
-            account = collection(Collection.ACCOUNTS.toString()).find(session,
-                    new Document("pubkey", pubkeyHash).append("status", "toLoad")).first();
-            if (account != null && account.get("quota") != null) {
-                int quota = account.getInteger("quota");
-                logger.trace("Pubkey {}: quota={} (account status=toLoad)", pubkeyHash, quota);
+                logger.trace("Pubkey {}: quota={} (account status={})", pubkeyHash, quota, account.getString("status"));
                 return quota;
             }
         }
@@ -165,11 +181,7 @@ public final class AgentFilter {
             return true; // not allowed at all
         }
 
-        // Count nanopubs for this pubkey via the "$" list position
-        Document listDoc = collection("lists").find(session,
-                new Document("pubkey", pubkeyHash).append("type", "$")).first();
-        long currentCount = (listDoc != null && listDoc.get("maxPosition") != null)
-                ? listDoc.getLong("maxPosition") + 1 : 0;
+        long currentCount = getPublishedCount(session, pubkeyHash);
 
         boolean over = currentCount >= quota;
         if (over) {
@@ -178,6 +190,21 @@ public final class AgentFilter {
             logger.trace("Pubkey {}: under quota ({} / {})", pubkeyHash, currentCount, quota);
         }
         return over;
+    }
+
+    /**
+     * Returns how many nanopubs this registry holds for a pubkey, which is what a quota is
+     * spent on. Counted from the position reached in the pubkey's unrestricted ("$") list.
+     *
+     * @param session    the MongoDB client session
+     * @param pubkeyHash the pubkey hash
+     * @return the number of nanopubs held for this pubkey
+     */
+    public static long getPublishedCount(ClientSession session, String pubkeyHash) {
+        Document listDoc = collection("lists").find(session,
+                new Document("pubkey", pubkeyHash).append("type", "$")).first();
+        return (listDoc != null && listDoc.get("maxPosition") != null)
+                ? listDoc.getLong("maxPosition") + 1 : 0;
     }
 
 }
