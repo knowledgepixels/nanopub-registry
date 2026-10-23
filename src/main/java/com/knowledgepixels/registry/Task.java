@@ -781,6 +781,13 @@ public enum Task implements Serializable {
                 } else if (rawQuota > MAX_USER_QUOTA) {
                     quota = MAX_USER_QUOTA;
                 }
+                // An explicitly configured quota wins over the computed one, as it does in
+                // AgentFilter.getQuota. Applying it here too keeps the number this registry
+                // enforces the same as the one it records, publishes and shows on its pages.
+                Integer explicitQuota = AgentFilter.getExplicitQuota(d.get("pubkey").toString());
+                if (explicitQuota != null) {
+                    quota = explicitQuota;
+                }
                 set(s, "accounts_loading",
                         d.append("status", processed.getValue())
                                 .append("ratio", ratio)
@@ -890,13 +897,24 @@ public enum Task implements Serializable {
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(s,
                     new DbEntryWrapper(approved).getDocument())) {
-                // TODO Consider quota too:
-                Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString());
-                if (collection(Collection.ACCOUNTS.toString()) == null || !has(s, Collection.ACCOUNTS.toString(),
-                        accountId.append("status", loaded.getValue()))) {
+                String pubkeyHash = d.get("pubkey").toString();
+                Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", pubkeyHash);
+                if (collection(Collection.ACCOUNTS.toString()) == null) {
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
-                } else {
+                    continue;
+                }
+                if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", loaded.getValue()))) {
                     set(s, "accounts_loading", d.append("status", loaded.getValue()));
+                } else if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", capped.getValue()))
+                        && !hasQuotaRoom(s, pubkeyHash, d.getInteger("quota"))) {
+                    // Still full, so there is nothing to load and no reason to stage this account
+                    // as 'toLoad': that status is for accounts that are not servable yet, and it
+                    // would drop a perfectly servable account out of the published trust state.
+                    set(s, "accounts_loading", d.append("status", capped.getValue()));
+                } else {
+                    // Either not loaded yet, or capped under a quota that has since grown — in
+                    // which case LOAD_FULL picks it up again and loads the rest.
+                    set(s, "accounts_loading", d.append("status", toLoad.getValue()));
                 }
             }
             logger.info("DETERMINE_UPDATES complete");
@@ -1800,6 +1818,26 @@ public enum Task implements Serializable {
         }
         loadNanopub(mongoSession, agentIntro.getNanopub());
         return agentIntro;
+    }
+
+    /**
+     * Whether a capped account has room again under the quota this cycle has computed for it.
+     *
+     * <p>
+     * The quota is read from the staged account rather than through
+     * {@link AgentFilter#getQuota}, because the question is whether the <em>new</em> quota
+     * leaves room — the live account still carries the one the cap was applied under.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param pubkeyHash   the pubkey hash
+     * @param stagedQuota  the quota computed for it in this cycle, or null if it has none
+     * @return true if this registry may hold more nanopubs for this pubkey
+     */
+    private static boolean hasQuotaRoom(ClientSession mongoSession, String pubkeyHash, Integer stagedQuota) {
+        if (stagedQuota == null) {
+            return false;
+        }
+        return AgentFilter.getPublishedCount(mongoSession, pubkeyHash) < stagedQuota;
     }
 
     private static void setServerStatus(ClientSession mongoSession, ServerStatus status) {

@@ -760,6 +760,25 @@ class TaskTest {
         assertEquals(100000, one("accounts_loading", new Document("agent", "A")).getInteger("quota"));
     }
 
+    /**
+     * An explicit quota from REGISTRY_COVERAGE_AGENTS overrides the computed one in
+     * AgentFilter, so it has to override it here too — otherwise the registry would publish
+     * and display a quota other than the one it enforces.
+     */
+    @Test
+    void calculateTrustScoresPrefersAnExplicitlyConfiguredQuota() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting P:250000").build();
+        AgentFilter.init();
+        seedExpandedAccount();
+        seedTrustPath("$ X|1 A|P", 2, 1e-9);
+
+        Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
+
+        assertEquals(250000, one("accounts_loading", new Document("agent", "A")).getInteger("quota"),
+                "the configured quota wins over the ratio-derived one, bounds and all");
+    }
+
     // ------------------------------------------------------- AGGREGATE_AGENTS
 
     private void seedProcessedAccount(String agent, String pubkey, int pathCount, double ratio, String name) {
@@ -868,6 +887,44 @@ class TaskTest {
         // Its nanopubs are already in the registry, so there is nothing to fetch.
         assertEquals(EntryStatus.loaded.getValue(),
                 one("accounts_loading", new Document("agent", "A")).getString("status"));
+    }
+
+    /**
+     * A capped account is loaded as far as its quota allows, which makes it servable. Staging
+     * it as 'toLoad' would drop it out of the published trust state, since that status marks
+     * an account that cannot be served yet.
+     */
+    @Test
+    void determineUpdatesKeepsAStillFullAccountCapped() throws Exception {
+        prepareLoadingCollections();
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()).append("quota", 10));
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.capped.getValue()).append("quota", 10));
+        // Ten nanopubs held against a quota of ten: no room.
+        seed("lists", new Document("pubkey", "P").append("type", "$").append("maxPosition", 9L));
+
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertEquals(EntryStatus.capped.getValue(),
+                one("accounts_loading", new Document("agent", "A")).getString("status"));
+    }
+
+    @Test
+    void determineUpdatesLetsACappedAccountResumeOnceItsQuotaGrows() throws Exception {
+        prepareLoadingCollections();
+        // This cycle computed a larger quota than the one the cap was applied under.
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()).append("quota", 50));
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.capped.getValue()).append("quota", 10));
+        seed("lists", new Document("pubkey", "P").append("type", "$").append("maxPosition", 9L));
+
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertEquals(EntryStatus.toLoad.getValue(),
+                one("accounts_loading", new Document("agent", "A")).getString("status"),
+                "there is room again, so LOAD_FULL has to pick it up and load the rest");
     }
 
     // --------------------------------------------------- FINALIZE_TRUST_STATE

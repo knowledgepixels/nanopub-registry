@@ -36,6 +36,21 @@ services:
       - REGISTRY_COVERAGE_TYPES=all
       - REGISTRY_COVERAGE_AGENTS=viaSetting
 
+      # 'viaSetting' covers every agent the trust network approves, with the quota computed
+      # for them. Appending 'pubkeyHash:quota' entries (whitespace-separated, on the same
+      # line) covers further pubkeys, and overrides the computed quota for ones already
+      # covered. High-volume publishers need this, as a quota follows from an agent's trust
+      # ratio, which says nothing about how much they publish: both bots below sit near the
+      # minimum quota while holding far more than that. The numbers are what these two are
+      # given, not what they hold (30,732 and 3,636+424 as of 2026-10-23):
+      #
+      #     - REGISTRY_COVERAGE_AGENTS=viaSetting
+      #       ddf0547234e33a887f71de3840d2a92c1d1c08d56e1a04b8a517dddc083298f7:100000
+      #       a7ad4e65741c2eae2cc6b9ef9cc1afa5791df8ee1af60d3f897631ee12991735:100000
+      #       954bb292601707032e258bf0d090bd732939d076a33ff3efdc022454ae9688e8:100000
+      #
+      # (FIP Wizard, then RO-Crate Bot's two pubkeys. Written on one line in a real file.)
+
       # Existing registry instances to connect to (whitespace-separated):
       - REGISTRY_PEER_URLS=https://registry.petapico.org/ https://registry.knowledgepixels.com/
 
@@ -57,6 +72,36 @@ services:
 #     - REGISTRY_LOCAL_INSTANCE=true  # Local/private instance: accept nanopubs of type npx:ProtectedNanopub
 #                                     # (public instances reject them; do NOT enable on a public instance)
 #     - REGISTRY_SETTING_FILE=/data/registry.trig
+
+      # ----------------------------------------------------------------------
+      # Section 2b: QUOTAS
+      #
+      # Quotas are computed for every agent whatever these say, and shown on the list
+      # pages; REGISTRY_ENFORCE_QUOTA decides whether anything is held to them. It is off
+      # by default, which means this registry stores what any pubkey sends it.
+      #
+      # Switching it on refuses a POST from a pubkey that has reached its quota (403), and
+      # stops peer-loading for it. Check the /list page for accounts whose count already
+      # exceeds their quota before enabling it: they are cut off the moment it goes on, and
+      # an explicit quota above (Section 1) is how to give them room.
+      #
+      # An unapproved pubkey is not simply turned away, or no new agent could ever publish
+      # the introduction that gets them approved. Two ways in stay open: an introduction an
+      # approved agent has already endorsed is always accepted, and anything else from an
+      # unapproved pubkey is accepted while the registry-wide allowance below has room in
+      # the current window (429 with Retry-After once it is spent). The allowance is shared
+      # by all unapproved pubkeys on purpose — pubkeys are free to make, so a per-pubkey
+      # allowance would bound nothing — which means a flood can spend it; the endorsed
+      # introduction is the way in that a flood cannot close.
+      # ----------------------------------------------------------------------
+
+#     - REGISTRY_ENFORCE_QUOTA=true  # Hold publishing and peer-loading to the quotas (default: false)
+#     - REGISTRY_GLOBAL_QUOTA=1000000000  # The pool that each agent's quota is a trust-ratio share of
+#     - REGISTRY_MIN_USER_QUOTA=1000  # Floor for a computed quota, so a barely-trusted agent can still publish
+#     - REGISTRY_MAX_USER_QUOTA=100000  # Ceiling, so no single agent can claim the whole registry
+#     - REGISTRY_UNAPPROVED_PUBLISH_QUOTA=100  # Nanopubs all unapproved pubkeys together may publish per window
+#                                              # (0 disables unapproved publishing, answering 403 instead of 429)
+#     - REGISTRY_UNAPPROVED_PUBLISH_WINDOW=3600  # Length of that window, in seconds
 
       # ----------------------------------------------------------------------
       # Section 3: SHARED MONGODB - ONLY for setups that use an external

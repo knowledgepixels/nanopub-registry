@@ -40,7 +40,17 @@ Trusted agents:
 Quotas:
 
 - Quotas are computed per account from trust path ratios (stored as a `quota` field on each entry in the `accounts` collection)
+- A quota configured explicitly for a pubkey in `REGISTRY_COVERAGE_AGENTS` overrides the computed one, and is what gets
+  recorded, published and enforced — a trust ratio says how much an agent is trusted, not how much they publish, so
+  high-volume publishers need this
 - For any trusted agent, if the number of nanopublications found on other registries is smaller than the agent's quota, all nanopublications are loaded
+- Nothing is held to a quota unless `REGISTRY_ENFORCE_QUOTA=true`; by default the quotas are computed and published but
+  not applied
+- Under enforcement, an account that has reached its quota is marked `capped`: loading stops for it and further
+  publishing is refused, but it stays a loaded, servable account and stays in the published trust state. A later cycle
+  that computes a larger quota for it resumes loading
+- Unapproved pubkeys are rationed rather than refused, so that the trust network stays enterable — see
+  [Publishing responses](#publishing-responses)
 
 
 ### Complexity
@@ -111,12 +121,39 @@ backoff, and moves on to the next registry on `401`, `403`, `404` and `405`:
 | Status | Meaning | Causes |
 |---|---|---|
 | `400` | The body is not a nanopublication | malformed nanopub, unparseable RDF |
-| `403` | This registry will not take it, another one may | types not covered, pubkey not authorized, quota exhausted, `npx:ProtectedNanopub` on a public instance |
+| `403` | This registry will not take it, another one may | types not covered, pubkey not authorized, quota exhausted, unapproved publishing switched off entirely, `npx:ProtectedNanopub` on a public instance |
 | `413` | Over a limit every registry enforces | more than 1200 triples, over 1,000,000 bytes |
 | `422` | Breaks a content rule every registry enforces | `dct:created` more than 60 s in the future, graph URI outside the nanopub URI, artifact code that does not verify, no valid signature |
+| `429` | This registry will not take it *yet*, with `Retry-After` | the shared allowance for unapproved publishing is spent for this window |
 
 The split that matters is `403` against `413`/`422`: a `403` is about *this* instance and should send the client to
-another registry, while `413` and `422` are about the nanopublication itself and no registry would accept it.
+another registry, while `413` and `422` are about the nanopublication itself and no registry would accept it. A `429`
+is about *this moment*: the same nanopublication offered after `Retry-After` is accepted.
+
+### Who may publish
+
+With `REGISTRY_ENFORCE_QUOTA=false` (the default) any pubkey may publish anything. With enforcement on, a POST is
+decided in this order (see [PublishPolicy.java](src/main/java/com/knowledgepixels/registry/PublishPolicy.java)):
+
+1. **An approved pubkey** — one with a quota, whether from the trust network or from `REGISTRY_COVERAGE_AGENTS` —
+   publishes until its quota is reached, and is refused with `403` after that.
+2. **An agent introduction that an approved agent has already endorsed** is accepted in all situations, without
+   touching any allowance. The endorsement (`npx:approvesOf`) names the one artifact code it approves of, and the
+   introduction has to declare the pubkey it is signed with, so this grants exactly one specific nanopublication.
+3. **Anything else from an unapproved pubkey** is accepted while the registry's shared allowance
+   (`REGISTRY_UNAPPROVED_PUBLISH_QUOTA` per `REGISTRY_UNAPPROVED_PUBLISH_WINDOW`) has room, and answered with `429`
+   once it is spent.
+
+Rule 2 is what keeps the network enterable: an agent becomes approved by having an introduction endorsed, and an
+introduction no registry accepts can never be endorsed. Rule 3 is the ordinary path — a new agent publishes a few
+nanopublications before anyone has approved them — and its allowance is deliberately one budget for the whole
+registry rather than one per pubkey, since pubkeys are free to make and a per-pubkey allowance would bound nothing.
+A flood can therefore spend the allowance; what honest newcomers do then is rule 2, which a flood cannot close:
+create the introduction, pass its URI to an approved agent, have them endorse it, then publish.
+
+The status of an endorsement is deliberately not consulted for rule 2. An endorsement of an introduction this
+registry does not hold yet cannot be resolved and is recorded as `discarded` — which is precisely the state of an
+endorsement published ahead of the introduction it is for, the case rule 2 exists to serve.
 
 A reverse proxy in front of the registry should keep to the same contract — in particular, a rate limit should answer
 `429` with `Retry-After`, not nginx's default `503`.
@@ -219,7 +256,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       trustStateHash: 7a8b9c...
       coverageAgents:_viaSetting_
       coverageTypes:_all_
-      globalQuota: 1000000  (not yet implemented; currently a hardcoded constant, to be moved to setting)
+      globalQuota: 1000000  (not stored; configured per instance as REGISTRY_GLOBAL_QUOTA, to be moved to setting)
     hashes:
       { hash*:a83, value*:4e8d9x... }
       ...
@@ -283,6 +320,10 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     tasks:
       { notBefore^:1710672000000, action^:CHECK_NEW }
       { notBefore^:1710672000100, action^:LOAD_FULL }
+    publishBudget:
+      { id#:'unapproved', windowStart:2026-10-23T12:00:00Z, count:17, granted:true }
+      (one document; the shared allowance for publishing by unapproved pubkeys. `granted`
+      is the outcome of the last request, written by the same update that counts it)
 
 During trust state computation, intermediate `_loading` collections (`endorsements_loading`, `accounts_loading`, `agents_loading`, `trustPaths_loading`) are used and then renamed to replace the live collections in `RELEASE_DATA`. They are always built from scratch: `INIT_COLLECTIONS` drops whatever is still there before it starts inserting, so a cycle left half-built by a shutdown is discarded rather than added to.
 

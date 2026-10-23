@@ -917,4 +917,49 @@ class RegistryDBTest {
         }
     }
 
+    /**
+     * Reaching a quota changes an account's published status without touching a trust path, so
+     * unless the hash notices, no new snapshot is emitted and the published state goes on
+     * calling a capped account 'loaded'.
+     */
+    @Test
+    void calculateTrustStateHashNoticesACappedAccount() {
+        RegistryDB.init();
+        try (ClientSession session = RegistryDB.getClient().startSession()) {
+            RegistryDB.insert(session, "accounts_loading",
+                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
+            RegistryDB.insert(session, "trustPaths_loading",
+                    new Document("_id", "pathA").append("type", "primary").append("agent", "agentA").append("pubkey", "pkA"));
+
+            String hashWhenLoaded = RegistryDB.calculateTrustStateHash(session);
+
+            RegistryDB.collection("accounts_loading").updateOne(session,
+                    new Document("agent", "agentA").append("pubkey", "pkA"),
+                    new Document("$set", new Document("status", EntryStatus.capped.getValue())));
+
+            assertNotEquals(hashWhenLoaded, RegistryDB.calculateTrustStateHash(session),
+                    "'loaded' -> 'capped' has to change the hash, or the new status is never published");
+        }
+    }
+
+    /**
+     * Quota enforcement is off by default, so no account is ever capped on a registry that has
+     * not switched it on — and the hash such a registry computes must be the one it computed
+     * before capping existed, or every instance would emit a snapshot over a formula change.
+     */
+    @Test
+    void calculateTrustStateHashIsUnchangedWhenNothingIsCapped() {
+        RegistryDB.init();
+        try (ClientSession session = RegistryDB.getClient().startSession()) {
+            RegistryDB.insert(session, "accounts_loading",
+                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
+            RegistryDB.insert(session, "trustPaths_loading",
+                    new Document("_id", "pathA").append("type", "primary").append("agent", "agentA").append("pubkey", "pkA"));
+
+            // The hash of exactly the trust path lines, as it was before capped accounts were
+            // appended to the input at all.
+            assertEquals(Utils.getHash("pathA (primary)\n"), RegistryDB.calculateTrustStateHash(session));
+        }
+    }
+
 }

@@ -52,12 +52,14 @@ class AgentFilterQuotaTest {
     }
 
     /**
-     * Stubs the {@code accounts} lookup that {@code getQuota} performs for a status.
+     * Stubs the one {@code accounts} lookup that {@code getQuota} performs, which asks for
+     * every status a quota is read from at once.
      */
-    private static void stubAccount(PageMocks.Db db, String status, Document result) {
+    private static void stubAccount(PageMocks.Db db, Document result) {
         MongoCollection<Document> accounts = db.collection(Collection.ACCOUNTS.toString());
         FindIterable<Document> it = PageMocks.findIterable(result == null ? List.of() : List.of(result));
-        when(accounts.find(eq(db.session), eq(new Document("pubkey", PUBKEY).append("status", status)))).thenReturn(it);
+        when(accounts.find(eq(db.session), eq(new Document("pubkey", PUBKEY)
+                .append("status", new Document("$in", List.of("loaded", "toLoad", "capped")))))).thenReturn(it);
     }
 
     private static void stubDollarList(PageMocks.Db db, Document result) {
@@ -88,7 +90,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", new Document("pubkey", PUBKEY).append("quota", 1234));
+            stubAccount(db, new Document("pubkey", PUBKEY).append("quota", 1234));
 
             assertEquals(1234, AgentFilter.getQuota(db.session, PUBKEY));
         }
@@ -101,11 +103,33 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", null);
-            stubAccount(db, "toLoad", new Document("pubkey", PUBKEY).append("quota", 99));
+            stubAccount(db, new Document("pubkey", PUBKEY).append("status", "toLoad").append("quota", 99));
 
             // An agent approved by the trust network can publish before its backlog is loaded.
             assertEquals(99, AgentFilter.getQuota(db.session, PUBKEY));
+        }
+    }
+
+    /**
+     * A capped account has spent its quota, but it is still an approved account: reading no
+     * quota from it would make it indistinguishable from a pubkey nobody has approved.
+     */
+    @Test
+    void cappedAccountsStillReportTheirQuota() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting").build();
+        AgentFilter.init();
+
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            PageMocks.Db db = PageMocks.mockDb(dbMock);
+            stubAccount(db, new Document("pubkey", PUBKEY).append("status", "capped").append("quota", 2814));
+
+            assertEquals(2814, AgentFilter.getQuota(db.session, PUBKEY));
+
+            setEnforceQuota(true);
+            stubDollarList(db, new Document("maxPosition", 3635L));
+            assertTrue(AgentFilter.isAllowed(db.session, PUBKEY),
+                    "a capped account is authorized; what it is out of is quota");
+            assertTrue(AgentFilter.isOverQuota(db.session, PUBKEY));
         }
     }
 
@@ -116,8 +140,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", null);
-            stubAccount(db, "toLoad", null);
+            stubAccount(db, null);
 
             assertEquals(-1, AgentFilter.getQuota(db.session, PUBKEY));
         }
@@ -160,8 +183,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", null);
-            stubAccount(db, "toLoad", null);
+            stubAccount(db, null);
 
             assertFalse(AgentFilter.isAllowed(db.session, PUBKEY));
         }
@@ -175,7 +197,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", new Document("pubkey", PUBKEY).append("quota", 10));
+            stubAccount(db, new Document("pubkey", PUBKEY).append("quota", 10));
 
             assertTrue(AgentFilter.isAllowed(db.session, PUBKEY));
         }
@@ -204,8 +226,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", null);
-            stubAccount(db, "toLoad", null);
+            stubAccount(db, null);
 
             assertTrue(AgentFilter.isOverQuota(db.session, PUBKEY));
         }
@@ -219,7 +240,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", new Document("pubkey", PUBKEY).append("quota", 10));
+            stubAccount(db, new Document("pubkey", PUBKEY).append("quota", 10));
             // maxPosition is zero-based, so 8 means 9 nanopubs published.
             stubDollarList(db, new Document("maxPosition", 8L));
 
@@ -235,7 +256,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", new Document("pubkey", PUBKEY).append("quota", 10));
+            stubAccount(db, new Document("pubkey", PUBKEY).append("quota", 10));
             // maxPosition 9 means 10 nanopubs, which exactly fills a quota of 10.
             stubDollarList(db, new Document("maxPosition", 9L));
 
@@ -251,7 +272,7 @@ class AgentFilterQuotaTest {
 
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
-            stubAccount(db, "loaded", new Document("pubkey", PUBKEY).append("quota", 10));
+            stubAccount(db, new Document("pubkey", PUBKEY).append("quota", 10));
             stubDollarList(db, null);
 
             assertFalse(AgentFilter.isOverQuota(db.session, PUBKEY));
