@@ -177,17 +177,7 @@ public class MainVerticle extends AbstractVerticle {
                             }
 
                             // Check agent/quota restrictions
-                            String pubkeyHash = Utils.getHash(pubkey);
-                            if (!AgentFilter.isAllowed(s, pubkeyHash)) {
-                                throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
-                                        "pubkey " + pubkeyHash + " is not authorized on this registry");
-                            }
-                            if (AgentFilter.isOverQuota(s, pubkeyHash)) {
-                                // A lifetime cap on this registry, not a rate limit, so 403
-                                // (try another registry) rather than 429 (come back later).
-                                throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
-                                        "quota exceeded for pubkey " + pubkeyHash);
-                            }
+                            PublishPolicy.check(s, np, Utils.getHash(pubkey));
 
                             // Noted before storing, since the trigger only fires on nanopubs
                             // this registry does not have yet:
@@ -258,9 +248,11 @@ public class MainVerticle extends AbstractVerticle {
     static void respondRejected(RoutingContext c, Throwable cause, String nanopubUri) {
         int statusCode = 400;
         String reason = "unknown error";
+        long retryAfterSeconds = 0;
         if (cause instanceof NanopubRejectedException rejected) {
             statusCode = rejected.getStatusCode();
             reason = rejected.getMessage();
+            retryAfterSeconds = rejected.getRetryAfterSeconds();
         } else if (cause != null && cause.getMessage() != null) {
             reason = cause.getMessage();
         }
@@ -269,8 +261,13 @@ public class MainVerticle extends AbstractVerticle {
                 : "Nanopub " + nanopubUri + " rejected: " + reason;
         c.response().setStatusCode(statusCode)
                 .setStatusMessage(toReasonPhrase(detail))
-                .putHeader("Content-Type", "text/plain; charset=utf-8")
-                .end(detail + "\n");
+                .putHeader("Content-Type", "text/plain; charset=utf-8");
+        if (retryAfterSeconds > 0) {
+            // Without this a 429 leaves the client to guess, and nanopub-java backs off on its
+            // own schedule rather than on the one the window actually runs to.
+            c.response().putHeader("Retry-After", String.valueOf(retryAfterSeconds));
+        }
+        c.response().end(detail + "\n");
     }
 
     /**

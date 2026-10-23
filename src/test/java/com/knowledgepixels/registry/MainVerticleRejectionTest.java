@@ -8,6 +8,9 @@ import org.mockito.ArgumentCaptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -57,6 +60,38 @@ class MainVerticleRejectionTest {
         verify(mc.response).setStatusCode(413);
         assertEquals("Nanopub https://w3id.org/np/RAabc rejected: triple count 1201 exceeds limit of 1200\n",
                 bodyOf(mc));
+    }
+
+    /**
+     * A refusal that waiting out will clear has to say how long to wait: nanopub-java retries a
+     * 429 with backoff, and without the header it backs off on its own schedule rather than on
+     * the one the allowance actually runs to.
+     */
+    @Test
+    void sendsRetryAfterWhenTheRefusalWillClearByItself() {
+        PageMocks.MockContext mc = PageMocks.context("/");
+
+        MainVerticle.respondRejected(mc.context,
+                new NanopubRejectedException(NanopubRejectedException.TOO_MANY_REQUESTS,
+                        "the shared allowance for unapproved publishing is spent for now", 1800),
+                "https://w3id.org/np/RAabc");
+
+        verify(mc.response).setStatusCode(429);
+        verify(mc.response).putHeader("Retry-After", "1800");
+        assertTrue(bodyOf(mc).contains("spent for now"));
+    }
+
+    @Test
+    void sendsNoRetryAfterForARefusalThatWaitingDoesNotHelp() {
+        PageMocks.MockContext mc = PageMocks.context("/");
+
+        MainVerticle.respondRejected(mc.context,
+                new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
+                        "quota exceeded for pubkey abc123"),
+                "https://w3id.org/np/RAabc");
+
+        verify(mc.response).setStatusCode(403);
+        verify(mc.response, never()).putHeader(eq("Retry-After"), anyString());
     }
 
     /**
