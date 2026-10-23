@@ -1,3 +1,51 @@
+## [1.13.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.12.1...nanopub-registry-1.13.0) (2026-10-23)
+
+### Features
+
+* **publish:** keep the trust network enterable under quota enforcement ([e467da6](https://github.com/knowledgepixels/nanopub-registry/commit/e467da61c7b96284e95d9cf7e67680caef4abf3b))
+
+### Dependency updates
+
+* **core-deps:** update dependency io.micrometer:micrometer-registry-prometheus to v1.17.2 ([#189](https://github.com/knowledgepixels/nanopub-registry/issues/189)) ([0069e68](https://github.com/knowledgepixels/nanopub-registry/commit/0069e6842164f6c39560cb280971ba46034ea4b5))
+* **core-deps:** update dependency io.vertx:vertx-stack-depchain to v5.2.2 ([#137](https://github.com/knowledgepixels/nanopub-registry/issues/137)) ([1efc284](https://github.com/knowledgepixels/nanopub-registry/commit/1efc284261aa435929d206b058c35d45c16319a8))
+* **core-deps:** update dependency org.nanopub:nanopub to v1.93.0 ([#163](https://github.com/knowledgepixels/nanopub-registry/issues/163)) ([485376a](https://github.com/knowledgepixels/nanopub-registry/commit/485376acacc901780a169f697f4c43d37046ffb1))
+* **core-deps:** update dependency org.nanopub:nanopub to v1.94.0 ([#167](https://github.com/knowledgepixels/nanopub-registry/issues/167)) ([a557282](https://github.com/knowledgepixels/nanopub-registry/commit/a557282f9938b8752066f1239f8cf6cce7c31cfc))
+* **core-deps:** update dependency org.slf4j:slf4j-simple to v2.0.19 ([#169](https://github.com/knowledgepixels/nanopub-registry/issues/169)) ([fba93df](https://github.com/knowledgepixels/nanopub-registry/commit/fba93dfac2eedb9fb80c9637d56691dcc4ab6ac4))
+* **core-deps:** update dependency org.slf4j:slf4j-simple to v2.0.20 ([#175](https://github.com/knowledgepixels/nanopub-registry/issues/175)) ([9927e2f](https://github.com/knowledgepixels/nanopub-registry/commit/9927e2fece393569019f71f35dc8c340cc8c5a33))
+* **core-deps:** update rdf4j.version to v5.3.2 ([#139](https://github.com/knowledgepixels/nanopub-registry/issues/139)) ([dd56d77](https://github.com/knowledgepixels/nanopub-registry/commit/dd56d77a51da62d41f160e5987a2374f7f8b98c1))
+* **core-deps:** update Vert.x to 5.2.1 and Micrometer to 1.17.1 ([#186](https://github.com/knowledgepixels/nanopub-registry/issues/186)) ([e9d14ee](https://github.com/knowledgepixels/nanopub-registry/commit/e9d14eea01eb9a2fb733573e0cc42e58e7326d8d)), closes [#142](https://github.com/knowledgepixels/nanopub-registry/issues/142) [#147](https://github.com/knowledgepixels/nanopub-registry/issues/147)
+* **deps:** drop unused and redundant direct dependencies ([#179](https://github.com/knowledgepixels/nanopub-registry/issues/179)) ([2d1e2c4](https://github.com/knowledgepixels/nanopub-registry/commit/2d1e2c4ca8d49e892e9ac590e431e841e8d9aed7)), closes [#148](https://github.com/knowledgepixels/nanopub-registry/issues/148) [#149](https://github.com/knowledgepixels/nanopub-registry/issues/149)
+* **deps:** update dependency maven to v3.10.0 ([#181](https://github.com/knowledgepixels/nanopub-registry/issues/181)) ([22c01d1](https://github.com/knowledgepixels/nanopub-registry/commit/22c01d1950fef1088660531b98ba498bace256b6))
+
+### Bug Fixes
+
+* **db:** run on the declared 4.x MongoDB driver only ([#185](https://github.com/knowledgepixels/nanopub-registry/issues/185)) ([4a1385b](https://github.com/knowledgepixels/nanopub-registry/commit/4a1385b4037d5eb855ea4a6e799cc9a2bbd05a60)), closes [#180](https://github.com/knowledgepixels/nanopub-registry/issues/180)
+* **publish:** answer a refused POST with the reason and a fitting status ([dbb733a](https://github.com/knowledgepixels/nanopub-registry/commit/dbb733a2347a79c9bdc1c2278ce9c3e6738406ce)), closes [#187](https://github.com/knowledgepixels/nanopub-registry/issues/187)
+* **quota:** keep a capped account in the published trust state ([5bb4969](https://github.com/knowledgepixels/nanopub-registry/commit/5bb496928b41ca721b7a8d73c33ea1ac1b11c09e)), closes [#119](https://github.com/knowledgepixels/nanopub-registry/issues/119) [#119](https://github.com/knowledgepixels/nanopub-registry/issues/119)
+
+### Documentation
+
+* **readme:** replace the stale beta status ([c75bd8f](https://github.com/knowledgepixels/nanopub-registry/commit/c75bd8f3f667187e906996bcfc7e98f576ccdc74))
+* record the publishing policy and the quota settings ([05a7458](https://github.com/knowledgepixels/nanopub-registry/commit/05a7458663851b5c8f0ae8ecff4e3e7298d0fa1e))
+* record the publishing responses and the proxy status to match ([08e2913](https://github.com/knowledgepixels/nanopub-registry/commit/08e2913e7354e8429f37f5856b0f924cc3ac5bd0)), closes [#187](https://github.com/knowledgepixels/nanopub-registry/issues/187)
+
+### Tests
+
+* **deps:** update dependency org.mockito:mockito-core to v5.24.0 ([#176](https://github.com/knowledgepixels/nanopub-registry/issues/176)) ([21a8539](https://github.com/knowledgepixels/nanopub-registry/commit/21a85395ac5e953e1647cc398e622709db7a8f87))
+
+### Build and continuous integration
+
+* **deps:** update actions/setup-java action to v6.0.1 ([#171](https://github.com/knowledgepixels/nanopub-registry/issues/171)) ([ae4c73e](https://github.com/knowledgepixels/nanopub-registry/commit/ae4c73efcdd403a5aaf1e740389740fb9dd83f29))
+* **deps:** update actions/setup-java action to v6.1.0 ([#184](https://github.com/knowledgepixels/nanopub-registry/issues/184)) ([6d1c3c5](https://github.com/knowledgepixels/nanopub-registry/commit/6d1c3c56346e71cc3bf02450504e5f16d9f4dafc))
+* **deps:** update actions/setup-node action to v7.1.0 ([#183](https://github.com/knowledgepixels/nanopub-registry/issues/183)) ([fffe6ad](https://github.com/knowledgepixels/nanopub-registry/commit/fffe6adba7635ceab4dbebb8fd37bd3a1e533f48))
+* **deps:** update dependency org.apache.maven.plugins:maven-compiler-plugin to v3.16.0 ([#168](https://github.com/knowledgepixels/nanopub-registry/issues/168)) ([dfb3e86](https://github.com/knowledgepixels/nanopub-registry/commit/dfb3e8679cc1ff3ac3473a5ea15e5d813dc58e56))
+* **deps:** update dependency org.codehaus.mojo:exec-maven-plugin to v3.6.4 ([#172](https://github.com/knowledgepixels/nanopub-registry/issues/172)) ([db7c452](https://github.com/knowledgepixels/nanopub-registry/commit/db7c4525c7cef658dae3fab6bf7becd3ab0e5436))
+* **deps:** update maven-surefire-plugin.version to v3.6.0 ([#170](https://github.com/knowledgepixels/nanopub-registry/issues/170)) ([6b87795](https://github.com/knowledgepixels/nanopub-registry/commit/6b87795df07f1319426ffaa7c147e91064792ce3))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([326b6ea](https://github.com/knowledgepixels/nanopub-registry/commit/326b6ea030641ac2fd1aacaaa7dc97db76da777d))
+
 ## [1.12.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.12.0...nanopub-registry-1.12.1) (2026-08-30)
 
 ### Bug Fixes
