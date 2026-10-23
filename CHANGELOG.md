@@ -1,3 +1,13 @@
+## [1.13.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.13.0...nanopub-registry-1.13.1) (2026-10-23)
+
+### Bug Fixes
+
+* **startup:** complete the verticle deployment promise ([bec985f](https://github.com/knowledgepixels/nanopub-registry/commit/bec985f69133c24ce7b0e98ab9d36b4199005971))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([af75993](https://github.com/knowledgepixels/nanopub-registry/commit/af75993625eb907ed5f205e9c092630625a2268c))
+
 ## [1.13.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.12.1...nanopub-registry-1.13.0) (2026-10-23)
 
 ### Features
