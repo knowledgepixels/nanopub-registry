@@ -35,7 +35,7 @@
     <nanopub.version>1.94.0</nanopub.version>
     <mongodb-driver.version>4.11.5</mongodb-driver.version>
     <mimeparse.version>0.1.3.3</mimeparse.version>
-    <gson.version>2.14.0</gson.version>
+    <gson.version>2.15.0</gson.version>
     <jelly.version>3.7.3</jelly.version>
     <micrometer.version>1.17.2</micrometer.version>
     <org.slf4j.version>2.0.20</org.slf4j.version>
