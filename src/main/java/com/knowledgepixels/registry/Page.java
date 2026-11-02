@@ -145,7 +145,6 @@ public abstract class Page {
         println("<html><head>");
         println("<title>" + title + "</title>");
         println("<meta charset=\"utf-8\"/>");
-        println("<script type=\"text/javascript\" src=\"/scripts/nanopub.js\"></script>");
         println("<link rel=\"stylesheet\" href=\"/style.css\" type=\"text/css\" media=\"screen\" title=\"Stylesheet\" />");
         println("</head><body>");
     }
