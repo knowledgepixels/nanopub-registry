@@ -1,7 +1,6 @@
 package com.knowledgepixels.registry.readonly;
 
 import com.knowledgepixels.registry.CoverageFilter;
-import com.knowledgepixels.registry.NanopubLoader;
 import com.knowledgepixels.registry.RegistryDB;
 import com.knowledgepixels.registry.Utils;
 import com.knowledgepixels.registry.store.RegistryMeta;
@@ -17,12 +16,9 @@ import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.RDFHandler;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
-import org.nanopub.SimpleTimestampPattern;
-import org.nanopub.extra.security.KeyDeclaration;
 import org.nanopub.extra.security.NanopubSignatureElement;
 import org.nanopub.extra.security.SignatureUtils;
 import org.nanopub.extra.server.NanopubServerUtils;
-import org.nanopub.extra.setting.IntroNanopub;
 import org.nanopub.jelly.JellyUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,9 +28,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Calendar;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -87,11 +81,6 @@ public class RegistryModelWriter {
     private static final class PubkeyState {
         final String hash;
         final String pubkey;
-        long count = 0;
-        String agent = "";
-        String name;
-        Date nameCreatedAt;
-        String introNanopub;
 
         PubkeyState(String hash, String pubkey) {
             this.hash = hash;
@@ -193,16 +182,11 @@ public class RegistryModelWriter {
 
         String pubkeyHash = Utils.getHash(pubkey);
         int pIdx = pubkeyIndex(pubkeyHash, pubkey);
-        PubkeyState ps = pubkeys.get(pIdx);
 
         Set<IRI> types = NanopubUtils.getTypes(np);
         List<Integer> covered = new ArrayList<>();
-        boolean isIntro = false;
         for (IRI t : types) {
             String th = Utils.getHash(t.stringValue());
-            if (th.equals(NanopubLoader.INTRO_TYPE_HASH)) {
-                isIntro = true;
-            }
             if (CoverageFilter.isCoveredType(th)) {
                 covered.add(typeIndex(th, t.stringValue()));
             }
@@ -213,7 +197,6 @@ public class RegistryModelWriter {
         records.add(rec);
         indexByAc.put(ac, rec.idx);
         counter++;
-        ps.count++;
 
         // the record and its blobs
         IRI npNode = npNode(ac);
@@ -274,7 +257,6 @@ public class RegistryModelWriter {
             }
         }
 
-        noteAgent(np, ps, isIntro);
         return true;
     }
 
@@ -349,67 +331,25 @@ public class RegistryModelWriter {
             emit(hashNode(e.getKey()), VALUE, vf.createLiteral(e.getValue()), GRAPH_REGISTRY);
         }
 
-        // accounts: one per pubkey, sorted by hash; agents aggregate them
+        // pubkeys and the hashes behind them
         List<PubkeyState> sortedPubkeys = new ArrayList<>(pubkeys);
         sortedPubkeys.sort((x, y) -> x.hash.compareTo(y.hash));
-        int accountCount = sortedPubkeys.size();
-        double ratio = accountCount == 0 ? 0 : 1.0 / accountCount;
-        Map<String, List<PubkeyState>> byAgent = new TreeMap<>();
-        StringBuilder trustStateLines = new StringBuilder();
         for (PubkeyState ps : sortedPubkeys) {
             IRI pubkeyNode = pubkeyNode(ps.hash);
-            IRI account = accountNode(ps.hash);
             emit(REGISTRY, HAS_PUBKEY, pubkeyNode, GRAPH_REGISTRY);
             emit(pubkeyNode, PUBKEY, vf.createLiteral(ps.hash), GRAPH_REGISTRY);
-            emit(pubkeyNode, HAS_ACCOUNT, account, GRAPH_REGISTRY);
             emit(hashNode(ps.hash), VALUE, vf.createLiteral(ps.pubkey), GRAPH_REGISTRY);
-            emit(REGISTRY, HAS_ACCOUNT, account, GRAPH_REGISTRY);
-            emit(account, PUBKEY, vf.createLiteral(ps.hash), GRAPH_REGISTRY);
-            emit(account, AGENT, vf.createLiteral(ps.agent), GRAPH_REGISTRY);
-            emit(account, STATUS, vf.createLiteral("loaded"), GRAPH_REGISTRY);
-            emit(account, DEPTH, vf.createLiteral(1), GRAPH_REGISTRY);
-            if (ps.name != null) {
-                emit(account, NAME, vf.createLiteral(ps.name), GRAPH_REGISTRY);
-            }
-            if (ps.nameCreatedAt != null) {
-                emit(account, NAME_CREATED_AT, vf.createLiteral(ps.nameCreatedAt), GRAPH_REGISTRY);
-            }
-            if (ps.introNanopub != null) {
-                emit(account, INTRO_NANOPUB, vf.createLiteral(ps.introNanopub), GRAPH_REGISTRY);
-            }
-            emit(account, RATIO, vf.createLiteral(ratio), GRAPH_REGISTRY);
-            emit(account, PATH_COUNT, vf.createLiteral(1), GRAPH_REGISTRY);
-            emit(account, QUOTA, vf.createLiteral((int) Math.min(ps.count, Integer.MAX_VALUE)), GRAPH_REGISTRY);
-            if (!ps.agent.isEmpty()) {
-                byAgent.computeIfAbsent(ps.agent, k -> new ArrayList<>()).add(ps);
-            }
-            trustStateLines.append(ps.agent).append('|').append(ps.hash).append('\n');
-        }
-        for (Map.Entry<String, List<PubkeyState>> e : byAgent.entrySet()) {
-            IRI agent = agentNode(Utils.getHash(e.getKey()));
-            emit(REGISTRY, HAS_AGENT, agent, GRAPH_REGISTRY);
-            emit(agent, AGENT, vf.createLiteral(e.getKey()), GRAPH_REGISTRY);
-            emit(agent, STATUS, vf.createLiteral("processed"), GRAPH_REGISTRY);
-            emit(agent, ACCOUNT_COUNT, vf.createLiteral(e.getValue().size()), GRAPH_REGISTRY);
-            emit(agent, AVG_PATH_COUNT, vf.createLiteral(1.0), GRAPH_REGISTRY);
-            emit(agent, TOTAL_RATIO, vf.createLiteral(ratio * e.getValue().size()), GRAPH_REGISTRY);
-            String name = e.getValue().stream().map(ps -> ps.name).filter(n -> n != null).sorted().findFirst().orElse(null);
-            if (name != null) {
-                emit(agent, NAME, vf.createLiteral(name), GRAPH_REGISTRY);
-            }
-            for (PubkeyState ps : e.getValue()) {
-                emit(agent, HAS_ACCOUNT, accountNode(ps.hash), GRAPH_REGISTRY);
-            }
         }
 
-        String trustStateHash = Utils.getHash(trustStateLines.toString());
+        // A read-only registry computes no trust, so it publishes none: no accounts, no
+        // agents, and one empty trust state snapshot, so that a consumer following the
+        // trust state hash header finds the (empty) snapshot it points at. The hash is what
+        // RegistryDB.calculateTrustStateHash yields for no trust paths at all.
+        String trustStateHash = Utils.getHash("");
         IRI trustState = trustStateNode(trustStateHash);
         emit(REGISTRY, HAS_TRUST_STATE, trustState, GRAPH_REGISTRY);
         emit(trustState, TRUST_STATE_COUNTER, vf.createLiteral(1L), GRAPH_REGISTRY);
         emit(trustState, CREATED_AT, vf.createLiteral(now), GRAPH_REGISTRY);
-        for (PubkeyState ps : sortedPubkeys) {
-            emit(trustState, HAS_ACCOUNT, accountNode(ps.hash), GRAPH_REGISTRY);
-        }
 
         long setupId = opts.setupId != null ? opts.setupId : Math.abs(Utils.getRandom().nextLong());
         emit(SERVER_INFO, STATUS, vf.createLiteral("ready"), GRAPH_REGISTRY);
@@ -431,8 +371,8 @@ public class RegistryModelWriter {
 
         emit(REGISTRY, NANOPUB_COUNT, vf.createLiteral(counter), GRAPH_REGISTRY);
         emit(REGISTRY, LOAD_COUNTER, vf.createLiteral(counter), GRAPH_REGISTRY);
-        emit(REGISTRY, ACCOUNT_COUNT, vf.createLiteral(accountCount), GRAPH_REGISTRY);
-        emit(REGISTRY, AGENT_COUNT, vf.createLiteral(byAgent.size()), GRAPH_REGISTRY);
+        emit(REGISTRY, ACCOUNT_COUNT, vf.createLiteral(0), GRAPH_REGISTRY);
+        emit(REGISTRY, AGENT_COUNT, vf.createLiteral(0), GRAPH_REGISTRY);
         emit(REGISTRY, BATCH_SIZE, vf.createLiteral(b), GRAPH_REGISTRY);
         emit(REGISTRY, BUILT_AT, vf.createLiteral(now), GRAPH_REGISTRY);
         emit(REGISTRY, BUILDER_VERSION, vf.createLiteral(Utils.getVersion()), GRAPH_REGISTRY);
@@ -589,48 +529,6 @@ public class RegistryModelWriter {
         emit(entry, NP_ID, vf.createLiteral(r.ac), GRAPH_REGISTRY);
         emit(entry, CHECKSUM, vf.createLiteral(checksum), GRAPH_REGISTRY);
         emit(listBatchNode(pk, th, positionBatchIndex(position, opts.batchSize)), MEMBER, entry, GRAPH_REGISTRY);
-    }
-
-    // --- agents ------------------------------------------------------------------------
-
-    private void noteAgent(Nanopub np, PubkeyState ps, boolean isIntro) {
-        if (isIntro) {
-            try {
-                IntroNanopub intro = new IntroNanopub(np);
-                if (intro.getUser() != null) {
-                    boolean declaresThisKey = false;
-                    for (KeyDeclaration kd : intro.getKeyDeclarations()) {
-                        if (kd.getPublicKeyString() != null && Utils.getHash(kd.getPublicKeyString()).equals(ps.hash)) {
-                            declaresThisKey = true;
-                        }
-                    }
-                    if (declaresThisKey) {
-                        Calendar cal = SimpleTimestampPattern.getCreationTime(np);
-                        Date created = cal == null ? null : cal.getTime();
-                        if (ps.introNanopub == null || ps.nameCreatedAt == null
-                                || (created != null && created.after(ps.nameCreatedAt))) {
-                            ps.agent = intro.getUser().stringValue();
-                            ps.name = Utils.extractIntroName(intro);
-                            ps.nameCreatedAt = created;
-                            ps.introNanopub = np.getUri().stringValue();
-                        }
-                        return;
-                    }
-                }
-            } catch (Exception ex) {
-                logger.debug("Nanopub {} looks like an intro but could not be read as one: {}", np.getUri(), ex.getMessage());
-            }
-        }
-        if (ps.agent.isEmpty()) {
-            try {
-                NanopubSignatureElement el = SignatureUtils.getSignatureElement(np);
-                if (el != null) {
-                    el.getSigners().stream().map(IRI::stringValue).sorted().findFirst().ifPresent(s -> ps.agent = s);
-                }
-            } catch (Exception ex) {
-                logger.debug("Could not read signers of {}: {}", np.getUri(), ex.getMessage());
-            }
-        }
     }
 
     // --- output ------------------------------------------------------------------------

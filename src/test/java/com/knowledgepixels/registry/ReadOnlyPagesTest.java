@@ -59,7 +59,7 @@ class ReadOnlyPagesTest {
         assertEquals("ready", info.get("status"));
         assertEquals(3.0, info.get("nanopubCount"));
         assertEquals(3.0, info.get("loadCounter"));
-        assertEquals(1.0, info.get("accountCount"));
+        assertEquals(0.0, info.get("accountCount"));
         verify(ctx.response).putHeader("Nanopub-Registry-Status", "ready");
         verify(ctx.response).putHeader("Nanopub-Registry-Load-Counter", "3");
         verify(ctx.response).putHeader("Nanopub-Registry-Nanopub-Count", "3");
@@ -98,8 +98,7 @@ class ReadOnlyPagesTest {
 
         ctx = PageMocks.context("/list.json");
         ListPage.show(ctx.context);
-        assertTrue(ctx.body().contains("\"agent\": \"" + ALICE + "\""));
-        assertTrue(ctx.body().contains("\"quota\": 3"));
+        assertEquals("[\n]\n", ctx.body(), "no accounts are published");
 
         ctx = PageMocks.context("/nanopubs.json", Map.of("sort", "id"));
         ListPage.show(ctx.context);
@@ -111,7 +110,7 @@ class ReadOnlyPagesTest {
 
         ctx = PageMocks.context("/agents.json");
         ListPage.show(ctx.context);
-        assertTrue(ctx.body().contains("\"accountCount\": 1"));
+        assertEquals("[\n]\n", ctx.body(), "no agents are published");
     }
 
     @Test
@@ -129,7 +128,7 @@ class ReadOnlyPagesTest {
         String hash = ctx.body().replaceAll("(?s).*\"trustStateHash\": \"([0-9a-f]+)\".*", "$1");
         ctx = PageMocks.context("/trust-state/" + hash + ".json");
         TrustStatePage.show(ctx.context);
-        assertTrue(ctx.body().contains("\"accounts\": [{"));
+        assertTrue(ctx.body().contains("\"accounts\": []"));
         assertTrue(ctx.body().contains("\"edges\": []"));
     }
 

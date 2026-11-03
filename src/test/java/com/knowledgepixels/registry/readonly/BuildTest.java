@@ -170,7 +170,7 @@ class BuildTest {
     }
 
     @Test
-    void derivesAccountsAgentsAndTrustStateFromIntros() throws Exception {
+    void publishesPubkeysButAnEmptyTrustState() throws Exception {
         Nanopub intro = intro(KEY1, ALICE, "Alice", new Date());
         Nanopub a = simple(KEY1, "a", TYPE_A);
         Nanopub b = simple(KEY2, "b", TYPE_A);
@@ -178,30 +178,23 @@ class BuildTest {
         String pk1 = pubkeyHash(a);
         String pk2 = pubkeyHash(b);
 
-        IRI acc1 = accountNode(pk1);
-        assertEquals(ALICE.stringValue(), one(m, acc1, AGENT).stringValue());
-        assertEquals("Alice", one(m, acc1, NAME).stringValue());
-        assertEquals(intro.getUri().stringValue(), one(m, acc1, INTRO_NANOPUB).stringValue());
-        assertEquals("loaded", one(m, acc1, STATUS).stringValue());
-        assertEquals(2, ((Literal) one(m, acc1, QUOTA)).intValue());
-        assertEquals(0.5, ((Literal) one(m, acc1, RATIO)).doubleValue(), 1e-9);
-        // the other key has no intro: its account names the signer of its nanopubs
-        assertEquals(ALICE.stringValue(), one(m, accountNode(pk2), AGENT).stringValue());
-        assertTrue(m.filter(accountNode(pk2), INTRO_NANOPUB, null).isEmpty());
+        assertEquals(Set.of(pubkeyNode(pk1), pubkeyNode(pk2)), m.filter(REGISTRY, HAS_PUBKEY, null).objects());
+        assertEquals(RegistryDB.getPubkey(a), one(m, hashNode(pk1), VALUE).stringValue());
 
-        IRI agent = agentNode(Utils.getHash(ALICE.stringValue()));
-        assertEquals(Set.of(agent), m.filter(REGISTRY, HAS_AGENT, null).objects());
-        assertEquals(2, ((Literal) one(m, agent, ACCOUNT_COUNT)).intValue());
-        assertEquals(Set.of(acc1, accountNode(pk2)), m.filter(agent, HAS_ACCOUNT, null).objects());
-
-        String expectedHash = Utils.getHash(java.util.stream.Stream.of(pk1, pk2).sorted()
-                .map(pk -> ALICE.stringValue() + "|" + pk + "\n").reduce("", String::concat));
+        // no trust is computed, so none is published: no accounts, no agents, an empty snapshot
+        assertTrue(m.filter(REGISTRY, HAS_ACCOUNT, null).isEmpty());
+        assertTrue(m.filter(REGISTRY, HAS_AGENT, null).isEmpty());
+        assertTrue(m.filter(null, AGENT, null).isEmpty());
+        String expectedHash = Utils.getHash("");
         assertEquals(expectedHash, one(m, SERVER_INFO, TRUST_STATE_HASH).stringValue());
         assertEquals(Set.of(trustStateNode(expectedHash)), m.filter(REGISTRY, HAS_TRUST_STATE, null).objects());
+        assertTrue(m.filter(trustStateNode(expectedHash), HAS_ACCOUNT, null).isEmpty());
+        assertEquals(1L, longOf(m, trustStateNode(expectedHash), TRUST_STATE_COUNTER));
+        assertEquals(0, ((Literal) one(m, REGISTRY, ACCOUNT_COUNT)).intValue());
+        assertEquals(0, ((Literal) one(m, REGISTRY, AGENT_COUNT)).intValue());
         assertEquals("ready", one(m, SERVER_INFO, STATUS).stringValue());
         assertEquals(4242L, longOf(m, SERVER_INFO, SETUP_ID));
         assertEquals(1L, longOf(m, SERVER_INFO, TRUST_STATE_COUNTER));
-        assertEquals(RegistryDB.getPubkey(a), one(m, hashNode(pk1), VALUE).stringValue());
     }
 
     @Test

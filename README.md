@@ -52,8 +52,9 @@ publish a large collection: build the file, drop it on any host, run the two con
 SPARQL-queryable dataset, with every nanopub in its own named graphs.
 
 A read-only instance accepts no nanopubs (`POST /` answers `405`, which publishing clients take as "try the next
-registry"), runs no trust computation and syncs with no peers. It reports `Nanopub-Registry-Read-Only: true` and serves
-one synthetic trust state: one `loaded` account per pubkey found in the data.
+registry"), runs no trust computation and syncs with no peers. It reports `Nanopub-Registry-Read-Only: true` and, since
+it computes no trust, publishes none: no accounts, no agents, and one empty trust state snapshot. The pubkeys and their
+lists are served as usual; that is what consumers need to load the content.
 
 Build the file from nanopub files (TriG, N-Quads or Jelly, optionally gzipped; their order defines the load counters):
 

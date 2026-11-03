@@ -116,8 +116,8 @@ class SparqlRegistryStoreTest {
             assertEquals(5L, r.maxCounter());
             assertEquals(5L, r.nanopubCount());
             assertEquals(5L, r.nanopubCountExact());
-            assertEquals(2L, r.accountCount());
-            assertEquals(1L, r.agentCount());
+            assertEquals(0L, r.accountCount());
+            assertEquals(0L, r.agentCount());
         }
     }
 
@@ -188,40 +188,23 @@ class SparqlRegistryStoreTest {
     }
 
     @Test
-    void trustState() {
+    void trustStateIsEmpty() {
         try (RegistryReader r = store.reader()) {
-            List<Document> accounts = r.accounts();
-            assertEquals(2, accounts.size());
-            assertEquals(List.of(pk1, pk2).stream().sorted().toList(), accounts.stream().map(x -> x.getString("pubkey")).toList());
-            Document acc1 = accounts.stream().filter(x -> x.getString("pubkey").equals(pk1)).findFirst().orElseThrow();
-            assertEquals(ALICE.stringValue(), acc1.getString("agent"));
-            assertEquals("Alice", acc1.getString("name"));
-            assertEquals(4, acc1.getInteger("quota"));
-            assertEquals(1, acc1.getInteger("depth"));
-            assertEquals(0.5, acc1.getDouble("ratio"), 1e-9);
-            assertEquals(intro.getUri().stringValue(), acc1.getString("introNanopub"));
-            assertNotNull(acc1.getDate("nameCreatedAt"));
-
-            assertEquals(2, r.accountsByAgent(ALICE.stringValue()).size());
-            assertEquals(0, r.accountsByAgent("https://example.org/nobody").size());
-            assertEquals("loaded", r.quotaBearingAccount(pk2).getString("status"));
-            assertNull(r.quotaBearingAccount("nope"));
-
-            List<Document> agents = r.agents();
-            assertEquals(1, agents.size());
-            assertEquals(2, agents.getFirst().getInteger("accountCount"));
-            assertEquals(1.0, agents.getFirst().getDouble("totalRatio"), 1e-9);
-            assertEquals("Alice", r.getAgent(ALICE.stringValue()).getString("name"));
-            assertNull(r.getAgent("https://example.org/nobody"));
+            assertEquals(List.of(), r.accounts());
+            assertEquals(List.of(), r.accountsByAgent(ALICE.stringValue()));
+            assertNull(r.quotaBearingAccount(pk1));
+            assertEquals(List.of(), r.agents());
+            assertNull(r.getAgent(ALICE.stringValue()));
 
             List<Document> snapshots = r.trustStateSnapshots();
             assertEquals(1, snapshots.size());
             String hash = snapshots.getFirst().getString("_id");
+            assertEquals(Utils.getHash(""), hash);
             assertEquals(r.serverInfoValue("trustStateHash"), hash);
             assertEquals(1L, snapshots.getFirst().getLong("trustStateCounter"));
             assertEquals(1L, r.trustStateSnapshotCount());
             Document snapshot = r.trustStateSnapshot(hash);
-            assertEquals(2, snapshot.getList("accounts", Document.class).size());
+            assertEquals(List.of(), snapshot.getList("accounts", Document.class));
             assertEquals(List.of(), snapshot.getList("edges", Document.class));
             assertNull(r.trustStateSnapshot("nope"));
 

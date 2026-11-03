@@ -254,8 +254,8 @@ the `RegistryReader` interface (`store/`), which has a MongoDB and a SPARQL impl
 The file is built by `readonly.Build` from nanopub files and holds three kinds of graphs, in the `npa:` namespace
 (`http://purl.org/nanopub/admin/`, also used by Nanopub Query):
 
-- `npa:graph/registry` — all meta triples: nanopub records, lists, entries, batches, pubkeys, hashes, accounts, agents,
-  the one trust state snapshot, `npa:serverInfo`, `npa:setting` and the `npa:registry` root (counts, batch size).
+- `npa:graph/registry` — all meta triples: nanopub records, lists, entries, batches, pubkeys, hashes, the one (empty)
+  trust state snapshot, `npa:serverInfo`, `npa:setting` and the `npa:registry` root (counts, batch size).
 - `npa:graph/blobs` — per nanopub, the TriG as the registry serves it (`npa:trig`) and the Jelly bytes
   (`npa:jelly`, base64), so that serving content needs no re-serialization. Kept apart so a text index can skip it.
 - the nanopubs' own four graphs, verbatim (unless built with `--no-content-quads`), which is what makes the file a
@@ -267,7 +267,7 @@ Node IRIs encode the keys, so every read is a constant-subject lookup:
     npa:pubkey/<pubkeyHash>                     npa:pubkey, npa:hasList, npa:hasAccount
     npa:list/<pubkeyHash>/<typeHash>            npa:pubkey, npa:type, npa:maxPosition, npa:status, npa:batchCount
     npa:entry/<pubkeyHash>/<typeHash>/<pos>     npa:list, npa:position, npa:np, npa:npId, npa:checksum
-    npa:account/<pubkeyHash>, npa:agent/<sha256(agentId)>, npa:trustState/<hash>, npa:hash/<sha256>
+    npa:trustState/<hash>, npa:hash/<sha256>
 
 The three range reads of the API — nanopubs after a counter (`/nanopubs.jelly?afterCounter=`), list entries after a
 position (`/list/.../$.jelly?afterChecksums=`) and the id listings — are served from fixed-size **batch nodes** instead
@@ -288,18 +288,20 @@ rule in both orders.)
 
 ### Trust state
 
-A read-only registry runs no trust computation. The builder writes one `loaded` account per pubkey in the data (agent
-from the pubkey's introduction if there is one, else the signer named in its nanopubs, else `""`; `depth` 1,
-`pathCount` 1, `ratio` 1/accounts, `quota` = nanopubs held), aggregates them into agents, and publishes a single trust
-state snapshot without edges whose hash is the SHA-256 of the sorted `agent|pubkey` lines. Consumers can tell by the
-`Nanopub-Registry-Read-Only: true` header and `isReadOnly` in `/.json`.
+A read-only registry runs no trust computation, and so publishes none: `/list`, `/agents` and `/agent` are empty, the
+counts are 0, and there is one trust state snapshot with no accounts and no edges, whose hash is the SHA-256 of the
+empty string (what `RegistryDB.calculateTrustStateHash` yields for no trust paths). The snapshot exists so that a
+consumer following the `Nanopub-Registry-Trust-State-Hash` header finds what it points at. Publishing synthetic
+accounts instead would be wrong: Nanopub Query materializes every account of a snapshot as an account state with its
+status, and a `loaded` status means an approved agent, which an archive of nanopubs has no business asserting. The
+pubkeys (`/pubkeys`) and their lists are served as usual, since they describe the content, not trust. Consumers can
+tell a read-only registry by the `Nanopub-Registry-Read-Only: true` header and `isReadOnly` in `/.json`.
 
 ### Validation
 
 `readonly.Validate --sparql URL` checks a served file: every nanopub's TriG re-parses, verifies (artifact code,
 signature, pubkey hash) and agrees with its Jelly and content graphs; the counter and id chains are complete; every list
-is a contiguous chain of positions with a correct checksum chain and checksum lookups; accounts and the snapshot match
-the pubkeys.
+is a contiguous chain of positions with a correct checksum chain and checksum lookups; the trust state is the empty one.
 
 ## Data Structure
 

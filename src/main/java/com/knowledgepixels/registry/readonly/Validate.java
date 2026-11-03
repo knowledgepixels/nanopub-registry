@@ -32,7 +32,7 @@ import java.util.Set;
  * verifies (trusty artifact code, signature, pubkey), that its TriG and Jelly blobs agree
  * with each other and with the content quads, that every list is a contiguous chain of
  * positions with a correct XOR checksum chain, that the counter and id chains are complete,
- * and that the accounts and the trust state snapshot agree with the pubkeys.
+ * and that the trust state is the empty one a read-only registry publishes.
  *
  * <pre>
  * java -cp nanopub-registry-VERSION-fat.jar com.knowledgepixels.registry.readonly.Validate --sparql http://localhost:7878/sparql [--sample N]
@@ -258,16 +258,13 @@ public class Validate {
     }
 
     private static void checkTrustState(RegistryReader r, ValidationReport report) {
-        List<String> pubkeys = r.pubkeys();
+        // a read-only registry computes no trust and publishes none
         List<Document> accounts = r.accounts();
-        if (accounts.size() != pubkeys.size()) {
-            report.fail(accounts.size() + " accounts for " + pubkeys.size() + " pubkeys");
+        if (!accounts.isEmpty()) {
+            report.fail(accounts.size() + " accounts published; a read-only registry publishes none");
         }
-        for (Document a : accounts) {
-            report.count("accounts");
-            if (!pubkeys.contains(a.getString("pubkey"))) {
-                report.fail("account " + a.getString("pubkey") + " has no lists");
-            }
+        if (!r.agents().isEmpty()) {
+            report.fail(r.agents().size() + " agents published; a read-only registry publishes none");
         }
         List<Document> snapshots = r.trustStateSnapshots();
         if (snapshots.size() != 1) {
