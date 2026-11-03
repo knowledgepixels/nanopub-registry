@@ -92,6 +92,7 @@ class MongoRegistryStoreTest {
             Document list = r.getList(pk, tA);
             assertEquals(1L, list.getLong("maxPosition"));
             assertTrue(r.pubkeys().contains(pk));
+            assertEquals(2L, r.pubkeyNanopubCounts().get(pk));
             List<Document> entries = new ArrayList<>();
             try (CloseableIterator<Document> it = r.listEntries(pk, tA)) {
                 it.forEachRemaining(entries::add);

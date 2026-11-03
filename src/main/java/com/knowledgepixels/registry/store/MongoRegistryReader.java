@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.mongodb.client.model.Aggregates.lookup;
@@ -161,6 +162,22 @@ public class MongoRegistryReader implements RegistryReader {
             }
         }
         return pubkeys;
+    }
+
+    @Override
+    public Map<String, Long> pubkeyNanopubCounts() {
+        Map<String, Long> counts = new TreeMap<>();
+        try (MongoCursor<Document> c = collection("lists").find(session, new Document("type", "$")).cursor()) {
+            while (c.hasNext()) {
+                Document d = c.next();
+                String pubkey = d.getString("pubkey");
+                if ("$".equals(pubkey) || d.get("maxPosition") == null) {
+                    continue;
+                }
+                counts.put(pubkey, d.getLong("maxPosition") + 1);
+            }
+        }
+        return counts;
     }
 
     @Override

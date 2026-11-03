@@ -130,6 +130,7 @@ class StoreParityTest {
         assertSame(r -> drain(r.nanopubIdsByIdAsc(ac(a))));
         assertSame(r -> r.latestNanopubIds(2));
         assertSame(RegistryReader::pubkeys);
+        assertSame(RegistryReader::pubkeyNanopubCounts);
         assertSame(r -> r.listsForPubkey(pk).stream().map(l -> l.getString("type") + "=" + l.getLong("maxPosition")).sorted().toList());
         for (String type : List.of("$", Utils.getHash(TYPE_A.stringValue()), Utils.getHash(TYPE_B.stringValue()))) {
             assertSame(r -> r.getList(pk, type).getLong("maxPosition"));

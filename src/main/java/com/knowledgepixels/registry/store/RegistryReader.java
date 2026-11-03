@@ -107,6 +107,12 @@ public interface RegistryReader extends AutoCloseable {
     List<String> pubkeys();
 
     /**
+     * How many nanopubs each pubkey has, from the position reached in its all-types list,
+     * keyed by pubkey hash and sorted by it; the synthetic {@code $} pubkey is left out.
+     */
+    Map<String, Long> pubkeyNanopubCounts();
+
+    /**
      * The entries of a list in position order (documents with {@code pubkey}, {@code type},
      * {@code position}, {@code np}, {@code checksum}, {@code invalidated}).
      */

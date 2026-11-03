@@ -23,4 +23,4 @@ dependency-reduced-pom.xml
 node_modules/
 
 # read-only registry files built by scripts/build-readonly.sh
-/readonly-data/
+/readonly-data*/

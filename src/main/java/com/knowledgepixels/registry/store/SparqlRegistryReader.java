@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.TreeMap;
 import java.util.function.LongFunction;
 import java.util.stream.LongStream;
 
@@ -255,6 +256,16 @@ public class SparqlRegistryReader implements RegistryReader {
         }
         pubkeys.sort(null);
         return pubkeys;
+    }
+
+    @Override
+    public Map<String, Long> pubkeyNanopubCounts() {
+        Map<String, Long> counts = new TreeMap<>();
+        for (BindingSet r : select("SELECT ?pk ?mp WHERE { GRAPH " + REG + " { <" + REGISTRY + "> npa:hasPubkey ?p . ?p npa:hasList ?l . ?l npa:type "
+                + literal(ALL_TYPES) + " ; npa:pubkey ?pk ; npa:maxPosition ?mp } }")) {
+            counts.put(r.getValue("pk").stringValue(), ((Long) SparqlRows.toJava(r.getValue("mp"))) + 1);
+        }
+        return counts;
     }
 
     @Override

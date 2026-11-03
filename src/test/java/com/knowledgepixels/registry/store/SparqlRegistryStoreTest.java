@@ -165,6 +165,7 @@ class SparqlRegistryStoreTest {
             assertEquals("{\"pubkey\": \"" + pk1 + "\", \"type\": \"$\", \"maxPosition\": 3, \"status\": \"loaded\"}", dollar.toJson());
             assertNull(r.getList(pk1, "nope"));
             assertEquals(List.of(pk1, pk2).stream().sorted().toList(), r.pubkeys());
+            assertEquals(Map.of(pk1, 4L, pk2, 1L), r.pubkeyNanopubCounts());
             assertTrue(lists.stream().anyMatch(l -> l.getString("type").equals(tIntro)));
 
             List<Document> entries = new ArrayList<>();

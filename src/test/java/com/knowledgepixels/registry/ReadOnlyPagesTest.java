@@ -5,6 +5,7 @@ import com.knowledgepixels.registry.store.RegistryStores;
 import com.knowledgepixels.registry.store.SparqlRegistryStore;
 import com.knowledgepixels.registry.utils.PageMocks;
 import com.knowledgepixels.registry.utils.ReadOnlyFixtures;
+import com.knowledgepixels.registry.utils.TestUtils;
 import com.google.gson.Gson;
 import net.trustyuri.TrustyUriUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -33,6 +34,8 @@ class ReadOnlyPagesTest {
 
     @BeforeAll
     static void setUp() throws Exception {
+        // the pages consult the mode switch, not just the store
+        TestUtils.setupFakeEnv().addVariable(ReadOnlyMode.ENV, "http://rete:7878/sparql").build();
         Nanopub intro = intro(KEY1, ALICE, "Alice", new Date());
         a = simple(KEY1, "a", TYPE_A);
         b = superseding(KEY1, a, TYPE_A);
@@ -45,6 +48,7 @@ class ReadOnlyPagesTest {
     static void tearDown() {
         RegistryStores.set(new MongoRegistryStore());
         store.close();
+        TestUtils.setupFakeEnv().reset();
     }
 
     private static String ac(Nanopub np) {
@@ -72,6 +76,27 @@ class ReadOnlyPagesTest {
         MainPage.show(ctx.context);
         assertTrue(ctx.body().contains("<em>originalSetting:</em> none"));
         assertTrue(ctx.body().contains("<em>nanopubCount:</em> 3"));
+        assertTrue(ctx.body().contains("<h3>Pubkeys</h3>"));
+        assertTrue(ctx.body().contains("<a href=\"/pubkeys\">"));
+        assertFalse(ctx.body().contains("<h3>Agents</h3>"), "no agent section on a read-only registry");
+        assertFalse(ctx.body().contains("<h3>Current Trust State</h3>"), "no trust state section on a read-only registry");
+        assertFalse(ctx.body().contains("<h3>Trust State History</h3>"), "no history section on a read-only registry");
+    }
+
+    @Test
+    void pubkeyPageLinksBackToPubkeys() {
+        PageMocks.MockContext ctx = PageMocks.contextAccepting("/list/" + pk, "text/html");
+        ListPage.show(ctx.context);
+        assertTrue(ctx.body().contains("<a href=\"/pubkeys\">&lt; Pubkeys</a>"), ctx.body());
+        assertFalse(ctx.body().contains("Current Trust State"), "the empty trust state page is not offered");
+    }
+
+    @Test
+    void pubkeysHtmlShowsCounts() {
+        PageMocks.MockContext ctx = PageMocks.contextAccepting("/pubkeys", "text/html");
+        ListPage.show(ctx.context);
+        assertTrue(ctx.body().contains("/list/" + pk), ctx.body());
+        assertTrue(ctx.body().contains("(3 nanopubs)"), ctx.body());
     }
 
     @Test

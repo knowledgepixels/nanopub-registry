@@ -52,6 +52,9 @@ class MainPageTest {
         when(db.collection(Collection.ACCOUNTS.toString()).countDocuments(db.session)).thenReturn(7L);
         when(db.collection(Collection.NANOPUBS.toString()).countDocuments(db.session)).thenReturn(11L);
         when(db.collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(db.session)).thenReturn(2L);
+        db.stubFindFiltered("lists", List.of(
+                new Document("pubkey", "a".repeat(64)).append("type", "$").append("maxPosition", 41L),
+                new Document("pubkey", "$").append("type", "$").append("maxPosition", 0L)));
         return db;
     }
 
@@ -85,6 +88,8 @@ class MainPageTest {
             assertTrue(body.contains("<h1>Nanopub Registry</h1>"), "renders the main heading");
             assertTrue(body.contains("<em>status:</em> ready"), "status is rendered");
             assertTrue(body.contains("<em>coverageTypes:</em> all"), "coverage defaults to all types");
+            assertTrue(body.contains("<h3>Pubkeys</h3>") && body.contains("<a href=\"/pubkeys\">"), "links to the pubkeys page");
+            assertTrue(body.contains("<h3>Agents</h3>"), "a regular registry shows its agents");
             assertTrue(body.contains("<em>coverageAgents:</em> viaSetting"), "coverage defaults to viaSetting");
             // The fractional seconds are trimmed off the timestamp for readability.
             assertTrue(body.contains("<em>lastTrustStateUpdate:</em> 2026-04-15T12:00:00"), "timestamp is trimmed");
@@ -125,6 +130,7 @@ class MainPageTest {
             when(db.collection(Collection.AGENTS.toString()).countDocuments(db.session)).thenReturn(0L);
             when(db.collection(Collection.ACCOUNTS.toString()).countDocuments(db.session)).thenReturn(0L);
             when(db.collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(db.session)).thenReturn(0L);
+            db.stubFindFiltered("lists", List.of());
 
             PageMocks.MockContext ctx = PageMocks.contextAccepting("/", "text/html");
             MainPage.show(ctx.context);

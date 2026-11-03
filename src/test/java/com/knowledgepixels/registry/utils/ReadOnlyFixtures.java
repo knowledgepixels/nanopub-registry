@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry.utils;
 
+import com.knowledgepixels.registry.CoverageFilter;
 import com.knowledgepixels.registry.RegistryDB;
 import com.knowledgepixels.registry.readonly.Build;
 import com.knowledgepixels.registry.readonly.BuildOptions;
@@ -119,7 +120,12 @@ public final class ReadOnlyFixtures {
      * The registry model of the nanopubs, in order, as an RDF4J model.
      */
     public static Model build(BuildOptions opts, List<Nanopub> nanopubs) {
-        Build.configureCoverage(opts.coverageTypes);
+        if (opts.coverageTypes == null) {
+            // keep whatever environment reader the test installed (e.g. a FakeEnv)
+            CoverageFilter.init();
+        } else {
+            Build.configureCoverage(opts.coverageTypes);
+        }
         Model model = new LinkedHashModel();
         RegistryModelWriter w = new RegistryModelWriter(new StatementCollector(model), opts);
         for (Nanopub np : nanopubs) {

@@ -161,7 +161,11 @@ public class ListPage extends Page {
                 int listed = 0;
                 printHtmlHeader("Accounts for Pubkey " + getLabel(pubkey) + " - Nanopub Registry");
                 println("<h1>Accounts for Pubkey " + getLabel(pubkey) + "</h1>");
-                println("<p><a href=\"/list\">&lt; Current Trust State</a></p>");
+                if (ReadOnlyMode.isEnabled()) {
+                    println("<p><a href=\"/pubkeys\">&lt; Pubkeys</a></p>");
+                } else {
+                    println("<p><a href=\"/pubkeys\">&lt; Pubkeys</a> | <a href=\"/list\">&lt; Current Trust State</a></p>");
+                }
                 println("<h3>Formats</h3>");
                 println("<p>");
                 println("<a href=\"/list/" + pubkey + ".json\">.json</a> |");
@@ -466,12 +470,18 @@ public class ListPage extends Page {
                 println("<a href=\"pubkeys.json.txt\">.json.txt</a>");
                 println("</p>");
                 println("<h3>Pubkeys</h3>");
+                java.util.Map<String, Long> counts = reader.pubkeyNanopubCounts();
                 println("<ol>");
                 while (c.hasNext()) {
                     String pubkey = c.next();
                     if (!pubkey.equals("$")) {
                         println("<li>");
-                        println("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
+                        print("<a href=\"/list/" + pubkey + "\"><code>" + getLabel(pubkey) + "</code></a>");
+                        Long count = counts.get(pubkey);
+                        if (count != null) {
+                            print(" (" + count + " nanopub" + (count == 1 ? "" : "s") + ")");
+                        }
+                        println("");
                         println("</li>");
                         listed++;
                     }

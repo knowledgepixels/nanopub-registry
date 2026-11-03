@@ -111,27 +111,38 @@ public class MainPage extends Page {
             println("<li><em>currentSetting:</em> " + settingLink(reader.settingValue("current")) + "</li>");
             println("</ul>");
 
-            if (!"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
-                println("<h3>Agents</h3>");
-                if (status.equals("launching") || status.equals("coreLoading")) {
-                    println("<p><em>(loading...)</em></p>");
-                } else {
-                    println("<p>Count: " + reader.agentCount() + "</p>");
-                    println("<p><a href=\"/agents\">&gt; agents</a></pi>");
-                }
-            }
-
-            println("<h3>Current Trust State</h3>");
+            println("<h3>Pubkeys</h3>");
             if (status.equals("launching") || status.equals("coreLoading")) {
                 println("<p><em>(loading...)</em></p>");
             } else {
-                println("<p>Accounts: " + reader.accountCount() + "</p>");
-                println("<p><a href=\"/list\">&gt; current trust state</a></pi>");
+                println("<p>Count: " + reader.pubkeyNanopubCounts().size() + "</p>");
+                println("<p><a href=\"/pubkeys\">&gt; pubkeys</a></p>");
             }
 
-            println("<h3>Trust State History</h3>");
-            println("<p>Retained snapshots: " + reader.trustStateSnapshotCount() + "</p>");
-            println("<p><a href=\"/trust-state\">&gt; trust state history</a></p>");
+            // a read-only registry computes no trust, so the trust sections do not apply
+            if (!ReadOnlyMode.isEnabled()) {
+                if (!"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
+                    println("<h3>Agents</h3>");
+                    if (status.equals("launching") || status.equals("coreLoading")) {
+                        println("<p><em>(loading...)</em></p>");
+                    } else {
+                        println("<p>Count: " + reader.agentCount() + "</p>");
+                        println("<p><a href=\"/agents\">&gt; agents</a></pi>");
+                    }
+                }
+
+                println("<h3>Current Trust State</h3>");
+                if (status.equals("launching") || status.equals("coreLoading")) {
+                    println("<p><em>(loading...)</em></p>");
+                } else {
+                    println("<p>Accounts: " + reader.accountCount() + "</p>");
+                    println("<p><a href=\"/list\">&gt; current trust state</a></pi>");
+                }
+
+                println("<h3>Trust State History</h3>");
+                println("<p>Retained snapshots: " + reader.trustStateSnapshotCount() + "</p>");
+                println("<p><a href=\"/trust-state\">&gt; trust state history</a></p>");
+            }
 
             println("<h3>Nanopubs</h3>");
             println("<p>Count: " + reader.nanopubCount() + "</p>");

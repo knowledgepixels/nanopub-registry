@@ -297,6 +297,22 @@ status, and a `loaded` status means an approved agent, which an archive of nanop
 pubkeys (`/pubkeys`) and their lists are served as usual, since they describe the content, not trust. Consumers can
 tell a read-only registry by the `Nanopub-Registry-Read-Only: true` header and `isReadOnly` in `/.json`.
 
+### Measured on the full network (2026-11-03)
+
+All 102,500 nanopubs of registry.knowledgepixels.com, exported as one Jelly stream (252 MB) and built on a laptop:
+
+| | |
+|---|---|
+| Build (verification + N-Quads), one thread | 5m48s |
+| `rete build` (6.5 M quads, 410k named graphs) | 1m42s |
+| `registry.nq.gz` / `registry.rete` | 377 MB / 394 MB |
+| Resident memory, registry container / rete sidecar | 1.2 GB / 1.0 GB |
+| `/np/<ac>.trig`, `/list/<pk>/<type>.json`, `/.json` | 10 to 50 ms |
+| `/nanopubs.json` (all 102,500 ids) | 2.7 s |
+| Largest list (30,738 entries): `.json` / `.jelly` | 1.8 s / 5.8 s (36 MB) |
+| `/nanopubs.jelly`, all nanopubs | 26 s (252 MB; byte-identical to the source registry's stream) |
+| `Validate --sample 50` (all 245,307 list entries, 2,050 nanopubs' content) | 26 min, no problems |
+
 ### Validation
 
 `readonly.Validate --sparql URL` checks a served file: every nanopub's TriG re-parses, verifies (artifact code,
