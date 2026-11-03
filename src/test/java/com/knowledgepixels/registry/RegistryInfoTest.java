@@ -117,7 +117,8 @@ class RegistryInfoTest {
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
                                   + "\"isLocalInstance\":false,"
                                   + "\"optionalLoadEnabled\":true,"
-                                  + "\"trustCalculationEnabled\":true"
+                                  + "\"trustCalculationEnabled\":true,"
+                                  + "\"isReadOnly\":false"
                                   + "}";
             assertEquals(expectedJson, registryInfo.asJson());
         }
@@ -185,7 +186,8 @@ class RegistryInfoTest {
                                   + "\"isTestInstance\":" + IS_TEST_INSTANCE + ","
                                   + "\"isLocalInstance\":false,"
                                   + "\"optionalLoadEnabled\":true,"
-                                  + "\"trustCalculationEnabled\":true"
+                                  + "\"trustCalculationEnabled\":true,"
+                                  + "\"isReadOnly\":false"
                                   + "}";
             assertEquals(expectedJson, registryInfo.asJson());
         }

@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.store.MongoRegistryReader;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -62,7 +63,7 @@ class PageTest {
             when(context.request()).thenReturn(mock(HttpServerRequest.class));
             when(context.request().path()).thenReturn("/test/path/example.html");
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -84,7 +85,7 @@ class PageTest {
             when(context.request()).thenReturn(request);
             when(request.path()).thenReturn("/test/path/example.html");
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -104,7 +105,7 @@ class PageTest {
             when(context.request()).thenReturn(mock(HttpServerRequest.class));
             when(context.request().path()).thenReturn("/test/path/example.html");
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -124,7 +125,7 @@ class PageTest {
             when(context.request()).thenReturn(mock(HttpServerRequest.class));
             when(context.request().path()).thenReturn("/test/path/example.html");
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -144,7 +145,7 @@ class PageTest {
             when(context.request()).thenReturn(mock(HttpServerRequest.class));
             when(context.request().path()).thenReturn("/test/path/example.txt");
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -165,7 +166,7 @@ class PageTest {
             when(context.request()).thenReturn(mock(HttpServerRequest.class));
             when(context.request().path()).thenReturn("/test/path/data" + expectedExtension);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -185,7 +186,7 @@ class PageTest {
             when(context.request()).thenReturn(mock(HttpServerRequest.class));
             when(context.request().path()).thenReturn("/test/path/example.txt");
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -206,7 +207,7 @@ class PageTest {
             String requestPath = "/test/path/example.txt";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -217,7 +218,7 @@ class PageTest {
             requestPath = "/test/path/data.trig";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page2 = new Page(mongoSession, context) {
+            Page page2 = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -238,7 +239,7 @@ class PageTest {
             String requestPath = "/RAXH93wfOaQRwDpxwr-E_s10kCQubHZ6O19h-cz3YlNGI.trig";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -249,7 +250,7 @@ class PageTest {
             requestPath = "/RAXH93-cz3YlNGI.trig"; // not a valid artifact code
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page2 = new Page(mongoSession, context) {
+            Page page2 = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -270,7 +271,7 @@ class PageTest {
             String requestPath = "/RAXH93wfOaQRwDpxwr-E_s10kCQubHZ6O19h-cz3YlNGI.trig";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -291,7 +292,7 @@ class PageTest {
             String requestPath = "/data.json";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -318,7 +319,7 @@ class PageTest {
             when(context.request().getParam("name")).thenReturn(null);
             when(context.request().getParam("status")).thenReturn(expectedValue);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -342,7 +343,7 @@ class PageTest {
             String requestPath = "/.txt";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -373,7 +374,7 @@ class PageTest {
             String requestPath = "/data.txt";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -406,7 +407,7 @@ class PageTest {
             String requestPath = "/data.txt";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test
@@ -440,7 +441,7 @@ class PageTest {
             String requestPath = "/data.txt";
             when(context.request().path()).thenReturn(requestPath);
 
-            Page page = new Page(mongoSession, context) {
+            Page page = new Page(MongoRegistryReader.of(mongoSession), context) {
                 @Override
                 protected void show() {
                     // not implemented for this test

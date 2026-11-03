@@ -1,18 +1,15 @@
 package com.knowledgepixels.registry;
 
-import com.mongodb.client.ClientSession;
+import com.knowledgepixels.registry.store.RegistryReader;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.commons.lang.StringEscapeUtils;
-import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
-
-import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.getMaxValue;
+import java.util.Map;
 
 public abstract class Page {
 
@@ -22,8 +19,8 @@ public abstract class Page {
     protected static final DecimalFormat df1 = new DecimalFormat("0.0");
 
     private RoutingContext context;
-    protected ClientSession mongoSession;
-    protected Document serverInfo;
+    protected final RegistryReader reader;
+    protected Map<String, Object> serverInfo;
 
     private String presentationFormat;
     private String extension;
@@ -32,31 +29,29 @@ public abstract class Page {
     /**
      * Constructor for the Page class.
      *
-     * @param mongoSession The MongoDB client session.
-     * @param context      The routing context.
+     * @param reader  The store reader serving this request.
+     * @param context The routing context.
      */
-    public Page(ClientSession mongoSession, RoutingContext context) {
-        this.mongoSession = mongoSession;
+    public Page(RegistryReader reader, RoutingContext context) {
+        this.reader = reader;
         this.context = context;
         context.response().setChunked(true);
 
         // Fetch all serverInfo key-value pairs in one query instead of separate getValue calls
-        serverInfo = new Document();
-        for (Document d : collection(Collection.SERVER_INFO.toString()).find(mongoSession)) {
-            serverInfo.put(d.getString("_id"), d.get("value"));
-        }
+        serverInfo = reader.serverInfo();
         context.response().putHeader("Nanopub-Registry-Version", Utils.getVersion());
         context.response().putHeader("Nanopub-Registry-Status", serverInfo.get("status") + "");
         context.response().putHeader("Nanopub-Registry-Setup-Id", serverInfo.get("setupId") + "");
         context.response().putHeader("Nanopub-Registry-Trust-State-Counter", serverInfo.get("trustStateCounter") + "");
         context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", serverInfo.get("lastTrustStateUpdate") + "");
         context.response().putHeader("Nanopub-Registry-Trust-State-Hash", serverInfo.get("trustStateHash") + "");
-        Object maxCounter = getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
+        Long maxCounter = reader.maxCounter();
         context.response().putHeader("Nanopub-Registry-Load-Counter", maxCounter + "");
-        context.response().putHeader("Nanopub-Registry-Nanopub-Count", collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "");
+        context.response().putHeader("Nanopub-Registry-Nanopub-Count", reader.nanopubCount() + "");
         context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(serverInfo.get("testInstance") != null && (Boolean) serverInfo.get("testInstance")));
         context.response().putHeader("Nanopub-Registry-Coverage-Types", serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes").toString() : "all");
         context.response().putHeader("Nanopub-Registry-Coverage-Agents", serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents").toString() : "viaSetting");
+        context.response().putHeader("Nanopub-Registry-Read-Only", String.valueOf(ReadOnlyMode.isEnabled()));
 
         String r = context.request().path().substring(1);
         if (r.endsWith(".txt")) {

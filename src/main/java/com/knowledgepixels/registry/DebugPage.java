@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.store.MongoRegistryReader;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import io.vertx.ext.web.RoutingContext;
@@ -21,7 +22,7 @@ public class DebugPage extends Page {
         logger.info("Received debug request: {}", context.request().path());
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             s.startTransaction();
-            page = new DebugPage(s, context);
+            page = new DebugPage(MongoRegistryReader.of(s), s, context);
             page.show();
         } catch (IOException ex) {
             logger.warn("Failed to show debug page for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
@@ -32,8 +33,11 @@ public class DebugPage extends Page {
         }
     }
 
-    private DebugPage(ClientSession mongoSession, RoutingContext context) {
-        super(mongoSession, context);
+    private final ClientSession mongoSession;
+
+    private DebugPage(MongoRegistryReader reader, ClientSession mongoSession, RoutingContext context) {
+        super(reader, context);
+        this.mongoSession = mongoSession;
     }
 
     protected void show() throws IOException {

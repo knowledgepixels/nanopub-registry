@@ -1,7 +1,8 @@
 package com.knowledgepixels.registry;
 
 import com.github.jsonldjava.shaded.com.google.common.base.Charsets;
-import com.mongodb.client.ClientSession;
+import com.knowledgepixels.registry.store.RegistryReader;
+import com.knowledgepixels.registry.store.RegistryStores;
 import eu.neverblink.jelly.core.utils.IoUtils;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.commons.lang.StringEscapeUtils;
@@ -18,8 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
-import static com.knowledgepixels.registry.RegistryDB.collection;
-import static com.knowledgepixels.registry.RegistryDB.isSet;
 import static com.knowledgepixels.registry.Utils.*;
 
 public class NanopubPage extends Page {
@@ -41,9 +40,8 @@ public class NanopubPage extends Page {
     public static void show(RoutingContext context, boolean forwardHtml) {
         NanopubPage page;
         logger.info("Received nanopub request: {} forwardHtml={}", context.request().path(), forwardHtml);
-        try (ClientSession s = RegistryDB.getClient().startSession()) {
-            s.startTransaction();
-            page = new NanopubPage(s, context, forwardHtml);
+        try (RegistryReader r = RegistryStores.get().snapshotReader()) {
+            page = new NanopubPage(r, context, forwardHtml);
             page.show();
         } catch (IOException ex) {
             logger.warn("Failed to show nanopub for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
@@ -54,8 +52,8 @@ public class NanopubPage extends Page {
         }
     }
 
-    private NanopubPage(ClientSession mongoSession, RoutingContext context, boolean forwardHtml) {
-        super(mongoSession, context);
+    private NanopubPage(RegistryReader reader, RoutingContext context, boolean forwardHtml) {
+        super(reader, context);
         this.forwardHtml = forwardHtml;
     }
 
@@ -89,9 +87,9 @@ public class NanopubPage extends Page {
         if (req.matches("/(np|get)/RA[a-zA-Z0-9-_]{43}(\\.[a-z]+)?")) {
             String ac = req.replaceFirst("/(np|get)/(RA[a-zA-Z0-9-_]{43})(\\.[a-z]+)?", "$2");
             logger.debug("Lookup nanopub id: {}", ac);
-            Document npDoc = collection(Collection.NANOPUBS.toString()).find(new Document("_id", ac)).first();
+            Document npDoc = reader.getNanopub(ac);
             if (npDoc == null) {
-                if (!isSet(mongoSession, Collection.SERVER_INFO.toString(), "testInstance")) {
+                if (!reader.isTestInstance()) {
                     //getResp().sendError(404, "Not found: " + ac);
                     logger.info("Nanopub {} not found locally; redirecting to external resolver", ac);
                     c.response().setStatusCode(307);

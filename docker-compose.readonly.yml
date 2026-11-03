@@ -1,0 +1,35 @@
+# A read-only registry: the registry serves a static registry file through a rete SPARQL
+# sidecar instead of MongoDB. Build the file first (scripts/build-readonly.sh data/readonly ...),
+# then: docker compose -f docker-compose.readonly.yml up -d
+# (with READONLY_DATA_DIR=<dir> in front if the file is elsewhere)
+#
+# The registry accepts no nanopubs (POST answers 405), runs no trust computation and syncs
+# with no peers; everything it serves comes from data/readonly/registry.rete.
+services:
+
+  registry:
+    image: nanopub/registry:latest
+    restart: unless-stopped
+    ports:
+      - "9292:9292"
+      - "127.0.0.1:9293:9293"
+    environment:
+      - REGISTRY_READ_ONLY_SPARQL_URL=http://rete:7878/sparql
+      # The public URL of this instance:
+      - REGISTRY_SERVICE_URL=https://url.of.this.registry.com/
+    depends_on:
+      - rete
+
+  rete:
+    image: ghcr.io/caviri/rete-cli:0.5.0
+    restart: unless-stopped
+    command: ["serve", "/data/registry.rete", "--bind", "0.0.0.0:7878"]
+    ports:
+      # The SPARQL endpoint, on the host's loopback only: for Validate and for exploring the file.
+      - "127.0.0.1:7878:7878"
+    volumes:
+      # The directory holding registry.rete (READONLY_DATA_DIR in the environment overrides it):
+      - type: bind
+        source: ${READONLY_DATA_DIR:-./data/readonly}
+        target: /data
+        read_only: true

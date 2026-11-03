@@ -1,5 +1,6 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.store.MongoRegistryReader;
 import com.knowledgepixels.registry.utils.PageMocks;
 import io.vertx.core.http.HttpMethod;
 import org.bson.Document;
@@ -25,7 +26,7 @@ class PageOutputTest {
      * A minimal concrete Page; the base class does all the work under test.
      */
     private static Page page(PageMocks.Db db, PageMocks.MockContext ctx) {
-        return new Page(db.session, ctx.context) {
+        return new Page(MongoRegistryReader.of(db.session), ctx.context) {
             @Override
             protected void show() {
             }

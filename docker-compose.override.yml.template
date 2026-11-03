@@ -1,5 +1,8 @@
 # Template for docker-compose.override.yml
 #
+# (For a read-only instance served from a static file, see docker-compose.readonly.yml
+# and the README section "Read-only Instance from a Static File" instead.)
+#
 # Copy this file to docker-compose.override.yml and adjust it:
 #
 #     cp docker-compose.override.yml.template docker-compose.override.yml

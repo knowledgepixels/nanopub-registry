@@ -1,13 +1,12 @@
 package com.knowledgepixels.registry;
 
-import com.mongodb.client.ClientSession;
+import com.knowledgepixels.registry.store.RegistryReader;
+import com.knowledgepixels.registry.store.RegistryStores;
 import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-
-import static com.knowledgepixels.registry.RegistryDB.*;
 
 public class MainPage extends Page {
 
@@ -16,9 +15,8 @@ public class MainPage extends Page {
     public static void show(RoutingContext context) {
         MainPage page;
         logger.info("Received main request: {}", context.request().path());
-        try (ClientSession s = RegistryDB.getClient().startSession()) {
-            s.startTransaction();
-            page = new MainPage(s, context);
+        try (RegistryReader r = RegistryStores.get().snapshotReader()) {
+            page = new MainPage(r, context);
             page.show();
         } catch (IOException ex) {
             logger.warn("Failed to show main page for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
@@ -29,8 +27,19 @@ public class MainPage extends Page {
         }
     }
 
-    private MainPage(ClientSession mongoSession, RoutingContext context) {
-        super(mongoSession, context);
+    private MainPage(RegistryReader reader, RoutingContext context) {
+        super(reader, context);
+    }
+
+    /**
+     * A link to a setting nanopub; a read-only registry built without one has none.
+     */
+    private static String settingLink(Object settingAc) {
+        if (settingAc == null) {
+            return "none";
+        }
+        String s = settingAc.toString();
+        return "<a href=\"/np/" + s + "\"><code>" + (s.length() > 10 ? s.substring(0, 10) : s) + "</code></a>";
     }
 
     protected void show() throws IOException {
@@ -61,7 +70,7 @@ public class MainPage extends Page {
 
         if ("application/json".equals(format)) {
             logger.info("Serving main registry info as JSON for {}", getFullRequest());
-            println(RegistryInfo.getLocal(mongoSession).asJson());
+            println(RegistryInfo.getLocal(reader).asJson());
         } else {
             String status = serverInfo.get("status") != null ? serverInfo.get("status").toString() : "launching";
             printHtmlHeader("Nanopub Registry");
@@ -82,9 +91,10 @@ public class MainPage extends Page {
             println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(Utils.getEnv("REGISTRY_ENABLE_OPTIONAL_LOAD", null)) + "</li>");
             println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null)) + "</li>");
             println("<li><em>localInstance:</em> " + Utils.isLocalInstance() + "</li>");
+            println("<li><em>readOnly:</em> " + ReadOnlyMode.isEnabled() + "</li>");
             println("<li><em>status:</em> " + status + "</li>");
-            println("<li><em>loadCounter:</em> " + getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter") + "</li>");
-            println("<li><em>nanopubCount:</em> " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</li>");
+            println("<li><em>loadCounter:</em> " + reader.maxCounter() + "</li>");
+            println("<li><em>nanopubCount:</em> " + reader.nanopubCount() + "</li>");
             println("<li><em>trustStateCounter:</em> " + serverInfo.get("trustStateCounter") + "</li>");
             Object lastTimeUpdate = serverInfo.get("lastTrustStateUpdate");
             if (lastTimeUpdate != null) {
@@ -97,10 +107,8 @@ public class MainPage extends Page {
                 trustStateHash = trustStateHash.toString().substring(0, 10);
             }
             println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");
-            String oSetting = getValue(mongoSession, Collection.SETTING.toString(), "original").toString();
-            println("<li><em>originalSetting:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");
-            String cSetting = getValue(mongoSession, Collection.SETTING.toString(), "current").toString();
-            println("<li><em>currentSetting:</em> <a href=\"/np/" + cSetting + "\"><code>" + cSetting.substring(0, 10) + "</code></a></li>");
+            println("<li><em>originalSetting:</em> " + settingLink(reader.settingValue("original")) + "</li>");
+            println("<li><em>currentSetting:</em> " + settingLink(reader.settingValue("current")) + "</li>");
             println("</ul>");
 
             if (!"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
@@ -108,7 +116,7 @@ public class MainPage extends Page {
                 if (status.equals("launching") || status.equals("coreLoading")) {
                     println("<p><em>(loading...)</em></p>");
                 } else {
-                    println("<p>Count: " + collection(Collection.AGENTS.toString()).countDocuments(mongoSession) + "</p>");
+                    println("<p>Count: " + reader.agentCount() + "</p>");
                     println("<p><a href=\"/agents\">&gt; agents</a></pi>");
                 }
             }
@@ -117,16 +125,16 @@ public class MainPage extends Page {
             if (status.equals("launching") || status.equals("coreLoading")) {
                 println("<p><em>(loading...)</em></p>");
             } else {
-                println("<p>Accounts: " + collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession) + "</p>");
+                println("<p>Accounts: " + reader.accountCount() + "</p>");
                 println("<p><a href=\"/list\">&gt; current trust state</a></pi>");
             }
 
             println("<h3>Trust State History</h3>");
-            println("<p>Retained snapshots: " + collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(mongoSession) + "</p>");
+            println("<p>Retained snapshots: " + reader.trustStateSnapshotCount() + "</p>");
             println("<p><a href=\"/trust-state\">&gt; trust state history</a></p>");
 
             println("<h3>Nanopubs</h3>");
-            println("<p>Count: " + collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "</p>");
+            println("<p>Count: " + reader.nanopubCount() + "</p>");
             println("<p><a href=\"/nanopubs\">&gt; nanopubs</a></pi>");
             printHtmlFooter();
         }
