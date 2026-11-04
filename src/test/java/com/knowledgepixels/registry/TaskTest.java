@@ -688,9 +688,13 @@ class TaskTest {
     }
 
     private void seedTrustPath(String id, int depth, double ratio) {
+        seedTrustPath(id, depth, ratio, "primary");
+    }
+
+    private void seedTrustPath(String id, int depth, double ratio, String type) {
         seed("trustPaths_loading", new Document("_id", id).append("sorthash", id)
                 .append("agent", "A").append("pubkey", "P").append("depth", depth)
-                .append("ratio", ratio).append("type", "primary"));
+                .append("ratio", ratio).append("type", type));
     }
 
     @Test
@@ -722,6 +726,44 @@ class TaskTest {
         Document account = one("accounts_loading", new Document("agent", "A"));
         assertEquals(0.5, account.getDouble("ratio"), 1e-12, "the ratio still accumulates over both paths");
         assertEquals(1, account.getInteger("pathCount"));
+    }
+
+    /**
+     * A primary path has already been reduced to the self share when it was expanded; an
+     * extended path never is, so the self share has to be applied when it is scored (issue #196).
+     */
+    @Test
+    void calculateTrustScoresAppliesTheSelfShareToExtendedPaths() throws Exception {
+        prepareLoadingCollections();
+        seedExpandedAccount();
+        seedTrustPath("$ X|1 A|P", 2, 0.05, "primary");
+        seedTrustPath("$ Y|1 A|P", 2, 0.5, "extended");
+
+        Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
+
+        Document account = one("accounts_loading", new Document("agent", "A"));
+        assertEquals(0.05 + 0.5 * Task.SELF_SHARE, account.getDouble("ratio"), 1e-12,
+                "the extended path counts only its self share, the primary one its stored ratio");
+        assertEquals(2, account.getInteger("pathCount"));
+    }
+
+    @Test
+    void calculateTrustScoresCountsIndependentPathsInOrderOfEffectiveRatio() throws Exception {
+        prepareLoadingCollections();
+        seedExpandedAccount();
+        // Effective ratios: primary 0.01, then 0.005 and 0.004 for the extended paths. Taken in
+        // that order the primary path claims X and Y, and both extended paths overlap with it.
+        // Ordered by stored ratio instead, the extended paths would come first and two of the
+        // three would count as independent.
+        seedTrustPath("$ X|1 Y|2 A|P", 3, 0.01, "primary");
+        seedTrustPath("$ Z|1 Y|2 A|P", 3, 0.05, "extended");
+        seedTrustPath("$ X|1 W|2 A|P", 3, 0.04, "extended");
+
+        Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
+
+        Document account = one("accounts_loading", new Document("agent", "A"));
+        assertEquals(0.019, account.getDouble("ratio"), 1e-12);
+        assertEquals(1, account.getInteger("pathCount"), "the primary path leads its depth group");
     }
 
     @Test
