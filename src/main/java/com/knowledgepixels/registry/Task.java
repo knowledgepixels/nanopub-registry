@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -521,11 +522,11 @@ public enum Task implements Serializable {
                     for (String pathId : newPaths.keySet()) {
                         Document pd = newPaths.get(pathId);
                         // first divide by agents; then for each agent, divide by number of pubkeys:
-                        double newRatio = (trustPath.getDouble("ratio") * 0.9) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
+                        double newRatio = (trustPath.getDouble("ratio") * (1 - SELF_SHARE)) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
                         insert(s, "trustPaths_loading", pd.append("ratio", newRatio));
                     }
-                    // Retain only 10% of the ratio — the other 90% was distributed to children
-                    double retainedRatio = trustPath.getDouble("ratio") * 0.1;
+                    // Retain only the self share of the ratio; the rest was distributed to the children
+                    double retainedRatio = trustPath.getDouble("ratio") * SELF_SHARE;
                     set(s, "trustPaths_loading", trustPath.append("type", "primary").append("ratio", retainedRatio));
                     set(s, "accounts_loading", d.append("status", expanded.getValue()));
                 }
@@ -749,29 +750,38 @@ public enum Task implements Serializable {
                     break;
                 }
 
+                List<Document> trustPaths = new ArrayList<>();
+                try (MongoCursor<Document> cursor = collection("trustPaths_loading").find(s,
+                        new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString())
+                ).cursor()) {
+                    while (cursor.hasNext()) {
+                        trustPaths.add(cursor.next());
+                    }
+                }
+                // Ordered by depth, then by the ratio that actually counts (so the primary path
+                // leads its depth group), then by sorthash to make the independent-path count
+                // deterministic:
+                trustPaths.sort(Comparator.comparingInt((Document p) -> p.getInteger("depth"))
+                        .thenComparing(Comparator.comparingDouble(Task::effectiveRatio).reversed())
+                        .thenComparing(p -> p.getString("sorthash")));
                 double ratio = 0.0;
                 Map<String, Boolean> seenPathElements = new HashMap<>();
                 int pathCount = 0;
-                try (MongoCursor<Document> trustPaths = collection("trustPaths_loading").find(s,
-                        new Document("agent", d.get("agent").toString()).append("pubkey", d.get("pubkey").toString())
-                ).sort(orderBy(ascending("depth"), descending("ratio"), ascending("sorthash"))).cursor()) {
-                    while (trustPaths.hasNext()) {
-                        Document trustPath = trustPaths.next();
-                        ratio += trustPath.getDouble("ratio");
-                        boolean independentPath = true;
-                        String[] pathElements = trustPath.getString("_id").split(" ");
-                        // Iterate over path elements, ignoring first (root) and last (this agent/pubkey):
-                        for (int i = 1; i < pathElements.length - 1; i++) {
-                            String p = pathElements[i];
-                            if (seenPathElements.containsKey(p)) {
-                                independentPath = false;
-                                break;
-                            }
-                            seenPathElements.put(p, true);
+                for (Document trustPath : trustPaths) {
+                    ratio += effectiveRatio(trustPath);
+                    boolean independentPath = true;
+                    String[] pathElements = trustPath.getString("_id").split(" ");
+                    // Iterate over path elements, ignoring first (root) and last (this agent/pubkey):
+                    for (int i = 1; i < pathElements.length - 1; i++) {
+                        String p = pathElements[i];
+                        if (seenPathElements.containsKey(p)) {
+                            independentPath = false;
+                            break;
                         }
-                        if (independentPath) {
-                            pathCount += 1;
-                        }
+                        seenPathElements.put(p, true);
+                    }
+                    if (independentPath) {
+                        pathCount += 1;
                     }
                 }
                 double rawQuota = GLOBAL_QUOTA * ratio;
@@ -1575,10 +1585,26 @@ public enum Task implements Serializable {
     static final long UPDATE_TRIGGER_JITTER_MS = 1000L * Long.parseLong(
             Utils.getEnv("REGISTRY_UPDATE_TRIGGER_JITTER", "30"));
 
+    /**
+     * The part of a trust path's ratio that counts towards the account the path ends at. A primary
+     * path was already reduced to {@link #SELF_SHARE} when it was expanded, with the remainder
+     * handed on to the endorsed accounts. An extended path is never expanded, so it still carries
+     * its full incoming ratio and is reduced to the same share here instead (issue #196).
+     */
+    static double effectiveRatio(Document trustPath) {
+        double ratio = trustPath.getDouble("ratio");
+        return "primary".equals(trustPath.getString("type")) ? ratio : ratio * SELF_SHARE;
+    }
+
     // TODO Move these to setting:
     private static final int MAX_TRUST_PATH_DEPTH = 10;
     private static final double MIN_TRUST_PATH_RATIO = 0.0000000001;
     //private static final double MIN_TRUST_PATH_RATIO = 0.01; // For testing
+    /**
+     * The share of a trust path's ratio that stays with the account the path ends at. When a path
+     * is expanded, the remaining {@code 1 - SELF_SHARE} is distributed among the endorsed accounts.
+     */
+    static final double SELF_SHARE = 0.1;
     private static final int GLOBAL_QUOTA = Integer.parseInt(
             Utils.getEnv("REGISTRY_GLOBAL_QUOTA", "1000000000"));
     private static final int MIN_USER_QUOTA = Integer.parseInt(

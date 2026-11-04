@@ -314,6 +314,12 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       stored `primary` ratio can therefore legitimately be up to 10x below
       `MIN_TRUST_PATH_RATIO` without indicating a gate leak; the threshold is enforced on
       the pre-retention extended value.
+      Note on scoring: `CALCULATE_TRUST_SCORES` sums, per account, the ratios of all paths
+      ending there. A `primary` path counts at its stored (already retained) ratio. An
+      `extended` path is never expanded, so its stored ratio is the full incoming value; it
+      is multiplied by the same self share (10%) at scoring time, so that every path counts
+      the share that stays with the account (issue #196). The path count orders paths by this
+      effective ratio.
     peerState:
       { id#:'https://example.com/peer/', setupId:1332309348, seqNum:42000, loadCounter:42000, lastChecked:1710672000000 }
       ...
