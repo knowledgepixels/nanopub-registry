@@ -5,7 +5,10 @@ import com.knowledgepixels.registry.RegistryDB;
 import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
+import net.trustyuri.TrustyUriUtils;
 import org.bson.Document;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.nanopub.NanopubUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,13 +16,20 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Covers the startup repair that removes nanopubs an earlier version stored under an artifact
- * code that cannot be the hash of any content.
+ * Covers the startup repairs: the removal of nanopubs an earlier version stored under an artifact
+ * code that cannot be the hash of any content, and the recomputation of list checksum chains that
+ * concurrent appends had corrupted (issue #205).
  */
 @Testcontainers
 class DataRepairTest {
@@ -170,6 +180,126 @@ class DataRepairTest {
         DataRepair.runIfNeeded(session);
 
         assertNotNull(nanopubDoc(MALFORMED_AC), "a freshly initialized database must not be scanned");
+    }
+
+    // --- checksum chains -----------------------------------------------------
+
+    /**
+     * Turns a label into a well-formed (but made-up) Trusty artifact code. The codes are hashes
+     * of the label, so that XORs of different combinations of them do not collide on the unique
+     * checksum index, as codes that differ in a single character would.
+     */
+    private static String artifactCode(String seed) {
+        try {
+            return "RA" + TrustyUriUtils.getBase64(MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String chain(String artifactCode, String previousChecksum) {
+        return NanopubUtils.updateXorChecksum(
+                SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/" + artifactCode), previousChecksum);
+    }
+
+    private void seedListEntry(String pubkeyHash, long position, String artifactCode, String checksum) {
+        RegistryDB.insert(session, "listEntries", new Document("pubkey", pubkeyHash).append("type", "$")
+                .append("position", position).append("np", artifactCode).append("checksum", checksum).append("invalidated", false));
+    }
+
+    private List<Document> entriesOf(String pubkeyHash) {
+        return RegistryDB.collection("listEntries").find(session, new Document("pubkey", pubkeyHash).append("type", "$"))
+                .sort(new Document("position", 1)).into(new ArrayList<>());
+    }
+
+    private static void assertSequentialChain(List<Document> entries) {
+        String expected = NanopubUtils.INIT_CHECKSUM;
+        for (Document entry : entries) {
+            expected = chain(entry.getString("np"), expected);
+            assertEquals(expected, entry.getString("checksum"), "entry at position " + entry.getLong("position"));
+        }
+    }
+
+    /**
+     * The damage of issue #205: entries chained off a stale entry instead of their predecessor,
+     * here positions 2 and 3 both off position 0, with everything after built on those values.
+     */
+    @Test
+    void rewritesAChecksumChainBrokenByConcurrentAppends() {
+        String pubkeyHash = "brokenChainPubkey";
+        RegistryDB.insert(session, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 5L));
+        String c0 = chain(artifactCode("np0"), NanopubUtils.INIT_CHECKSUM);
+        String c1 = chain(artifactCode("np1"), c0);
+        String c2 = chain(artifactCode("np2"), c0); // stale
+        String c3 = chain(artifactCode("np3"), c0); // stale
+        String c4 = chain(artifactCode("np4"), c3);
+        String c5 = chain(artifactCode("np5"), c4);
+        seedListEntry(pubkeyHash, 0L, artifactCode("np0"), c0);
+        seedListEntry(pubkeyHash, 1L, artifactCode("np1"), c1);
+        seedListEntry(pubkeyHash, 2L, artifactCode("np2"), c2);
+        seedListEntry(pubkeyHash, 3L, artifactCode("np3"), c3);
+        seedListEntry(pubkeyHash, 4L, artifactCode("np4"), c4);
+        seedListEntry(pubkeyHash, 5L, artifactCode("np5"), c5);
+
+        DataRepair.runIfNeeded(session);
+
+        List<Document> entries = entriesOf(pubkeyHash);
+        assertEquals(6, entries.size());
+        assertSequentialChain(entries);
+        assertEquals(c0, entries.get(0).getString("checksum"), "a correct prefix is left as it is");
+        assertEquals(c1, entries.get(1).getString("checksum"));
+        for (int i = 0; i < 6; i++) {
+            assertEquals(i, entries.get(i).getLong("position"), "positions are never changed");
+            assertEquals(artifactCode("np" + i), entries.get(i).getString("np"));
+        }
+        assertEquals(DataRepair.CURRENT_REPAIR_VERSION, DataRepair.getRepairVersion(session));
+    }
+
+    @Test
+    void chainsOverAGapInThePositions() {
+        String pubkeyHash = "gappyPubkey";
+        RegistryDB.insert(session, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 3L));
+        String c0 = chain(artifactCode("np0"), NanopubUtils.INIT_CHECKSUM);
+        seedListEntry(pubkeyHash, 0L, artifactCode("np0"), c0);
+        seedListEntry(pubkeyHash, 1L, artifactCode("np1"), chain(artifactCode("np1"), c0));
+        // Position 2 is missing; position 3 was chained off position 0.
+        seedListEntry(pubkeyHash, 3L, artifactCode("np3"), chain(artifactCode("np3"), c0));
+
+        DataRepair.runIfNeeded(session);
+
+        List<Document> entries = entriesOf(pubkeyHash);
+        assertEquals(List.of(0L, 1L, 3L), entries.stream().map(e -> e.getLong("position")).toList());
+        assertSequentialChain(entries);
+    }
+
+    @Test
+    void leavesAListWithAnUndecodableArtifactCodeAlone() {
+        String pubkeyHash = "undecodablePubkey";
+        RegistryDB.insert(session, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 1L));
+        seedListEntry(pubkeyHash, 0L, MALFORMED_AC, chain(artifactCode("whatever"), NanopubUtils.INIT_CHECKSUM));
+        String wrong = chain(artifactCode("np1"), NanopubUtils.INIT_CHECKSUM);
+        seedListEntry(pubkeyHash, 1L, artifactCode("np1"), wrong);
+
+        // Must not throw: the chain cannot be computed through an entry that cannot be decoded,
+        // so the list is reported and left for manual repair.
+        DataRepair.runIfNeeded(session);
+
+        assertEquals(wrong, entriesOf(pubkeyHash).get(1).getString("checksum"));
+        assertEquals(DataRepair.CURRENT_REPAIR_VERSION, DataRepair.getRepairVersion(session),
+                "one unrepairable list does not keep the repair from being marked as done");
+    }
+
+    @Test
+    void doesNotRecomputeChainsOnceTheRepairHasRun() {
+        DataRepair.runIfNeeded(session);
+
+        String pubkeyHash = "lateBrokenPubkey";
+        RegistryDB.insert(session, "lists", new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 0L));
+        String wrong = chain(artifactCode("other"), NanopubUtils.INIT_CHECKSUM);
+        seedListEntry(pubkeyHash, 0L, artifactCode("np0"), wrong);
+        DataRepair.runIfNeeded(session);
+
+        assertEquals(wrong, entriesOf(pubkeyHash).get(0).getString("checksum"));
     }
 
 }

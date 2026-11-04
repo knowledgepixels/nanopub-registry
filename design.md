@@ -22,6 +22,7 @@ Identifier lists:
 - Each list covers just one pubkey, and can cover either one specific type (e.g. BiodivNanopubs) or all types
 - To efficiently synchronize them, these lists keep at each position a checksum of the set of contained identifiers up to that point, which can be used to identify identical sets even when list ordering is different
 - Each lists provides index-based lookup on positions (get n-th position in list), identifier (get position of RA... in list), and checksum (get position with checksum XX...)
+- Entries are appended by reading the entry with the highest position and inserting at the next one; the unique index on the position arbitrates between concurrent writers, so every checksum is computed from its direct predecessor and the last checksum of a list is the checksum of its whole set (`lists.maxPosition` is a derived counter for displaying list sizes, raised after each insert)
 
 Invalidations (retractions, new versions):
 
@@ -261,7 +262,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       { hash*:a83, value*:4e8d9x... }
       ...
     lists:
-      { pubkey**:a83, type**:_all_, status^:loading }
+      { pubkey**:a83, type**:_all_, status^:loading, maxPosition:1423 }
       ...
     listEntries:
       { pubkey**:a83, type**:_all_, position**:0, np**:RA..., checksum**:XX... }
