@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -856,16 +857,7 @@ class RegistryDBLoadNanopubTest {
             assertNull(listEntry(pubkeyHash, "$", SIMPLE1_AC));
         }
 
-        /**
-         * The scenario of issue #205: many writers appending to the same list at once, as the
-         * parallel loader does for every nanopub of a pubkey. The chain has to come out
-         * sequential regardless of the order the writers happen to win in.
-         */
-        @Test
-        void concurrentWritersProduceOneSequentialChain() throws Exception {
-            String pubkey = "concurrency-test-key";
-            String pubkeyHash = Utils.getHash(pubkey);
-            int count = 48;
+        private static List<Nanopub> trustyNanopubs(int count) throws Exception {
             List<Nanopub> nanopubs = new java.util.ArrayList<>();
             for (int i = 0; i < count; i++) {
                 NanopubCreator creator = new NanopubCreator("http://example.org/chain-test/" + i + "/");
@@ -874,6 +866,98 @@ class RegistryDBLoadNanopubTest {
                 creator.addPubinfoStatement(iri("http://purl.org/dc/terms/description"), SimpleValueFactory.getInstance().createLiteral("chain test " + i));
                 nanopubs.add(creator.finalizeTrustyNanopub());
             }
+            return nanopubs;
+        }
+
+        /**
+         * What a load from a peer looks like: the parallel loader verifies and stores on several
+         * workers, but the list must come out in the order the peer served the nanopubs, so
+         * that the two registries' checksums agree at every position.
+         */
+        @Test
+        void aParallelLoadKeepsTheStreamOrderOnTheList() throws Exception {
+            String pubkey = "stream-order-test-key";
+            String pubkeyHash = Utils.getHash(pubkey);
+            // More than one batch of appends, so that the order holds across flushes as well.
+            List<Nanopub> nanopubs = trustyNanopubs(2 * ListAppendBatch.FLUSH_SIZE + 50);
+
+            NanopubLoader.loadStreamInParallel(nanopubs.stream().map(org.nanopub.jelly.MaybeNanopub::new), nanopub -> {
+                try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
+                    assertTrue(RegistryDB.loadNanopubVerified(workerSession, nanopub, pubkey, pubkeyHash, "$"));
+                }
+            });
+
+            List<Document> entries = RegistryDB.collection("listEntries")
+                    .find(session, new Document("pubkey", pubkeyHash).append("type", "$"))
+                    .sort(new Document("position", 1)).into(new java.util.ArrayList<>());
+            List<String> expected = nanopubs.stream().map(np -> TrustyUriUtils.getArtifactCode(np.getUri().stringValue())).toList();
+            assertEquals(expected, entries.stream().map(e -> e.getString("np")).toList(), "the list follows the stream");
+            String checksum = NanopubUtils.INIT_CHECKSUM;
+            for (int i = 0; i < nanopubs.size(); i++) {
+                checksum = NanopubUtils.updateXorChecksum(nanopubs.get(i).getUri(), checksum);
+                assertEquals(i, entries.get(i).getLong("position"));
+                assertEquals(checksum, entries.get(i).getString("checksum"));
+            }
+        }
+
+        /**
+         * In a parallel load the entries of a nanopub may still be waiting in the batch when a
+         * later nanopub of the stream invalidates it. The invalidation has to reach those
+         * entries, and the invalidating nanopub has to land on the invalidated one's lists.
+         */
+        @Test
+        void aParallelLoadAppliesInvalidationsToPendingEntries() throws Exception {
+            String pubkey = "pending-invalidation-key";
+            String pubkeyHash = Utils.getHash(pubkey);
+            IRI typeOfInvalidated = iri("http://example.org/OnlyTheInvalidatedHasThisType");
+
+            NanopubCreator invalidatedCreator = new NanopubCreator("http://example.org/invalidated/");
+            invalidatedCreator.addAssertionStatement(iri("http://example.org/thing"), RDF.TYPE, iri("http://example.org/Thing"));
+            invalidatedCreator.addProvenanceStatement(iri("http://www.w3.org/ns/prov#wasAttributedTo"), iri("http://example.org/someone"));
+            invalidatedCreator.addPubinfoStatement(RDF.TYPE, typeOfInvalidated);
+            Nanopub invalidated = invalidatedCreator.finalizeTrustyNanopub();
+
+            NanopubCreator invalidatingCreator = new NanopubCreator("http://example.org/invalidating/");
+            invalidatingCreator.addAssertionStatement(iri("http://example.org/thing"), RDF.TYPE, iri("http://example.org/OtherThing"));
+            invalidatingCreator.addProvenanceStatement(iri("http://www.w3.org/ns/prov#wasAttributedTo"), iri("http://example.org/someone"));
+            invalidatingCreator.addPubinfoStatement(org.nanopub.vocabulary.NPX.SUPERSEDES, invalidated.getUri());
+            Nanopub invalidating = invalidatingCreator.finalizeTrustyNanopub();
+            String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidated.getUri().stringValue());
+            String invalidatingAc = TrustyUriUtils.getArtifactCode(invalidating.getUri().stringValue());
+
+            NanopubLoader.loadStreamInParallel(Stream.of(invalidated, invalidating).map(org.nanopub.jelly.MaybeNanopub::new), nanopub -> {
+                try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
+                    assertTrue(RegistryDB.loadNanopubVerified(workerSession, nanopub, pubkey, pubkeyHash, "$"));
+                }
+            });
+
+            String typeHash = Utils.getHash(typeOfInvalidated.stringValue());
+            Document invalidatedOnDollar = listEntry(pubkeyHash, "$", invalidatedAc);
+            Document invalidatedOnType = listEntry(pubkeyHash, typeHash, invalidatedAc);
+            assertNotNull(invalidatedOnDollar);
+            assertNotNull(invalidatedOnType);
+            assertTrue(invalidatedOnDollar.getBoolean("invalidated"), "the invalidation reaches an entry that was still pending");
+            assertTrue(invalidatedOnType.getBoolean("invalidated"));
+            Document invalidatingOnType = listEntry(pubkeyHash, typeHash, invalidatingAc);
+            assertNotNull(invalidatingOnType, "the invalidating nanopub joins the lists of the invalidated one");
+            assertFalse(invalidatingOnType.getBoolean("invalidated"));
+            assertEquals(0L, invalidatedOnType.getLong("position"));
+            assertEquals(1L, invalidatingOnType.getLong("position"));
+            assertEquals(NanopubUtils.updateXorChecksum(invalidating.getUri(), invalidatedOnType.getString("checksum")),
+                    invalidatingOnType.getString("checksum"));
+        }
+
+        /**
+         * The scenario of issue #205: many writers appending to the same list at once, without
+         * the loader's ordering. The chain has to come out sequential regardless of the order
+         * the writers happen to win in.
+         */
+        @Test
+        void concurrentWritersProduceOneSequentialChain() throws Exception {
+            String pubkey = "concurrency-test-key";
+            String pubkeyHash = Utils.getHash(pubkey);
+            int count = 48;
+            List<Nanopub> nanopubs = trustyNanopubs(count);
 
             ExecutorService executor = Executors.newFixedThreadPool(8);
             try {

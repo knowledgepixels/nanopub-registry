@@ -23,6 +23,7 @@ Identifier lists:
 - To efficiently synchronize them, these lists keep at each position a checksum of the set of contained identifiers up to that point, which can be used to identify identical sets even when list ordering is different
 - Each lists provides index-based lookup on positions (get n-th position in list), identifier (get position of RA... in list), and checksum (get position with checksum XX...)
 - Entries are appended by reading the entry with the highest position and inserting at the next one; the unique index on the position arbitrates between concurrent writers, so every checksum is computed from its direct predecessor and the last checksum of a list is the checksum of its whole set (`lists.maxPosition` is a derived counter for displaying list sizes, raised after each insert)
+- When loading from a peer, nanopubs are verified and stored in parallel but appended to the lists in the order the peer serves them, so that lists loaded from one another keep the same order and the checksums at the fallback positions used for skip-ahead can match, not only the final one. The ordered appends are computed in memory off each list's tail and written in batches of 100, in order, so a crash can shorten a chain but not punch a hole into it; if another writer appended to a list meanwhile, the affected entries are placed one by one off the actual end of the list
 
 Invalidations (retractions, new versions):
 

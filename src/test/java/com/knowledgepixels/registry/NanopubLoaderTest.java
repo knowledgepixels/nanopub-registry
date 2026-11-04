@@ -247,6 +247,29 @@ class NanopubLoaderTest {
     }
 
     @Test
+    void loadStreamInParallelAppendsInStreamOrder() {
+        List<MaybeNanopub> stream = new java.util.ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            stream.add(new MaybeNanopub(nanopub("http://example.org/np" + i)));
+        }
+        List<String> appended = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        NanopubLoader.loadStreamInParallel(stream.stream(), np -> {
+            // Whatever the workers do before the appends takes a different time for each nanopub.
+            try {
+                Thread.sleep(java.util.concurrent.ThreadLocalRandom.current().nextInt(3));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            AppendOrder.awaitTurn();
+            appended.add(np.getUri().stringValue());
+        });
+
+        List<String> expected = stream.stream().map(m -> m.getNanopub().getUri().stringValue()).toList();
+        assertEquals(expected, appended, "the appends happen in the order of the stream");
+    }
+
+    @Test
     void loadStreamInParallelHandlesAnEmptyStream() {
         ConcurrentLinkedQueue<Nanopub> processed = new ConcurrentLinkedQueue<>();
 

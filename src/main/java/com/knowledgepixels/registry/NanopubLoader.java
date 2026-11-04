@@ -136,6 +136,10 @@ public class NanopubLoader {
      * Processes a stream of nanopubs in parallel using a thread pool.
      * Each worker thread uses its own MongoDB ClientSession.
      * Backpressure is applied via a semaphore to avoid unbounded memory growth.
+     * <p>
+     * The list appends of the processed nanopubs happen in stream order: each nanopub gets a
+     * ticket, and {@code RegistryDB} waits for that ticket's turn before appending to the lists
+     * (see {@link AppendOrder}). Verification and storage of the nanopub itself run in parallel.
      *
      * @param stream    the nanopub stream to process
      * @param processor consumer that processes each nanopub (called with its own ClientSession)
@@ -158,6 +162,7 @@ public class NanopubLoader {
         AtomicReference<Exception> error;
         try (ExecutorService executor = Executors.newFixedThreadPool(LOAD_PARALLELISM)) {
             Semaphore semaphore = new Semaphore(LOAD_PARALLELISM * 2);
+            AppendOrder order = new AppendOrder();
             error = new AtomicReference<>();
 
             try {
@@ -179,7 +184,10 @@ public class NanopubLoader {
                         error.compareAndSet(null, e);
                         return;
                     }
-                    executor.submit(() -> {
+                    // Tickets are issued in stream order, and the executor starts the jobs in
+                    // submission order, so the lowest unfinished ticket is always running.
+                    long ticket = order.issue();
+                    executor.submit(() -> order.run(ticket, () -> {
                         try {
                             processor.accept(np);
                         } catch (Exception e) {
@@ -188,7 +196,7 @@ public class NanopubLoader {
                         } finally {
                             semaphore.release();
                         }
-                    });
+                    }));
                 });
             } finally {
                 executor.shutdown();
@@ -199,6 +207,14 @@ public class NanopubLoader {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.warn("Interrupted while waiting for worker pool to terminate", e);
+                }
+            }
+            if (order.batch().hasPending()) {
+                try (ClientSession s = RegistryDB.getClient().startSession()) {
+                    order.batch().flush(s);
+                } catch (Exception e) {
+                    logger.error("Failed to write the last list entries of the load: {}", e.getMessage(), e);
+                    error.compareAndSet(null, e);
                 }
             }
         }
