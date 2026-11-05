@@ -1,6 +1,8 @@
 package com.knowledgepixels.registry;
 
 import com.google.gson.Gson;
+import com.knowledgepixels.registry.store.MongoRegistryReader;
+import com.knowledgepixels.registry.store.RegistryReader;
 import com.mongodb.client.ClientSession;
 import org.bson.Document;
 import org.slf4j.Logger;
@@ -24,11 +26,15 @@ public class AgentInfo implements Serializable {
     private static final Gson gson = new Gson();
 
     public static AgentInfo get(ClientSession mongoSession, String agentId) {
+        return get(MongoRegistryReader.of(mongoSession), agentId);
+    }
+
+    public static AgentInfo get(RegistryReader reader, String agentId) {
         logger.debug("Looking up AgentInfo for agentId='{}'", agentId);
 
         AgentInfo agentInfo = new AgentInfo();
         agentInfo.agentId = agentId;
-        Document d = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
+        Document d = reader.getAgent(agentId);
         if (d == null) {
             logger.warn("No agent found in {} for agentId='{}'; AgentInfo will be incomplete", Collection.AGENTS, agentId);
         }

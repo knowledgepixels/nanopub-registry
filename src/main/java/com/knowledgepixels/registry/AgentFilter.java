@@ -1,5 +1,7 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.store.MongoRegistryReader;
+import com.knowledgepixels.registry.store.RegistryReader;
 import com.mongodb.client.ClientSession;
 import org.bson.Document;
 import org.slf4j.Logger;
@@ -10,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.knowledgepixels.registry.RegistryDB.collection;
 
 /**
  * Controls which pubkeys are allowed to publish nanopubs and what their quotas are.
@@ -129,6 +130,13 @@ public final class AgentFilter {
      * Returns -1 if the pubkey is not allowed.
      */
     public static int getQuota(ClientSession session, String pubkeyHash) {
+        return getQuota(MongoRegistryReader.of(session), pubkeyHash);
+    }
+
+    /**
+     * Same as {@link #getQuota(ClientSession, String)}, reading through a store reader.
+     */
+    public static int getQuota(RegistryReader reader, String pubkeyHash) {
         // Explicit pubkeys take precedence
         if (explicitPubkeys.containsKey(pubkeyHash)) {
             int quota = explicitPubkeys.get(pubkeyHash);
@@ -138,9 +146,7 @@ public final class AgentFilter {
 
         // Check trust network if enabled
         if (viaSetting) {
-            Document account = collection(Collection.ACCOUNTS.toString()).find(session,
-                    new Document("pubkey", pubkeyHash)
-                            .append("status", new Document("$in", QUOTA_BEARING_STATUSES))).first();
+            Document account = reader.quotaBearingAccount(pubkeyHash);
             if (account != null && account.get("quota") != null) {
                 int quota = account.getInteger("quota");
                 logger.trace("Pubkey {}: quota={} (account status={})", pubkeyHash, quota, account.getString("status"));
@@ -157,10 +163,14 @@ public final class AgentFilter {
      * Always returns true if quota enforcement is disabled.
      */
     public static boolean isAllowed(ClientSession session, String pubkeyHash) {
+        return isAllowed(MongoRegistryReader.of(session), pubkeyHash);
+    }
+
+    public static boolean isAllowed(RegistryReader reader, String pubkeyHash) {
         if (!enforceQuota) {
             return true;
         }
-        boolean allowed = getQuota(session, pubkeyHash) >= 0;
+        boolean allowed = getQuota(reader, pubkeyHash) >= 0;
         if (!allowed) {
             logger.debug("Pubkey {}: not allowed (no quota entry found)", pubkeyHash);
         }
@@ -172,16 +182,20 @@ public final class AgentFilter {
      * Always returns false if quota enforcement is disabled.
      */
     public static boolean isOverQuota(ClientSession session, String pubkeyHash) {
+        return isOverQuota(MongoRegistryReader.of(session), pubkeyHash);
+    }
+
+    public static boolean isOverQuota(RegistryReader reader, String pubkeyHash) {
         if (!enforceQuota) {
             return false;
         }
-        int quota = getQuota(session, pubkeyHash);
+        int quota = getQuota(reader, pubkeyHash);
         if (quota < 0) {
             logger.debug("Pubkey {}: treated as over quota (not allowed at all)", pubkeyHash);
             return true; // not allowed at all
         }
 
-        long currentCount = getPublishedCount(session, pubkeyHash);
+        long currentCount = getPublishedCount(reader, pubkeyHash);
 
         boolean over = currentCount >= quota;
         if (over) {
@@ -201,8 +215,11 @@ public final class AgentFilter {
      * @return the number of nanopubs held for this pubkey
      */
     public static long getPublishedCount(ClientSession session, String pubkeyHash) {
-        Document listDoc = collection("lists").find(session,
-                new Document("pubkey", pubkeyHash).append("type", "$")).first();
+        return getPublishedCount(MongoRegistryReader.of(session), pubkeyHash);
+    }
+
+    public static long getPublishedCount(RegistryReader reader, String pubkeyHash) {
+        Document listDoc = reader.getList(pubkeyHash, "$");
         return (listDoc != null && listDoc.get("maxPosition") != null)
                 ? listDoc.getLong("maxPosition") + 1 : 0;
     }

@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
-import com.mongodb.client.ClientSession;
+import com.knowledgepixels.registry.store.RegistryReader;
+import com.knowledgepixels.registry.store.RegistryStores;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -10,8 +11,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.knowledgepixels.registry.RegistryDB.*;
 
 public final class MetricsCollector {
 
@@ -44,20 +43,19 @@ public final class MetricsCollector {
     }
 
     public void updateMetrics() {
-        try (final var session = RegistryDB.getClient().startSession()) {
+        try (final RegistryReader reader = RegistryStores.get().reader()) {
             // Update numeric metrics
-            extractMaximalIntegerValueFromField(session, Collection.NANOPUBS.toString(), "counter")
-                    .ifPresent(loadCounter::set);
-            nanopubCount.set((int) collection(Collection.NANOPUBS.toString()).estimatedDocumentCount());
+            Optional.ofNullable(reader.maxCounter()).map(Long::intValue).ifPresent(loadCounter::set);
+            nanopubCount.set((int) reader.nanopubCount());
 
-            extractIntegerValueFromField(session, Collection.SERVER_INFO.toString(), "trustStateCounter")
+            extractIntegerValueFromField(reader, "trustStateCounter")
                     .ifPresent(trustStateCounter::set);
 
-            agentCount.set(countDocumentsInCollection(session, Collection.AGENTS.toString()));
-            accountCount.set(countDocumentsInCollection(session, Collection.ACCOUNTS.toString()));
+            agentCount.set((int) reader.agentCount());
+            accountCount.set((int) reader.accountCount());
 
             // Update status gauge
-            final var currentStatus = extractStringValueFromField(session, Collection.SERVER_INFO.toString(), "status")
+            final var currentStatus = extractStringValueFromField(reader, "status")
                     .map(ServerStatus::valueOf)
                     .orElse(null);
             for (final var status : ServerStatus.values()) {
@@ -68,43 +66,19 @@ public final class MetricsCollector {
         }
     }
 
-    private Optional<Integer> extractMaximalIntegerValueFromField(
-            ClientSession session,
-            String collectionName,
-            String fieldName
-    ) {
+    private Optional<Integer> extractIntegerValueFromField(RegistryReader reader, String fieldName) {
         return Optional
-                .ofNullable(getMaxValue(session, collectionName, fieldName))
+                .ofNullable(reader.serverInfoValue(fieldName))
                 .filter(Number.class::isInstance)
                 .map(Number.class::cast)
                 .map(Number::intValue);
     }
 
-    private Optional<Integer> extractIntegerValueFromField(
-            ClientSession session,
-            String collectionName,
-            String fieldName
-    ) {
+    private Optional<String> extractStringValueFromField(RegistryReader reader, String fieldName) {
         return Optional
-                .ofNullable(getValue(session, collectionName, fieldName))
-                .filter(Number.class::isInstance)
-                .map(Number.class::cast)
-                .map(Number::intValue);
-    }
-
-    private Optional<String> extractStringValueFromField(
-            ClientSession session,
-            String collectionName,
-            String fieldName
-    ) {
-        return Optional
-                .ofNullable(getValue(session, collectionName, fieldName))
+                .ofNullable(reader.serverInfoValue(fieldName))
                 .filter(String.class::isInstance)
                 .map(String.class::cast);
-    }
-
-    private int countDocumentsInCollection(ClientSession session, String collectionName) {
-        return (int) collection(collectionName).countDocuments(session);
     }
 
 }

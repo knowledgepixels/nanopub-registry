@@ -1,7 +1,7 @@
 package com.knowledgepixels.registry;
 
-import com.mongodb.client.ClientSession;
-import com.mongodb.client.MongoCursor;
+import com.knowledgepixels.registry.store.RegistryReader;
+import com.knowledgepixels.registry.store.RegistryStores;
 import io.vertx.ext.web.RoutingContext;
 import net.trustyuri.TrustyUriUtils;
 import org.bson.Document;
@@ -9,13 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 
-import static com.knowledgepixels.registry.RegistryDB.collection;
 import static com.knowledgepixels.registry.Utils.TYPE_HTML;
 import static com.knowledgepixels.registry.Utils.TYPE_JSON;
-import static com.mongodb.client.model.Projections.exclude;
-import static com.mongodb.client.model.Sorts.descending;
 
 /**
  * Serves hash-keyed trust state snapshots.
@@ -39,9 +37,8 @@ public class TrustStatePage extends Page {
     public static void show(RoutingContext context) {
         TrustStatePage page;
         logger.info("Received trust-state request: {}", context.request().path());
-        try (ClientSession s = RegistryDB.getClient().startSession()) {
-            s.startTransaction();
-            page = new TrustStatePage(s, context);
+        try (RegistryReader r = RegistryStores.get().snapshotReader()) {
+            page = new TrustStatePage(r, context);
             page.show();
         } catch (IOException ex) {
             logger.warn("Failed to show trust-state for request {}: {} ({})", context.request().path(), ex.getMessage(), ex.getClass().getSimpleName(), ex);
@@ -51,8 +48,8 @@ public class TrustStatePage extends Page {
         }
     }
 
-    private TrustStatePage(ClientSession mongoSession, RoutingContext context) {
-        super(mongoSession, context);
+    private TrustStatePage(RegistryReader reader, RoutingContext context) {
+        super(reader, context);
     }
 
     protected void show() throws IOException {
@@ -97,59 +94,53 @@ public class TrustStatePage extends Page {
         int listed = 0;
         logger.debug("Querying trust-state snapshots collection (format={})", format);
         // Metadata only — the accounts and edges arrays are heavy and not needed in the index.
-        try (MongoCursor<Document> it = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
-                .find(mongoSession)
-                .projection(exclude("accounts", "edges"))
-                .sort(descending("trustStateCounter"))
-                .cursor()) {
-            if (TYPE_JSON.equals(format)) {
-                println("[");
-                while (it.hasNext()) {
-                    Document d = it.next();
-                    Document out = new Document()
-                            .append("trustStateHash", d.getString("_id"))
-                            .append("trustStateCounter", d.get("trustStateCounter"))
-                            .append("createdAt", d.get("createdAt"));
-                    print(out.toJson());
-                    println(it.hasNext() ? "," : "");
-                    listed++;
-                }
-                println("]");
-                logger.info("Listed {} trust-state snapshots (format=json) for {}", listed, getFullRequest());
-            } else {
-                printHtmlHeader("Trust State History - Nanopub Registry");
-                println("<h1>Trust State History</h1>");
-                println("<p><a href=\"/\">&lt; Home</a></p>");
-                println("<h3>Formats</h3>");
-                println("<p>");
-                println("<a href=\"trust-state.json\">.json</a> |");
-                println("<a href=\"trust-state.json.txt\">.json.txt</a>");
-                println("</p>");
-                println("<h3>Past Trust States</h3>");
-                println("<ol>");
-                while (it.hasNext()) {
-                    Document d = it.next();
-                    String hash = d.getString("_id");
-                    println("<li>");
-                    println("<a href=\"/trust-state/" + hash + "\"><code>" + getLabel(hash) + "</code></a>");
-                    print(", counter " + d.get("trustStateCounter"));
-                    Object createdAt = d.get("createdAt");
-                    if (createdAt != null) {
-                        print(", " + createdAt.toString().replaceFirst("\\.[^.]*$", ""));
-                    }
-                    println("</li>");
-                }
-                println("</ol>");
-                printHtmlFooter();
-                logger.info("Listed {} trust-state snapshots (format=html) for {}", listed, getFullRequest());
+        Iterator<Document> it = reader.trustStateSnapshots().iterator();
+        if (TYPE_JSON.equals(format)) {
+            println("[");
+            while (it.hasNext()) {
+                Document d = it.next();
+                Document out = new Document()
+                        .append("trustStateHash", d.getString("_id"))
+                        .append("trustStateCounter", d.get("trustStateCounter"))
+                        .append("createdAt", d.get("createdAt"));
+                print(out.toJson());
+                println(it.hasNext() ? "," : "");
+                listed++;
             }
+            println("]");
+            logger.info("Listed {} trust-state snapshots (format=json) for {}", listed, getFullRequest());
+        } else {
+            printHtmlHeader("Trust State History - Nanopub Registry");
+            println("<h1>Trust State History</h1>");
+            println("<p><a href=\"/\">&lt; Home</a></p>");
+            println("<h3>Formats</h3>");
+            println("<p>");
+            println("<a href=\"trust-state.json\">.json</a> |");
+            println("<a href=\"trust-state.json.txt\">.json.txt</a>");
+            println("</p>");
+            println("<h3>Past Trust States</h3>");
+            println("<ol>");
+            while (it.hasNext()) {
+                Document d = it.next();
+                String hash = d.getString("_id");
+                println("<li>");
+                println("<a href=\"/trust-state/" + hash + "\"><code>" + getLabel(hash) + "</code></a>");
+                print(", counter " + d.get("trustStateCounter"));
+                Object createdAt = d.get("createdAt");
+                if (createdAt != null) {
+                    print(", " + createdAt.toString().replaceFirst("\\.[^.]*$", ""));
+                }
+                println("</li>");
+            }
+            println("</ol>");
+            printHtmlFooter();
+            logger.info("Listed {} trust-state snapshots (format=html) for {}", listed, getFullRequest());
         }
     }
 
     private void showDetail(String hash, String format) {
         logger.debug("Looking up trust-state snapshot '{}'", hash);
-        Document snapshot = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
-                .find(mongoSession, new Document("_id", hash)).first();
+        Document snapshot = reader.trustStateSnapshot(hash);
         if (snapshot == null) {
             logger.warn("Trust state snapshot not found: {} (request={})", hash, getFullRequest());
             getContext().response().setStatusCode(404).setStatusMessage("Trust state snapshot not found");

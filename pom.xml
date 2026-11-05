@@ -137,6 +137,30 @@
       <version>${rdf4j.version}</version>
     </dependency>
     <dependency>
+      <!-- the read-only mode's backend: SPARQL over HTTP to a sidecar serving a static registry file -->
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-sparql</artifactId>
+      <version>${rdf4j.version}</version>
+    </dependency>
+    <dependency>
+      <!-- rete serve answers SPARQL results as JSON; RDF4J needs this parser to read them -->
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-queryresultio-sparqljson</artifactId>
+      <version>${rdf4j.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-sail</artifactId>
+      <version>${rdf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-sail-memory</artifactId>
+      <version>${rdf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-driver-sync</artifactId>
       <version>${mongodb-driver.version}</version>

@@ -63,9 +63,7 @@ class AgentFilterQuotaTest {
     }
 
     private static void stubDollarList(PageMocks.Db db, Document result) {
-        MongoCollection<Document> lists = db.collection("lists");
-        FindIterable<Document> it = PageMocks.findIterable(result == null ? List.of() : List.of(result));
-        when(lists.find(eq(db.session), eq(new Document("pubkey", PUBKEY).append("type", "$")))).thenReturn(it);
+        db.stubGetOne("lists", new Document("pubkey", PUBKEY).append("type", "$"), result);
     }
 
     // --- getQuota ------------------------------------------------------------

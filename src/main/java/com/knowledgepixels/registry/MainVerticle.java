@@ -1,5 +1,8 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.store.MongoRegistryStore;
+import com.knowledgepixels.registry.store.RegistryStores;
+import com.knowledgepixels.registry.store.SparqlRegistryStore;
 import com.mongodb.client.ClientSession;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.vertx.core.AbstractVerticle;
@@ -89,6 +92,11 @@ public class MainVerticle extends AbstractVerticle {
             NanopubPage.show(c, true);
         });
         router.route(HttpMethod.GET, "/debug/*").handler(c -> {
+            if (ReadOnlyMode.isEnabled()) {
+                // nothing to debug: no tasks, no peers, no trust computation
+                c.response().setStatusCode(404).end();
+                return;
+            }
             logger.debug("Routing GET /debug/* -> DebugPage for {}", c.request().path());
             DebugPage.show(c);
         });
@@ -132,6 +140,10 @@ public class MainVerticle extends AbstractVerticle {
 
         Handler<RoutingContext> postHandler = c -> {
             logger.info("Received POST {}", c.request().path());
+            if (ReadOnlyMode.isEnabled()) {
+                respondReadOnly(c);
+                return;
+            }
             c.request().bodyHandler(bh -> {
                 String contentType = c.request().getHeader("Content-Type");
                 int bodySize = bh.length();
@@ -219,12 +231,20 @@ public class MainVerticle extends AbstractVerticle {
 
         // INIT
         vertx.executeBlocking(() -> {
-            logger.info("Starting DB initialization...");
             CoverageFilter.init();
             AgentFilter.init();
-            RegistryDB.init();
+            if (ReadOnlyMode.isEnabled()) {
+                // A static registry file behind a SPARQL endpoint: nothing to initialize, no
+                // tasks to run. Task is never referenced on this path, so it is not even loaded.
+                logger.info("Read-only mode: serving from {}", ReadOnlyMode.sparqlUrl());
+                RegistryStores.set(SparqlRegistryStore.forEndpoint(ReadOnlyMode.sparqlUrl()));
+            } else {
+                logger.info("Starting DB initialization...");
+                RegistryDB.init();
+                RegistryStores.set(new MongoRegistryStore());
 
-            new Thread(Task::runTasks).start();
+                new Thread(Task::runTasks).start();
+            }
 
             return null;
         }).onComplete(res -> logger.info("DB initialization finished"));
@@ -236,7 +256,7 @@ public class MainVerticle extends AbstractVerticle {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 logger.info("Gracefully shutting down...");
-                RegistryDB.getClient().close();
+                RegistryStores.get().close();
                 vertx.close().toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
                 logger.info("Graceful shutdown completed");
             } catch (Exception ex) {
@@ -246,6 +266,18 @@ public class MainVerticle extends AbstractVerticle {
 
         logger.info("Route registration completed");
 
+    }
+
+    /**
+     * Answers a POST on a read-only registry: {@code 405}, which a publishing client takes
+     * as "this registry does not publish, try the next one" (nanopub-java moves on to the
+     * next registry on 405), with the reason in the body.
+     */
+    static void respondReadOnly(RoutingContext c) {
+        c.response().setStatusCode(405)
+                .putHeader("Allow", "GET, HEAD")
+                .putHeader("Content-Type", "text/plain; charset=utf-8")
+                .end("This registry is read-only (a static snapshot) and does not accept nanopublications; publish to another registry.\n");
     }
 
     /**

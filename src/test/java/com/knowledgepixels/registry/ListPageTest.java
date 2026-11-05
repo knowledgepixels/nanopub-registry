@@ -376,6 +376,8 @@ class ListPageTest {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
             db.stubDistinct("lists", "pubkey", List.of("$", PUBKEY));
+            db.stubFindFiltered("lists", List.of(
+                    new Document("pubkey", PUBKEY).append("type", "$").append("maxPosition", 41L)));
 
             PageMocks.MockContext ctx = PageMocks.contextAccepting("/pubkeys", "text/html");
             ListPage.show(ctx.context);
@@ -383,6 +385,7 @@ class ListPageTest {
             String body = ctx.body();
             assertTrue(body.contains("<h1>Pubkey List</h1>"), "renders the pubkeys heading");
             assertTrue(body.contains("/list/" + PUBKEY), "real pubkeys are linked");
+            assertTrue(body.contains("(42 nanopubs)"), "the pubkey's nanopub count is shown");
             assertFalse(body.contains("/list/$"), "the synthetic $ pubkey is skipped");
         }
     }

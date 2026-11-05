@@ -245,6 +245,83 @@ REGISTRY_COVERAGE_TYPES=http://example.org/TypeA http://example.org/TypeB
 When unset, all types are covered (default, no behavioral change).
 
 
+## Read-only Mode
+
+With `REGISTRY_READ_ONLY_SPARQL_URL` set (e.g. `http://rete:7878/sparql`), the registry serves its read API from a
+static *registry file* through that SPARQL 1.1 endpoint instead of MongoDB (`ReadOnlyMode`, `SparqlRegistryStore`).
+MongoDB is not initialized, no task runs, `POST /` answers `405` and `/debug/*` answers `404`. Every page reads through
+the `RegistryReader` interface (`store/`), which has a MongoDB and a SPARQL implementation.
+
+### The registry file
+
+The file is built by `readonly.Build` from nanopub files and holds three kinds of graphs, in the `npa:` namespace
+(`http://purl.org/nanopub/admin/`, also used by Nanopub Query):
+
+- `npa:graph/registry` — all meta triples: nanopub records, lists, entries, batches, pubkeys, hashes, the one (empty)
+  trust state snapshot, `npa:serverInfo`, `npa:setting` and the `npa:registry` root (counts, batch size).
+- `npa:graph/blobs` — per nanopub, the TriG as the registry serves it (`npa:trig`) and the Jelly bytes
+  (`npa:jelly`, base64), so that serving content needs no re-serialization. Kept apart so a text index can skip it.
+- the nanopubs' own four graphs, verbatim (unless built with `--no-content-quads`), which is what makes the file a
+  SPARQL-queryable dataset in its own right.
+
+Node IRIs encode the keys, so every read is a constant-subject lookup:
+
+    npa:np/<artifactCode>                       npa:nanopub, npa:artifactCode, npa:counter, npa:pubkey, npa:invalidated
+    npa:pubkey/<pubkeyHash>                     npa:pubkey, npa:hasList, npa:hasAccount
+    npa:list/<pubkeyHash>/<typeHash>            npa:pubkey, npa:type, npa:maxPosition, npa:status, npa:batchCount
+    npa:entry/<pubkeyHash>/<typeHash>/<pos>     npa:list, npa:position, npa:np, npa:npId, npa:checksum
+    npa:trustState/<hash>, npa:hash/<sha256>
+
+The three range reads of the API — nanopubs after a counter (`/nanopubs.jelly?afterCounter=`), list entries after a
+position (`/list/.../$.jelly?afterChecksums=`) and the id listings — are served from fixed-size **batch nodes** instead
+of range filters: `npa:batch/counter/<k>` holds the records with counters `k*B+1 .. (k+1)*B`,
+`npa:batch/list/<pk>/<type>/<k>` the entries with positions `k*B .. k*B+B-1`, `npa:batch/id/<k>` the k-th block of
+artifact codes in ascending order; each carries `npa:index`, `npa:first`/`npa:last` (or `npa:firstId`/`npa:lastId`),
+`npa:member` links and `npa:next`. `B` (`npa:batchSize`, default 1000) is read from the root. The store computes the
+start batch from the cursor, fetches one batch at a time and sorts it in memory, so no query ever filters or orders
+the whole set.
+
+The builder places nanopubs on lists as `RegistryDB.loadNanopubOrReject` does: on the pubkey's `$` list and on one list
+per covered type, with the XOR checksum chain (`NanopubUtils.updateXorChecksum`) and counters in input order. An
+invalidating nanopub (retraction, new version) joins every list the invalidated nanopub is on, whichever of the two
+arrives first, and the invalidated nanopub is flagged; invalidations across pubkeys are ignored, as in MongoDB. (MongoDB
+has one latent divergence: when the invalidated nanopub arrives *after* its invalidator, `loadNanopubOrReject` re-adds
+the invalidator by its own types rather than by the invalidated nanopub's lists. The builder implements the documented
+rule in both orders.)
+
+### Trust state
+
+A read-only registry runs no trust computation, and so publishes none: `/list`, `/agents` and `/agent` are empty, the
+counts are 0, and there is one trust state snapshot with no accounts and no edges, whose hash is the SHA-256 of the
+empty string (what `RegistryDB.calculateTrustStateHash` yields for no trust paths). The snapshot exists so that a
+consumer following the `Nanopub-Registry-Trust-State-Hash` header finds what it points at. Publishing synthetic
+accounts instead would be wrong: Nanopub Query materializes every account of a snapshot as an account state with its
+status, and a `loaded` status means an approved agent, which an archive of nanopubs has no business asserting. The
+pubkeys (`/pubkeys`) and their lists are served as usual, since they describe the content, not trust. Consumers can
+tell a read-only registry by the `Nanopub-Registry-Read-Only: true` header and `isReadOnly` in `/.json`.
+
+### Measured on the full network (2026-11-03)
+
+All 102,500 nanopubs of registry.knowledgepixels.com, exported as one Jelly stream (252 MB) and built on a laptop:
+
+| | |
+|---|---|
+| Build (verification + N-Quads), one thread | 5m48s |
+| `rete build` (6.5 M quads, 410k named graphs) | 1m42s |
+| `registry.nq.gz` / `registry.rete` | 377 MB / 394 MB |
+| Resident memory, registry container / rete sidecar | 1.2 GB / 1.0 GB |
+| `/np/<ac>.trig`, `/list/<pk>/<type>.json`, `/.json` | 10 to 50 ms |
+| `/nanopubs.json` (all 102,500 ids) | 2.7 s |
+| Largest list (30,738 entries): `.json` / `.jelly` | 1.8 s / 5.8 s (36 MB) |
+| `/nanopubs.jelly`, all nanopubs | 26 s (252 MB; byte-identical to the source registry's stream) |
+| `Validate --sample 50` (all 245,307 list entries, 2,050 nanopubs' content) | 26 min, no problems |
+
+### Validation
+
+`readonly.Validate --sparql URL` checks a served file: every nanopub's TriG re-parses, verifies (artifact code,
+signature, pubkey hash) and agrees with its Jelly and content graphs; the counter and id chains are complete; every list
+is a contiguous chain of positions with a correct checksum chain and checksum lookups; the trust state is the empty one.
+
 ## Data Structure
 
 Field type legend: primary# / unique* / combined-unique** / indexed^ (all with prefix lookup)

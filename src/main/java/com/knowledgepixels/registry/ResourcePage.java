@@ -1,6 +1,7 @@
 package com.knowledgepixels.registry;
 
-import com.mongodb.client.ClientSession;
+import com.knowledgepixels.registry.store.RegistryReader;
+import com.knowledgepixels.registry.store.RegistryStores;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -16,9 +17,8 @@ public class ResourcePage extends Page {
 
     public static void show(RoutingContext context, String resourceName, String resourceType) {
         ResourcePage page;
-        try (ClientSession s = RegistryDB.getClient().startSession()) {
-            s.startTransaction();
-            page = new ResourcePage(s, context, resourceName, resourceType);
+        try (RegistryReader r = RegistryStores.get().snapshotReader()) {
+            page = new ResourcePage(r, context, resourceName, resourceType);
             page.show();
         } catch (IOException ex) {
             logger.warn("Failed to show resource {} (type={}): {} ({})", resourceName, resourceType, ex.getMessage(), ex.getClass().getSimpleName(), ex);
@@ -32,8 +32,8 @@ public class ResourcePage extends Page {
     private final String resourceName;
     private final String resourceType;
 
-    public ResourcePage(ClientSession mongoSession, RoutingContext context, String resourceName, String resourceType) {
-        super(mongoSession, context);
+    public ResourcePage(RegistryReader reader, RoutingContext context, String resourceName, String resourceType) {
+        super(reader, context);
         this.resourceName = resourceName;
         this.resourceType = resourceType;
     }
