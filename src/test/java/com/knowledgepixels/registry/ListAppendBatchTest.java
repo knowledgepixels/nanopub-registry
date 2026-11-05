@@ -177,4 +177,27 @@ class ListAppendBatchTest {
                 .first().getBoolean("invalidated"));
     }
 
+    @Test
+    void marksEntriesWhoseInvalidationWasRecordedWhileTheyWerePending() throws Exception {
+        ListAppendBatch batch = new ListAppendBatch();
+        String ac = artifactCode("np");
+        String untouched = artifactCode("untouched");
+        String invalidatedByAnotherPubkey = artifactCode("invalidatedByAnotherPubkey");
+        batch.append(session, PUBKEY_HASH, "$", uri(ac), ac);
+        batch.append(session, PUBKEY_HASH, "$", uri(untouched), untouched);
+        batch.append(session, PUBKEY_HASH, "$", uri(invalidatedByAnotherPubkey), invalidatedByAnotherPubkey);
+
+        // Another writer records invalidations meanwhile; it finds no entries to mark.
+        RegistryDB.insert(session, "invalidations", new Document("invalidatingNp", artifactCode("invalidating"))
+                .append("invalidatingPubkey", PUBKEY_HASH).append("invalidatedNp", ac));
+        RegistryDB.insert(session, "invalidations", new Document("invalidatingNp", artifactCode("alsoInvalidating"))
+                .append("invalidatingPubkey", "anotherPubkey").append("invalidatedNp", invalidatedByAnotherPubkey));
+        batch.flush(session);
+
+        List<Document> entries = entries();
+        assertTrue(entries.get(0).getBoolean("invalidated"), "the invalidation reaches the entry once it is written");
+        assertFalse(entries.get(1).getBoolean("invalidated"));
+        assertFalse(entries.get(2).getBoolean("invalidated"), "an invalidation only counts on the lists of the pubkey that made it");
+    }
+
 }

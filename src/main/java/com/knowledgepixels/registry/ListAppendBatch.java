@@ -40,8 +40,9 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
  * stream.
  * <p>
  * Until a batch is flushed, its entries are not visible to readers. The entries of a nanopub
- * that is invalidated meanwhile are marked here as well as in the database, and the lists a
- * pending nanopub is on are found here as well as in the database.
+ * that is invalidated meanwhile by a nanopub of the same load are marked here as well as in the
+ * database, and the lists a pending nanopub is on are found here as well as in the database. An
+ * invalidation that another writer records meanwhile is picked up when the batch is flushed.
  */
 final class ListAppendBatch {
 
@@ -174,6 +175,7 @@ final class ListAppendBatch {
             written = e.getWriteResult().getInsertedCount();
             logger.info("Batch insert of {} list entries stopped after {} because another writer got there first; appending the rest one by one", docs.size(), written);
         }
+        List<Pending> flushed = new ArrayList<>(pending);
         List<Pending> rest = new ArrayList<>(pending.subList(written, pending.size()));
         raiseCounters(mongoSession, pending.subList(0, written));
         pending.clear();
@@ -185,7 +187,44 @@ final class ListAppendBatch {
                 RegistryDB.appendDirectly(mongoSession, p.uri, p.artifactCode, p.pubkeyHash, p.typeHash, p.invalidated);
             }
         }
+        applyInvalidationsRecordedMeanwhile(mongoSession, flushed);
         logger.debug("Flushed {} list entries ({} in a batch, {} one by one)", docs.size(), written, rest.size());
+    }
+
+    /**
+     * Marks the entries just written whose nanopub was invalidated while they were pending.
+     * <p>
+     * A writer outside this load, such as the POST handler, records the invalidation and marks
+     * the entries it finds in the database. It cannot see the entries waiting here, and the
+     * nanopub they belong to looked for invalidation records before that one existed. So the
+     * records are looked up once more now that the entries are in the database: an
+     * invalidation recorded before this point is found here, and one recorded after it finds
+     * the entries itself.
+     */
+    private static void applyInvalidationsRecordedMeanwhile(ClientSession mongoSession, List<Pending> flushed) {
+        Map<String, Set<String>> pubkeysByNanopub = new HashMap<>();
+        for (Pending p : flushed) {
+            if (!p.invalidated) {
+                pubkeysByNanopub.computeIfAbsent(p.artifactCode, k -> new HashSet<>()).add(p.pubkeyHash);
+            }
+        }
+        if (pubkeysByNanopub.isEmpty()) {
+            return;
+        }
+        List<Document> records = collection("invalidations")
+                .find(mongoSession, new Document("invalidatedNp", new Document("$in", new ArrayList<>(pubkeysByNanopub.keySet()))))
+                .into(new ArrayList<>());
+        Set<String> marked = new HashSet<>();
+        for (Document record : records) {
+            String artifactCode = record.getString("invalidatedNp");
+            String pubkeyHash = record.getString("invalidatingPubkey");
+            // An invalidation only counts on the lists of the pubkey that made it.
+            if (pubkeysByNanopub.get(artifactCode).contains(pubkeyHash) && marked.add(pubkeyHash + "|" + artifactCode)) {
+                collection("listEntries").updateMany(mongoSession, new Document("np", artifactCode).append("pubkey", pubkeyHash),
+                        new Document("$set", new Document("invalidated", true)));
+                logger.debug("Marked the entries of nanopub {} as invalidated; the invalidation was recorded while they were pending", artifactCode);
+            }
+        }
     }
 
     private static void raiseCounters(ClientSession mongoSession, List<Pending> written) {

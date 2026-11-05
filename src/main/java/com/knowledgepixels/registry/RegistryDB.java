@@ -41,6 +41,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -639,74 +640,185 @@ public class RegistryDB {
             }
         }
 
+        List<String> invalidatedAcs = new ArrayList<>();
+        for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
+            String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+            if (invalidatedAc == null) {
+                logger.warn("Nanopub {} references invalidated nanopub {} with an unresolvable artifact code; skipping", nanopub.getUri(), invalidatedId);
+                continue;  // This should never happen; checking here just to be sure
+            }
+            invalidatedAcs.add(invalidatedAc);
+        }
+
+        // A nanopub that was stored before has usually been through all of what follows. What
+        // it is on record for is looked up here, before waiting for the turn below, where the
+        // workers of a parallel load run side by side. Only answers that cannot turn stale are
+        // taken from here: an entry is never taken off a list again, and an invalidation
+        // record is never removed.
+        Set<String> listedOn = new HashSet<>();
+        Set<String> recordedBefore = new HashSet<>();
+        Set<String> settledInvalidators = new HashSet<>();
+        boolean markedBefore = false;
+        if (!inserted) {
+            if (!ownTypeHashes.isEmpty() || !invalidatedAcs.isEmpty()) {
+                listedOn.addAll(listedTypes(mongoSession, ph, ac));
+            }
+            if (!invalidatedAcs.isEmpty()) {
+                for (Document record : collection("invalidations").find(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph))) {
+                    recordedBefore.add(record.getString("invalidatedNp"));
+                }
+                for (String invalidatedAc : invalidatedAcs) {
+                    if (recordedBefore.contains(invalidatedAc)) {
+                        // The record is in place, so marking again needs no particular moment.
+                        markInvalidated(mongoSession, ph, invalidatedAc);
+                    }
+                }
+            }
+            // The same for the invalidations of this nanopub: an invalidating nanopub that is
+            // on the lists of its types stays on them, and in a parallel load the entries of
+            // this nanopub can be marked right away, as the ones still to come wait in the
+            // batch and are marked there.
+            boolean inParallelLoad = AppendOrder.currentBatch() != null;
+            for (String invalidatingAc : invalidatorsOf(mongoSession, ph, ac)) {
+                if (inParallelLoad && !markedBefore) {
+                    markInvalidated(mongoSession, ph, ac);
+                    markedBefore = true;
+                }
+                if (isOnTheListsOfItsTypes(mongoSession, ph, invalidatingAc)) {
+                    settledInvalidators.add(invalidatingAc);
+                }
+            }
+        }
+
         // Everything from here on appends to lists. In a parallel load this waits for the
         // nanopub's turn, so that the lists keep the order of the stream (see AppendOrder), and
         // the appends go through the load's batch (see ListAppendBatch).
         AppendOrder.awaitTurn();
         ListAppendBatch batch = AppendOrder.currentBatch();
 
-        if (inserted) {
-            for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(nanopub)) {
-                String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
-                if (invalidatedAc == null) {
-                    logger.warn("Nanopub {} references invalidated nanopub {} with an unresolvable artifact code; skipping", nanopub.getUri(), invalidatedId);
-                    continue;  // This should never happen; checking here just to be sure
-                }
+        // The invalidations this nanopub makes are applied whether it was stored just now or
+        // before: a registry that stopped between storing a nanopub and applying them, or with
+        // entries still waiting in a batch, would otherwise never make up for it, as the
+        // nanopub counts as known from then on. Every step is safe to repeat.
+        for (String invalidatedAc : invalidatedAcs) {
+            boolean recorded = recordedBefore.contains(invalidatedAc);
+            if (!recorded) {
+                logger.debug("Nanopub {} invalidates {}; updating list entries and trust edges", nanopub.getUri(), invalidatedAc);
+                // Recorded before the entries are marked: whoever lists the invalidated nanopub
+                // from now on finds the record, and what is listed already is marked below.
+                // (Two writers loading this nanopub at the same moment can both insert; a
+                // doubled record is harmless.)
+                Document record = new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc);
+                collection("invalidations").updateOne(mongoSession, record, new Document("$setOnInsert", record), new UpdateOptions().upsert(true));
+            }
 
-                // Add this nanopub also to all lists of invalidated nanopubs:
-                logger.debug("Nanopub {} invalidates {}; updating list entries and trust edges", nanopub.getUri(), invalidatedId);
-                collection("invalidations").insertOne(mongoSession, new Document("invalidatingNp", ac).append("invalidatingPubkey", ph).append("invalidatedNp", invalidatedAc));
-                try (MongoCursor<Document> invalidatedEntries = collection("listEntries").find(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph)).cursor()) {
-                    while (invalidatedEntries.hasNext()) {
-                        Document invalidatedEntry = invalidatedEntries.next();
-                        addToList(mongoSession, nanopub, ph, invalidatedEntry.getString("type"), false);
-                    }
+            // Add this nanopub also to all lists of the invalidated nanopub:
+            List<String> typesOfInvalidated = new ArrayList<>(listedTypes(mongoSession, ph, invalidatedAc));
+            if (batch != null) {
+                typesOfInvalidated.addAll(batch.pendingTypesOf(ph, invalidatedAc));
+            }
+            for (String typeHash : typesOfInvalidated) {
+                if (listedOn.add(typeHash)) {
+                    addToList(mongoSession, nanopub, ph, typeHash, !inserted);
                 }
-                if (batch != null) {
-                    for (String typeHash : batch.pendingTypesOf(ph, invalidatedAc)) {
-                        addToList(mongoSession, nanopub, ph, typeHash, false);
-                    }
-                }
+            }
 
-                collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
-                if (batch != null) {
-                    batch.markInvalidated(ph, invalidatedAc);
-                }
-
-                collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
+            if (!recorded) {
+                markInvalidated(mongoSession, ph, invalidatedAc);
                 logger.debug("Marked invalidated entries and trust edges for invalidated artifact {}", invalidatedAc);
+            }
+            if (batch != null) {
+                batch.markInvalidated(ph, invalidatedAc);
             }
         }
 
         for (String typeHash : ownTypeHashes) {
-            // A nanopub stored just now cannot be on any list yet; one that was already stored may be.
-            addToList(mongoSession, nanopub, pubkeyHash, typeHash, !inserted);
+            // Skipping the lists this nanopub is known to be on, including the ones it was
+            // put on just above. On the others, only a nanopub that was stored before can be
+            // listed by now, so only that case asks the database again.
+            if (listedOn.add(typeHash)) {
+                addToList(mongoSession, nanopub, pubkeyHash, typeHash, !inserted);
+            }
         }
 
-        // Add the invalidating nanopubs also to the lists of this nanopub:
-        try (MongoCursor<Document> invalidations = collection("invalidations").find(mongoSession, new Document("invalidatedNp", ac).append("invalidatingPubkey", ph)).cursor()) {
-            if (invalidations.hasNext()) {
-                collection("listEntries").updateMany(mongoSession, new Document("np", ac).append("pubkey", ph), new Document("$set", new Document("invalidated", true)));
-                if (batch != null) {
-                    batch.markInvalidated(ph, ac);
-                }
-                collection("trustEdges").updateMany(mongoSession, new Document("source", ac), new Document("$set", new Document("invalidated", true)));
+        // Add the invalidating nanopubs also to the lists of this nanopub. The records are
+        // looked up again now that the entries of this nanopub are in place (or waiting in the
+        // batch), so that none that was written meanwhile is missed.
+        List<String> invalidators = invalidatorsOf(mongoSession, ph, ac);
+        if (!invalidators.isEmpty()) {
+            if (!markedBefore) {
+                markInvalidated(mongoSession, ph, ac);
                 logger.debug("Marked existing list entries and trust edges for nanopub {} as invalidated due to invalidations", ac);
             }
-            while (invalidations.hasNext()) {
-                String iac = invalidations.next().getString("invalidatingNp");
-                try {
-                    Document npDoc = collection(Collection.NANOPUBS.toString()).find(mongoSession, new Document("_id", iac)).projection(new Document("jelly", 1)).first();
-                    Nanopub inp = JellyUtils.readFromDB(npDoc.get("jelly", Binary.class).getData());
-                    for (IRI type : NanopubUtils.getTypes(inp)) {
-                        addToList(mongoSession, inp, ph, Utils.getTypeHash(mongoSession, type), true);
-                    }
-                } catch (RDF4JException | MalformedNanopubException ex) {
-                    logger.error("Failed to load invalidating nanopub {} for invalidation record; skipping", iac, ex);
+            if (batch != null) {
+                batch.markInvalidated(ph, ac);
+            }
+        }
+        for (String iac : invalidators) {
+            if (settledInvalidators.contains(iac)) {
+                continue;
+            }
+            try {
+                Document npDoc = collection(Collection.NANOPUBS.toString()).find(mongoSession, new Document("_id", iac)).projection(new Document("jelly", 1)).first();
+                Nanopub inp = JellyUtils.readFromDB(npDoc.get("jelly", Binary.class).getData());
+                for (IRI type : NanopubUtils.getTypes(inp)) {
+                    addToList(mongoSession, inp, ph, Utils.getTypeHash(mongoSession, type), true);
+                }
+            } catch (RDF4JException | MalformedNanopubException ex) {
+                logger.error("Failed to load invalidating nanopub {} for invalidation record; skipping", iac, ex);
+            }
+        }
+    }
+
+    /** The types of the lists of the given pubkey that a nanopub has an entry on. */
+    private static Set<String> listedTypes(ClientSession mongoSession, String pubkeyHash, String ac) {
+        Set<String> types = new LinkedHashSet<>();
+        for (Document entry : collection("listEntries").find(mongoSession, new Document("np", ac).append("pubkey", pubkeyHash)).projection(new Document("type", 1))) {
+            types.add(entry.getString("type"));
+        }
+        return types;
+    }
+
+    /** The nanopubs on record as invalidating the given nanopub for the given pubkey. */
+    private static List<String> invalidatorsOf(ClientSession mongoSession, String pubkeyHash, String ac) {
+        List<String> invalidators = new ArrayList<>();
+        for (Document record : collection("invalidations").find(mongoSession, new Document("invalidatedNp", ac).append("invalidatingPubkey", pubkeyHash))) {
+            invalidators.add(record.getString("invalidatingNp"));
+        }
+        return invalidators;
+    }
+
+    /**
+     * Whether an invalidating nanopub is on the lists of all its types under the given pubkey.
+     * A nanopub that is missing or cannot be read counts as not being there, which leaves it
+     * to the caller's regular handling.
+     */
+    private static boolean isOnTheListsOfItsTypes(ClientSession mongoSession, String pubkeyHash, String invalidatingAc) {
+        Document npDoc = collection(Collection.NANOPUBS.toString()).find(mongoSession, new Document("_id", invalidatingAc)).projection(new Document("jelly", 1)).first();
+        if (npDoc == null) {
+            return false;
+        }
+        try {
+            Nanopub invalidating = JellyUtils.readFromDB(npDoc.get("jelly", Binary.class).getData());
+            Set<String> listed = listedTypes(mongoSession, pubkeyHash, invalidatingAc);
+            for (IRI type : NanopubUtils.getTypes(invalidating)) {
+                if (!listed.contains(Utils.getTypeHash(mongoSession, type))) {
+                    return false;
                 }
             }
-
+            return true;
+        } catch (RDF4JException | MalformedNanopubException ex) {
+            return false;
         }
+    }
+
+    /**
+     * Marks the list entries of an invalidated nanopub under the given pubkey, and the trust
+     * edges it is the source of, as invalidated. Safe to repeat.
+     */
+    private static void markInvalidated(ClientSession mongoSession, String pubkeyHash, String invalidatedAc) {
+        collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", pubkeyHash), new Document("$set", new Document("invalidated", true)));
+        collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
     }
 
     /**
@@ -734,7 +846,9 @@ public class RegistryDB {
      * on the next append if a crash left it behind.
      *
      * @param mayBeListed whether the nanopub may already be on the list, in which case the
-     *                    database is asked first; a nanopub stored by this very call cannot be
+     *                    database is asked first. A nanopub stored by this very call is not,
+     *                    short of another writer loading the same nanopub at the same moment;
+     *                    the unique index on the nanopub then refuses the second entry
      */
     private static void addToList(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String typeHash, boolean mayBeListed) {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());

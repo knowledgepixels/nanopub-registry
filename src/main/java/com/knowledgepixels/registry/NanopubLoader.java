@@ -208,13 +208,15 @@ public class NanopubLoader {
                     Thread.currentThread().interrupt();
                     logger.warn("Interrupted while waiting for worker pool to terminate", e);
                 }
-            }
-            if (order.batch().hasPending()) {
-                try (ClientSession s = RegistryDB.getClient().startSession()) {
-                    order.batch().flush(s);
-                } catch (Exception e) {
-                    logger.error("Failed to write the last list entries of the load: {}", e.getMessage(), e);
-                    error.compareAndSet(null, e);
+                // Also when the stream broke: the entries still pending belong to nanopubs that
+                // are stored, so they are written rather than left for a later load to redo.
+                if (order.batch().hasPending()) {
+                    try (ClientSession s = RegistryDB.getClient().startSession()) {
+                        order.batch().flush(s);
+                    } catch (Exception e) {
+                        logger.error("Failed to write the last list entries of the load: {}", e.getMessage(), e);
+                        error.compareAndSet(null, e);
+                    }
                 }
             }
         }
