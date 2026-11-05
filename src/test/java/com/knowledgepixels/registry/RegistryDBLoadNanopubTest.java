@@ -14,7 +14,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.eclipse.rdf4j.model.vocabulary.RDF;
 import org.nanopub.Nanopub;
+import org.nanopub.NanopubCreator;
 import org.nanopub.NanopubImpl;
 import org.nanopub.NanopubUtils;
 import org.nanopub.extra.security.MalformedCryptoElementException;
@@ -28,6 +30,9 @@ import java.io.IOException;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -123,6 +128,16 @@ class RegistryDBLoadNanopubTest {
     private static String checksum(String seed) {
         return NanopubUtils.updateXorChecksum(iri("http://example.org/np/" + artifactCode(seed)),
                 NanopubUtils.INIT_CHECKSUM);
+    }
+
+    /** What {@code NanopubUtils.updateXorChecksum} computes, for use where that method is mocked. */
+    private static String rawXorChecksum(String artifactCode, String checksum) {
+        byte[] result = TrustyUriUtils.getBase64Bytes(checksum);
+        byte[] code = TrustyUriUtils.getBase64Bytes(artifactCode.substring(2));
+        for (int i = 0; i < 32; i++) {
+            result[i] = (byte) (result[i] ^ code[i]);
+        }
+        return TrustyUriUtils.getBase64(result);
     }
 
     /** Turns an arbitrary label into a well-formed (but made-up) Trusty artifact code. */
@@ -715,28 +730,31 @@ class RegistryDBLoadNanopubTest {
         }
 
         @Test
-        void fallsBackToASortedLookupWhenThePrecedingEntryIsMissing() throws Exception {
+        void continuesTheChainFromTheLastEntryRatherThanTheCounter() throws Exception {
             Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
             String pubkey = RegistryDB.getPubkey(nanopub);
             String pubkeyHash = Utils.getHash(pubkey);
 
-            // The counter has been claimed up to position 5, but the entry at 5 is not
-            // written yet — what a concurrent writer's half-finished work looks like.
+            // The counter claims to be at 5, but the entries end at 3 — what a crash between an
+            // old-style position claim and its insert left behind.
             RegistryDB.insert(session, "lists",
                     new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 5L));
             seedListEntry(pubkeyHash, "$", 3L, "RAearlierEntry0000000000000000000000000000", checksum("three"));
 
             RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, "$");
 
-            // Position 6 is claimed, and the checksum chains off the highest entry that does
-            // exist rather than failing on the missing one.
+            // The chain is what counts: the new entry follows the last entry that exists and
+            // chains off its checksum. The counter is only ever raised, never lowered.
             Document entry = listEntry(pubkeyHash, "$", SIMPLE1_AC);
-            assertEquals(6L, entry.getLong("position"));
+            assertEquals(4L, entry.getLong("position"));
             assertEquals(NanopubUtils.updateXorChecksum(nanopub.getUri(), checksum("three")), entry.getString("checksum"));
+            assertEquals(5L, RegistryDB.collection("lists")
+                    .find(session, new Document("pubkey", pubkeyHash).append("type", "$")).first()
+                    .getLong("maxPosition"));
         }
 
         @Test
-        void fallsBackToTheInitialChecksumWhenNoEntryExistsAtAll() throws Exception {
+        void startsAtPositionZeroWhenTheCounterIsAheadOfAnEmptyList() throws Exception {
             Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
             String pubkey = RegistryDB.getPubkey(nanopub);
             String pubkeyHash = Utils.getHash(pubkey);
@@ -747,19 +765,18 @@ class RegistryDBLoadNanopubTest {
             RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, "$");
 
             Document entry = listEntry(pubkeyHash, "$", SIMPLE1_AC);
-            assertEquals(6L, entry.getLong("position"));
+            assertEquals(0L, entry.getLong("position"));
             assertEquals(NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM),
                     entry.getString("checksum"));
         }
 
         @Test
-        void retriesUntilItFindsAFreePosition() throws Exception {
+        void raisesALaggingCounterToTheNewPosition() throws Exception {
             Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
             String pubkey = RegistryDB.getPubkey(nanopub);
             String pubkeyHash = Utils.getHash(pubkey);
 
-            // The counter lags behind the entries that are actually there, so the first two
-            // claimed positions are already taken.
+            // The counter lags behind the entries that are actually there.
             RegistryDB.insert(session, "lists",
                     new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 0L));
             seedListEntry(pubkeyHash, "$", 1L, "RAoccupantOne00000000000000000000000000000", checksum("one"));
@@ -767,25 +784,135 @@ class RegistryDBLoadNanopubTest {
 
             RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, "$");
 
-            assertEquals(3L, listEntry(pubkeyHash, "$", SIMPLE1_AC).getLong("position"));
+            Document entry = listEntry(pubkeyHash, "$", SIMPLE1_AC);
+            assertEquals(3L, entry.getLong("position"));
+            assertEquals(NanopubUtils.updateXorChecksum(nanopub.getUri(), checksum("two")), entry.getString("checksum"));
+            assertEquals(3L, RegistryDB.collection("lists")
+                    .find(session, new Document("pubkey", pubkeyHash).append("type", "$")).first()
+                    .getLong("maxPosition"));
+        }
+
+        /**
+         * Seeds a competing entry at the position the writer is about to insert at. The hook
+         * sits in the checksum computation, which happens after the writer has read the end of
+         * the chain and before it inserts — exactly the window a concurrent writer wins in.
+         */
+        private MockedStatic<NanopubUtils> competitorTakingThePosition(String pubkeyHash, int howManyTimes) {
+            MockedStatic<NanopubUtils> nanopubUtils = mockStatic(NanopubUtils.class, CALLS_REAL_METHODS);
+            int[] calls = {0};
+            nanopubUtils.when(() -> NanopubUtils.updateXorChecksum(
+                            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+                    .thenAnswer(invocation -> {
+                        int call = calls[0]++;
+                        if (call < howManyTimes) {
+                            Document last = RegistryDB.getMaxValueDocument(session, "listEntries",
+                                    new Document("pubkey", pubkeyHash).append("type", "$"), "position");
+                            long next = (last == null) ? 0L : last.getLong("position") + 1;
+                            // Not via NanopubUtils: that is the method being stubbed here.
+                            seedListEntry(pubkeyHash, "$", next, artifactCode("competitor" + call),
+                                    rawXorChecksum(artifactCode("competitor" + call), NanopubUtils.INIT_CHECKSUM));
+                        }
+                        return invocation.callRealMethod();
+                    });
+            return nanopubUtils;
         }
 
         @Test
-        void givesUpAfterAHundredCollisions() throws Exception {
+        void chainsOffTheCompetitorThatTookThePositionFirst() throws Exception {
+            Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
+            String pubkey = RegistryDB.getPubkey(nanopub);
+            String pubkeyHash = Utils.getHash(pubkey);
+            seedListEntry(pubkeyHash, "$", 0L, "RAexistingEntry000000000000000000000000000", checksum("zero"));
+
+            try (MockedStatic<NanopubUtils> ignored = competitorTakingThePosition(pubkeyHash, 1)) {
+                assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, "$"));
+            }
+
+            // The competitor got position 1, so our entry sits at 2 and its checksum is computed
+            // from the competitor's, not from the entry we had read before losing the race. That
+            // is the whole point: the chain stays sequential no matter who wins.
+            Document competitor = RegistryDB.collection("listEntries").find(session,
+                    new Document("pubkey", pubkeyHash).append("type", "$").append("position", 1L)).first();
+            assertNotNull(competitor);
+            Document entry = listEntry(pubkeyHash, "$", SIMPLE1_AC);
+            assertEquals(2L, entry.getLong("position"));
+            assertEquals(NanopubUtils.updateXorChecksum(nanopub.getUri(), competitor.getString("checksum")), entry.getString("checksum"));
+            assertEquals(2L, RegistryDB.collection("lists")
+                    .find(session, new Document("pubkey", pubkeyHash).append("type", "$")).first()
+                    .getLong("maxPosition"));
+        }
+
+        @Test
+        void givesUpAfterAHundredLostRaces() throws Exception {
             Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
             String pubkey = RegistryDB.getPubkey(nanopub);
             String pubkeyHash = Utils.getHash(pubkey);
 
-            RegistryDB.insert(session, "lists",
-                    new Document("pubkey", pubkeyHash).append("type", "$").append("maxPosition", 0L));
-            // Block every position the retry loop can reach before hitting its own limit.
-            for (int i = 1; i <= 101; i++) {
-                seedListEntry(pubkeyHash, "$", i, "RAoccupant" + String.format("%035d", i), checksum("occupant" + i));
+            try (MockedStatic<NanopubUtils> ignored = competitorTakingThePosition(pubkeyHash, Integer.MAX_VALUE)) {
+                RuntimeException thrown = assertThrows(RuntimeException.class,
+                        () -> RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, "$"));
+                assertEquals("Failed to insert list entry after 101 attempts", thrown.getMessage());
+            }
+            assertNull(listEntry(pubkeyHash, "$", SIMPLE1_AC));
+        }
+
+        /**
+         * The scenario of issue #205: many writers appending to the same list at once, as the
+         * parallel loader does for every nanopub of a pubkey. The chain has to come out
+         * sequential regardless of the order the writers happen to win in.
+         */
+        @Test
+        void concurrentWritersProduceOneSequentialChain() throws Exception {
+            String pubkey = "concurrency-test-key";
+            String pubkeyHash = Utils.getHash(pubkey);
+            int count = 48;
+            List<Nanopub> nanopubs = new java.util.ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                NanopubCreator creator = new NanopubCreator("http://example.org/chain-test/" + i + "/");
+                creator.addAssertionStatement(iri("http://example.org/thing/" + i), RDF.TYPE, iri("http://example.org/Thing"));
+                creator.addProvenanceStatement(iri("http://www.w3.org/ns/prov#wasAttributedTo"), iri("http://example.org/someone"));
+                creator.addPubinfoStatement(iri("http://purl.org/dc/terms/description"), SimpleValueFactory.getInstance().createLiteral("chain test " + i));
+                nanopubs.add(creator.finalizeTrustyNanopub());
             }
 
-            RuntimeException thrown = assertThrows(RuntimeException.class,
-                    () -> RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, "$"));
-            assertEquals("Failed to insert list entry after 101 attempts", thrown.getMessage());
+            ExecutorService executor = Executors.newFixedThreadPool(8);
+            try {
+                List<Future<?>> futures = new java.util.ArrayList<>();
+                for (Nanopub nanopub : nanopubs) {
+                    futures.add(executor.submit(() -> {
+                        try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
+                            assertTrue(RegistryDB.loadNanopubVerified(workerSession, nanopub, pubkey, pubkeyHash, "$"));
+                        }
+                    }));
+                }
+                for (Future<?> future : futures) {
+                    future.get();
+                }
+            } finally {
+                executor.shutdownNow();
+            }
+
+            List<Document> entries = RegistryDB.collection("listEntries")
+                    .find(session, new Document("pubkey", pubkeyHash).append("type", "$"))
+                    .sort(new Document("position", 1)).into(new java.util.ArrayList<>());
+            assertEquals(count, entries.size());
+            String expected = NanopubUtils.INIT_CHECKSUM;
+            for (int i = 0; i < count; i++) {
+                Document entry = entries.get(i);
+                assertEquals(i, entry.getLong("position"), "positions are contiguous");
+                expected = NanopubUtils.updateXorChecksum(iri("http://example.org/np/" + entry.getString("np")), expected);
+                assertEquals(expected, entry.getString("checksum"), "entry " + i + " chains off its predecessor");
+            }
+            // The XOR is order-independent, so the end of the chain is the checksum of the set,
+            // whatever order the writers won in.
+            String ofTheSet = NanopubUtils.INIT_CHECKSUM;
+            for (Nanopub nanopub : nanopubs) {
+                ofTheSet = NanopubUtils.updateXorChecksum(nanopub.getUri(), ofTheSet);
+            }
+            assertEquals(ofTheSet, entries.getLast().getString("checksum"));
+            assertEquals(count - 1L, RegistryDB.collection("lists")
+                    .find(session, new Document("pubkey", pubkeyHash).append("type", "$")).first()
+                    .getLong("maxPosition"));
         }
 
         @Test

@@ -683,10 +683,30 @@ public class RegistryDB {
         }
     }
 
+    /**
+     * Appends a nanopub to the list of the given pubkey and type, unless it is on it already.
+     * <p>
+     * Positions and checksums form a chain: the entry at position {@code p} carries the XOR
+     * checksum of the entries at positions {@code 0..p}. That is only true if every entry is
+     * computed from its direct predecessor, so the append is driven by the entries themselves
+     * rather than by a separate counter: the writer reads the entry with the highest position,
+     * derives the next position and checksum from it, and inserts. The unique index on the
+     * position lets only one of several concurrent writers have a given position, and that
+     * writer has by construction chained off the entry right before it; the others lose the
+     * insert and start over from the new end of the chain. (Claiming the position with an
+     * atomic counter first and looking the predecessor up afterwards, as earlier versions did,
+     * let concurrent writers chain off whatever entry happened to be visible, which corrupted
+     * the chains; see issue #205 and {@link com.knowledgepixels.registry.db.DataRepair}.)
+     * <p>
+     * {@code lists.maxPosition} is a derived counter for the pages that show list sizes. It is
+     * advanced with {@code $max} after the insert, so it never moves backwards and catches up
+     * on the next append if a crash left it behind.
+     */
     private static void addToList(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String typeHash) {
         String ac = TrustyUriUtils.getArtifactCode(nanopub.getUri().stringValue());
+        Document listFilter = new Document("pubkey", pubkeyHash).append("type", typeHash);
         try {
-            insert(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", typeHash).append("maxPosition", -1L));
+            insert(mongoSession, "lists", new Document(listFilter).append("maxPosition", -1L));
             logger.debug("Ensured list document exists for pubkey={} type={}", pubkeyHash, typeHash);
         } catch (MongoWriteException e) {
             // Duplicate key error -- ignore it
@@ -697,72 +717,39 @@ public class RegistryDB {
             logger.trace("List document already existed for pubkey={} type={}", pubkeyHash, typeHash);
         }
 
-        if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
+        if (has(mongoSession, "listEntries", new Document(listFilter).append("np", ac))) {
             logger.debug("Already listed: nanopub {} (artifact {}) for pubkey={} type={}", nanopub.getUri(), ac, pubkeyHash, typeHash);
-        } else {
-            initListPositionIfNeeded(mongoSession, pubkeyHash, typeHash);
-
-            for (int attempt = 0; ; attempt++) {
-                // Atomically claim next position
-                Document updated = collection("lists").findOneAndUpdate(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash), new Document("$inc", new Document("maxPosition", 1L)), new FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER));
-                long position = updated.getLong("maxPosition");
-
-                // Get checksum from previous entry by exact position lookup (O(1) index hit)
-                String checksum;
-                if (position == 0) {
-                    checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), NanopubUtils.INIT_CHECKSUM);
-                } else {
-                    Document prevEntry = collection("listEntries").find(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("position", position - 1)).first();
-                    String prevChecksum = (prevEntry != null) ? prevEntry.getString("checksum") : null;
-                    if (prevChecksum == null) {
-                        // Rare: previous entry not yet inserted by concurrent thread; fall back to sorted query
-                        Document maxDoc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
-                        prevChecksum = (maxDoc != null) ? maxDoc.getString("checksum") : NanopubUtils.INIT_CHECKSUM;
-                    }
-                    checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), prevChecksum);
-                }
-
-                try {
-                    collection("listEntries").insertOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("position", position).append("np", ac).append("checksum", checksum).append("invalidated", false));
-                    logger.debug("Inserted list entry: pubkey={} type={} np={} position={} checksum={}", pubkeyHash, typeHash, ac, position, checksum);
-                    break;
-                } catch (MongoWriteException e) {
-                    if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
-                        logger.error("Failed to insert list entry for pubkey={} type={} np={}: {}", pubkeyHash, typeHash, ac, e.getMessage(), e);
-                        throw e;
-                    }
-                    if (has(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash).append("np", ac))) {
-                        logger.debug("Concurrent insert detected and entry already exists for pubkey={} type={} np={}", pubkeyHash, typeHash, ac);
-                        break; // Already listed by concurrent thread
-                    }
-                    if (attempt >= 100) {
-                        logger.error("Failed to insert list entry after {} attempts for pubkey={} type={} np={}", attempt + 1, pubkeyHash, typeHash, ac);
-                        throw new RuntimeException("Failed to insert list entry after " + (attempt + 1) + " attempts");
-                    }
-                    logger.debug("Retrying list entry insert (attempt {}) for pubkey={} type={} np={}", attempt + 1, pubkeyHash, typeHash, ac);
-                }
-            }
-        }
-    }
-
-    /**
-     * Lazily initializes the maxPosition field on a lists document for lists
-     * created before this field existed. Uses a one-time sorted query, then
-     * all subsequent calls use the atomic counter.
-     */
-    private static void initListPositionIfNeeded(ClientSession mongoSession, String pubkeyHash, String typeHash) {
-        Document listDoc = collection("lists").find(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash)).first();
-        if (listDoc == null || listDoc.get("maxPosition") != null) {
-            logger.trace("initListPositionIfNeeded: no action needed for pubkey={} type={}", pubkeyHash, typeHash);
             return;
         }
 
-        Document maxDoc = getMaxValueDocument(mongoSession, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash), "position");
-        long maxPos = (maxDoc != null) ? maxDoc.getLong("position") : -1L;
+        for (int attempt = 0; ; attempt++) {
+            // The end of the chain, via the (pubkey, type, position) index
+            Document last = getMaxValueDocument(mongoSession, "listEntries", listFilter, "position");
+            long position = (last == null) ? 0L : last.getLong("position") + 1;
+            String prevChecksum = (last == null || last.getString("checksum") == null) ? NanopubUtils.INIT_CHECKSUM : last.getString("checksum");
+            String checksum = NanopubUtils.updateXorChecksum(nanopub.getUri(), prevChecksum);
 
-        // Conditional update: only set if maxPosition still doesn't exist (race-safe)
-        collection("lists").updateOne(mongoSession, new Document("pubkey", pubkeyHash).append("type", typeHash).append("maxPosition", new Document("$exists", false)), new Document("$set", new Document("maxPosition", maxPos)));
-        logger.debug("Initialized maxPosition={} for list pubkey={} type={}", maxPos, pubkeyHash, typeHash);
+            try {
+                collection("listEntries").insertOne(mongoSession, new Document(listFilter).append("position", position).append("np", ac).append("checksum", checksum).append("invalidated", false));
+                collection("lists").updateOne(mongoSession, listFilter, new Document("$max", new Document("maxPosition", position)));
+                logger.debug("Inserted list entry: pubkey={} type={} np={} position={} checksum={}", pubkeyHash, typeHash, ac, position, checksum);
+                return;
+            } catch (MongoWriteException e) {
+                if (e.getError().getCategory() != ErrorCategory.DUPLICATE_KEY) {
+                    logger.error("Failed to insert list entry for pubkey={} type={} np={}: {}", pubkeyHash, typeHash, ac, e.getMessage(), e);
+                    throw e;
+                }
+                if (has(mongoSession, "listEntries", new Document(listFilter).append("np", ac))) {
+                    logger.debug("Concurrent insert detected and entry already exists for pubkey={} type={} np={}", pubkeyHash, typeHash, ac);
+                    return; // Already listed by concurrent thread
+                }
+                if (attempt >= 100) {
+                    logger.error("Failed to insert list entry after {} attempts for pubkey={} type={} np={}", attempt + 1, pubkeyHash, typeHash, ac);
+                    throw new RuntimeException("Failed to insert list entry after " + (attempt + 1) + " attempts");
+                }
+                logger.debug("Position {} of list pubkey={} type={} was taken concurrently; retrying (attempt {}) for np={}", position, pubkeyHash, typeHash, attempt + 1, ac);
+            }
+        }
     }
 
     /**
