@@ -54,9 +54,9 @@ import static com.knowledgepixels.registry.RegistryDB.setValue;
  *
  * <p>Reshaping documents is a different problem and does not belong here: a schema change wants
  * backward-compatible reads, so that a half-migrated database still serves. Recomputing a stored
- * value that is a pure function of other stored data, such as a list's checksum chain or the
- * list entries that follow from an invalidation record, does belong here, as it meets all of
- * the above.
+ * value that is a pure function of other stored data, such as a list's checksum chain, the
+ * list entries that follow from an invalidation record or the invalidation flag of a trust
+ * edge, does belong here, as it meets all of the above.
  */
 public final class DataRepair {
 
@@ -69,7 +69,7 @@ public final class DataRepair {
      * The repair level this version of the code knows about. Bump it when adding a repair,
      * and run the new repair for every stored version below it in {@link #runIfNeeded}.
      */
-    static final int CURRENT_REPAIR_VERSION = 3;
+    static final int CURRENT_REPAIR_VERSION = 4;
 
     private static final String REPAIR_VERSION_KEY = "repairVersion";
 
@@ -114,6 +114,9 @@ public final class DataRepair {
         if (applied < 3) {
             removeDoubledInvalidationRecords(mongoSession);
             completeInvalidations(mongoSession);
+        }
+        if (applied < 4) {
+            reconcileTrustEdgeInvalidations(mongoSession);
         }
         markUpToDate(mongoSession);
     }
@@ -386,6 +389,52 @@ public final class DataRepair {
         } else {
             logger.info("Checked {} invalidation record(s): all fully reflected in the lists", records);
         }
+    }
+
+    /**
+     * Sets the {@code invalidated} flag of every trust edge to what the invalidation records
+     * say.
+     *
+     * <p>A trust edge is invalidated if its source is, and only whoever signed the source can
+     * invalidate it. Earlier versions applied that condition when an edge was created, but not
+     * when an invalidating nanopub arrived afterwards: then every edge with that source was
+     * marked, whoever had signed the invalidating nanopub. Trust edges are kept across cycles
+     * and never rebuilt, so an edge marked that way stayed out of the trust calculation for
+     * good. The flag is a pure function of the records, the edge and the signer of its source,
+     * so the repair recomputes it. In practice that means clearing the flag where the only
+     * invalidations on record were made with other pubkeys; setting it where it is missing is
+     * the same rule in the other direction.
+     *
+     * <p>The root edges of an instance, sourced from its setting, are judged by the pubkey that
+     * signed the setting. Whatever their flag, the trust calculation keeps following them
+     * (issue #60).
+     */
+    static void reconcileTrustEdgeInvalidations(ClientSession mongoSession) {
+        List<Document> edges = collection("trustEdges").find(mongoSession)
+                .projection(new Document("source", 1).append("fromPubkey", 1).append("invalidated", 1)).into(new ArrayList<>());
+        long cleared = 0, set = 0;
+        for (Document edge : edges) {
+            String source = edge.getString("source");
+            String fromPubkey = edge.getString("fromPubkey");
+            if (source == null || fromPubkey == null) {
+                logger.error("Skipping the malformed trust edge {}", edge.toJson());
+                continue;
+            }
+            boolean marked = Boolean.TRUE.equals(edge.getBoolean("invalidated"));
+            boolean invalidated = RegistryDB.isTrustEdgeSourceInvalidated(mongoSession, source, fromPubkey);
+            if (marked == invalidated) {
+                continue;
+            }
+            collection("trustEdges").updateOne(mongoSession, new Document("_id", edge.get("_id")), new Document("$set", new Document("invalidated", invalidated)));
+            if (invalidated) {
+                set++;
+                logger.warn("Marked the trust edge from pubkey {} with source {} as invalidated: its source is invalidated by its signer", fromPubkey, source);
+            } else {
+                cleared++;
+                logger.warn("Cleared the invalidation of the trust edge from pubkey {} with source {}: its source is not invalidated by its signer", fromPubkey, source);
+            }
+        }
+        logger.info("Checked the invalidation of {} trust edge(s): cleared {} that only other pubkeys had invalidated, set {} that were missing", edges.size(), cleared, set);
     }
 
     /** Where a pass over a list's entries ended: the last position seen and its correct checksum. */

@@ -84,6 +84,7 @@ class BootstrapSettingTrustEdgeTest {
     void supersedingTheSettingStillMarksItsTrustEdgesInvalidated() throws Exception {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             recordSetting(s, SETTING_AC);
+            storeSettingSignedBy(s, SETTING_AC, invalidatingPubkeyHash());
             insertEdge(s, "$", "$", SETTING_AC);
 
             loadNanopubInvalidating(s, SETTING_AC);
@@ -93,6 +94,26 @@ class BootstrapSettingTrustEdgeTest {
             assertTrue(edgeInvalidated(s, SETTING_AC),
                     "the edge is invalidated and must be recorded as invalidated — the exception "
                             + "belongs in the trust calculation, not in the stored data");
+        }
+    }
+
+    /**
+     * The root edges start from the placeholder {@code $}, so who may invalidate them is
+     * decided by who signed the setting they are sourced from. Anyone else publishing a
+     * nanopub that claims to supersede the setting changes nothing about its edges.
+     */
+    @Test
+    void supersedingTheSettingWithAnotherPubkeyLeavesItsTrustEdgesAlone() throws Exception {
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
+            recordSetting(s, SETTING_AC);
+            storeSettingSignedBy(s, SETTING_AC, "theHashOfAnotherPubkey");
+            insertEdge(s, "$", "$", SETTING_AC);
+
+            loadNanopubInvalidating(s, SETTING_AC);
+
+            assertTrue(RegistryDB.has(s, "invalidations", new Document("invalidatedNp", SETTING_AC)),
+                    "the invalidation is on record all the same");
+            assertTrue(!edgeInvalidated(s, SETTING_AC));
         }
     }
 
@@ -153,13 +174,28 @@ class BootstrapSettingTrustEdgeTest {
     void ordinaryInvalidationStillMarksAndSkipsItsEdges() throws Exception {
         try (ClientSession s = RegistryDB.getClient().startSession()) {
             recordSetting(s, SETTING_AC);
-            insertEdge(s, "x", "pk1", ORDINARY_AC);
+            // An edge is sourced from a nanopub of the pubkey it starts from.
+            insertEdge(s, "x", invalidatingPubkeyHash(), ORDINARY_AC);
 
             loadNanopubInvalidating(s, ORDINARY_AC);
 
             assertTrue(edgeInvalidated(s, ORDINARY_AC));
-            assertTrue(!Task.trustEdgeFilter("x", "pk1", Set.of(SETTING_AC)).toJson().contains(ORDINARY_AC),
+            assertTrue(!Task.trustEdgeFilter("x", invalidatingPubkeyHash(), Set.of(SETTING_AC)).toJson().contains(ORDINARY_AC),
                     "ordinary invalidated edges must stay excluded from the trust calculation");
+        }
+    }
+
+    /** Only whoever signed the source of an edge can invalidate it. */
+    @Test
+    void anInvalidationByAnotherPubkeyLeavesAnOrdinaryEdgeAlone() throws Exception {
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
+            recordSetting(s, SETTING_AC);
+            insertEdge(s, "x", "theHashOfAnotherPubkey", ORDINARY_AC);
+
+            loadNanopubInvalidating(s, ORDINARY_AC);
+
+            assertTrue(!edgeInvalidated(s, ORDINARY_AC),
+                    "an endorsement cannot be taken back by somebody else");
         }
     }
 
@@ -174,6 +210,19 @@ class BootstrapSettingTrustEdgeTest {
         RegistryDB.insert(s, "trustEdges", new Document("fromAgent", fromAgent).append("fromPubkey", fromPubkey)
                 .append("toAgent", "http://example.org/" + sourceAc).append("toPubkey", "pk")
                 .append("source", sourceAc).append("invalidated", false));
+    }
+
+    /** The hash of the pubkey that signed the nanopub {@link #loadNanopubInvalidating} loads. */
+    private static String invalidatingPubkeyHash() throws Exception {
+        File file = NanopubTestSuite.getLatest()
+                .getByArtifactCode("RArZHDDWzq3MYkBQ5FyWrhJJnfVYuE6Y9BmipJQVLLjNY").getFirst().toFile();
+        return Utils.getHash(RegistryDB.getPubkey(new NanopubImpl(file)));
+    }
+
+    /** Stores a stand-in for the setting nanopub, of which only the signer matters here. */
+    private static void storeSettingSignedBy(ClientSession s, String ac, String pubkeyHash) {
+        RegistryDB.insert(s, Collection.NANOPUBS.toString(), new Document("_id", ac)
+                .append("fullId", "https://w3id.org/np/" + ac).append("counter", 1L).append("pubkey", pubkeyHash));
     }
 
     private static boolean edgeInvalidated(ClientSession s, String sourceAc) {

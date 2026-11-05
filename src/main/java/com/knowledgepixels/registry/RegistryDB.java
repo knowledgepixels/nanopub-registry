@@ -866,12 +866,71 @@ public class RegistryDB {
     }
 
     /**
-     * Marks the list entries of an invalidated nanopub under the given pubkey, and the trust
-     * edges it is the source of, as invalidated. Safe to repeat.
+     * Marks the list entries of an invalidated nanopub under the given pubkey as invalidated,
+     * and the trust edges it is the source of if the pubkey is the one that signed it (see
+     * {@link #trustEdgeSourceSigner}). Safe to repeat.
      */
     private static void markInvalidated(ClientSession mongoSession, String pubkeyHash, String invalidatedAc) {
         collection("listEntries").updateMany(mongoSession, new Document("np", invalidatedAc).append("pubkey", pubkeyHash), new Document("$set", new Document("invalidated", true)));
-        collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc), new Document("$set", new Document("invalidated", true)));
+        for (String fromPubkey : trustEdgeOrigins(mongoSession, invalidatedAc, true)) {
+            if (pubkeyHash.equals(trustEdgeSourceSigner(mongoSession, invalidatedAc, fromPubkey))) {
+                collection("trustEdges").updateMany(mongoSession, new Document("source", invalidatedAc).append("fromPubkey", fromPubkey), new Document("$set", new Document("invalidated", true)));
+            }
+        }
+    }
+
+    /** The {@code fromPubkey} values of the trust edges sourced from a nanopub, usually none. */
+    private static Set<String> trustEdgeOrigins(ClientSession mongoSession, String sourceAc, boolean onlyUnmarked) {
+        Document filter = new Document("source", sourceAc);
+        if (onlyUnmarked) {
+            filter.append("invalidated", new Document("$ne", true));
+        }
+        Set<String> fromPubkeys = new HashSet<>();
+        for (Document edge : collection("trustEdges").find(mongoSession, filter).projection(new Document("fromPubkey", 1))) {
+            fromPubkeys.add(edge.getString("fromPubkey"));
+        }
+        return fromPubkeys;
+    }
+
+    /**
+     * The pubkey that signed the source of a trust edge. Only an invalidation made with that
+     * pubkey counts for the edge: nobody else can take back an endorsement, just as an
+     * invalidation only counts on the lists of the pubkey that made it.
+     * <p>
+     * An edge is sourced from a nanopub of the pubkey it starts from, so that is its signer.
+     * The exception are the root edges of an instance, which start from the placeholder
+     * {@code $} and are sourced from the setting; there the signer is looked up.
+     *
+     * @return the pubkey hash, or null if it cannot be determined
+     */
+    private static String trustEdgeSourceSigner(ClientSession mongoSession, String sourceAc, String fromPubkey) {
+        if (!"$".equals(fromPubkey)) {
+            return fromPubkey;
+        }
+        Document source = collection(Collection.NANOPUBS.toString()).find(mongoSession, new Document("_id", sourceAc)).projection(new Document("pubkey", 1)).first();
+        return source == null ? null : source.getString("pubkey");
+    }
+
+    /**
+     * Whether the source of a trust edge is invalidated, that is, whether there is an
+     * invalidation of it on record that was made with the pubkey that signed it.
+     */
+    public static boolean isTrustEdgeSourceInvalidated(ClientSession mongoSession, String sourceAc, String fromPubkey) {
+        String signer = trustEdgeSourceSigner(mongoSession, sourceAc, fromPubkey);
+        return signer != null && has(mongoSession, "invalidations", new Document("invalidatedNp", sourceAc).append("invalidatingPubkey", signer));
+    }
+
+    /**
+     * Whether an invalidation of the given nanopub made with the given pubkey would invalidate
+     * a trust edge, that is, whether the nanopub is the source of one and that pubkey signed it.
+     */
+    static boolean invalidatesTrustEdges(ClientSession mongoSession, String pubkeyHash, String invalidatedAc) {
+        for (String fromPubkey : trustEdgeOrigins(mongoSession, invalidatedAc, false)) {
+            if (pubkeyHash.equals(trustEdgeSourceSigner(mongoSession, invalidatedAc, fromPubkey))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

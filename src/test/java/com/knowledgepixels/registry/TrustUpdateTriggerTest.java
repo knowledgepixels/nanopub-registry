@@ -169,14 +169,29 @@ class TrustUpdateTriggerTest {
     @Test
     void retractingSomethingThatSourcesATrustEdgeIsTrustRelevant() throws Exception {
         // A retracted approval revokes trust, and the graph only reflects that on the next cycle.
-        RegistryDB.insert(session, "trustEdges", new Document("fromAgent", "$")
-                .append("fromPubkey", "$")
+        // The edge starts from the pubkey that signed its source, here the retracting one.
+        Nanopub retraction = testSuiteNanopub(RETRACTION_AC);
+        RegistryDB.insert(session, "trustEdges", new Document("fromAgent", "X")
+                .append("fromPubkey", Utils.getHash(RegistryDB.getPubkey(retraction)))
                 .append("toAgent", "A")
                 .append("toPubkey", "P")
                 .append("source", RETRACTED_AC)
                 .append("invalidated", false));
 
-        assertTrue(TrustUpdateTrigger.isTrustRelevant(session, testSuiteNanopub(RETRACTION_AC)));
+        assertTrue(TrustUpdateTrigger.isTrustRelevant(session, retraction));
+    }
+
+    @Test
+    void retractingSomebodyElsesTrustEdgeSourceIsNotTrustRelevant() throws Exception {
+        RegistryDB.insert(session, "trustEdges", new Document("fromAgent", "X")
+                .append("fromPubkey", "theHashOfAnotherPubkey")
+                .append("toAgent", "A")
+                .append("toPubkey", "P")
+                .append("source", RETRACTED_AC)
+                .append("invalidated", false));
+
+        assertFalse(TrustUpdateTrigger.isTrustRelevant(session, testSuiteNanopub(RETRACTION_AC)),
+                "only whoever signed the source of a trust edge can invalidate it");
     }
 
     @Test
