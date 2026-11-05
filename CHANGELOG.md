@@ -1,3 +1,31 @@
+## [1.14.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.13.1...nanopub-registry-1.14.0) (2026-11-05)
+
+### Features
+
+* append to lists in stream order when loading from peers ([4ce1fe1](https://github.com/knowledgepixels/nanopub-registry/commit/4ce1fe1fb31b0e991e28c33aa04bca5020d9d590))
+
+### Dependency updates
+
+* **core-deps:** update dependency com.google.code.gson:gson to v2.15.0 ([#193](https://github.com/knowledgepixels/nanopub-registry/issues/193)) ([a85eb23](https://github.com/knowledgepixels/nanopub-registry/commit/a85eb236f278b203c4886255490ebd84598cbb12))
+* **core-deps:** update dependency org.nanopub:nanopub to v1.95.0 ([#191](https://github.com/knowledgepixels/nanopub-registry/issues/191)) ([caf0078](https://github.com/knowledgepixels/nanopub-registry/commit/caf00789a11ef1df66ad400cb52bcbfb1fdbf537))
+* **core-deps:** update dependency org.nanopub:nanopub to v1.95.1 ([#198](https://github.com/knowledgepixels/nanopub-registry/issues/198)) ([6f37871](https://github.com/knowledgepixels/nanopub-registry/commit/6f378714ec1907fafdff4464f834a626e36fc2e1))
+
+### Bug Fixes
+
+* apply invalidations on every load and keep ordered loads fast ([c836206](https://github.com/knowledgepixels/nanopub-registry/commit/c8362063fc1e509fd02da31352eceba92e67de4c))
+* apply the self share to extended trust paths when scoring ([#196](https://github.com/knowledgepixels/nanopub-registry/issues/196)) ([254d081](https://github.com/knowledgepixels/nanopub-registry/commit/254d08151b88ecf32895f2cb219c8843dcf64828))
+* keep list checksum chains sequential under concurrent appends ([#205](https://github.com/knowledgepixels/nanopub-registry/issues/205)) ([90fa428](https://github.com/knowledgepixels/nanopub-registry/commit/90fa428f54de91704d20ce392fed9f78543e343b))
+* remove invalid script reference to non-existent nanopub.js ([91841e0](https://github.com/knowledgepixels/nanopub-registry/commit/91841e0876088a7ffa161ed2927047db67b02f3d))
+
+### Build and continuous integration
+
+* **deps:** update dependency org.jacoco:jacoco-maven-plugin to v0.8.16 ([#195](https://github.com/knowledgepixels/nanopub-registry/issues/195)) ([b1ecddf](https://github.com/knowledgepixels/nanopub-registry/commit/b1ecddfce46968c81b5a9c61deb6d17d1d41cc99))
+* **deps:** update maven-surefire-plugin.version to v3.6.1 ([#194](https://github.com/knowledgepixels/nanopub-registry/issues/194)) ([adac853](https://github.com/knowledgepixels/nanopub-registry/commit/adac85341d5b5ee8a6fc30ec3d7593196e218399))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([a4ccc71](https://github.com/knowledgepixels/nanopub-registry/commit/a4ccc71fbdaf832263ff90ebe5040a145a67e0cb))
+
 ## [1.13.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.13.0...nanopub-registry-1.13.1) (2026-10-23)
 
 ### Bug Fixes
