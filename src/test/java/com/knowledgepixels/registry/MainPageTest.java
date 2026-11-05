@@ -50,7 +50,7 @@ class MainPageTest {
         dbMock.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "current")).thenReturn(SETTING_ID);
         when(db.collection(Collection.AGENTS.toString()).countDocuments(db.session)).thenReturn(3L);
         when(db.collection(Collection.ACCOUNTS.toString()).countDocuments(db.session)).thenReturn(7L);
-        when(db.collection(Collection.NANOPUBS.toString()).countDocuments(db.session)).thenReturn(11L);
+        when(db.collection(Collection.NANOPUBS.toString()).estimatedDocumentCount()).thenReturn(11L);
         when(db.collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(db.session)).thenReturn(2L);
         return db;
     }
@@ -68,6 +68,8 @@ class MainPageTest {
             assertTrue(body.contains("\"setupId\":1"), "setupId is reported");
             assertTrue(body.contains("\"currentSetting\":\"" + SETTING_ID + "\""), "current setting is reported");
             assertTrue(body.contains("\"accountCount\":7"), "account count is reported");
+            assertTrue(body.contains("\"nanopubCount\":11"), "nanopub count is reported");
+            verify(ctx.response).putHeader("Nanopub-Registry-Nanopub-Count", "11");
             assertTrue(body.contains("\"registryVersion\""), "the registry version is reported");
             verify(ctx.response).putHeader("Content-Type", "application/json");
         }

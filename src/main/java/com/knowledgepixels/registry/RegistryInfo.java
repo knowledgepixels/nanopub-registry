@@ -82,7 +82,10 @@ public class RegistryInfo implements Serializable {
         }
 
         ri.accountCount = collection(Collection.ACCOUNTS.toString()).countDocuments(mongoSession);
-        ri.nanopubCount = collection(Collection.NANOPUBS.toString()).countDocuments(mongoSession);
+        // Not countDocuments: an exact count scans the whole nanopubs collection, and this runs on
+        // every status poll, which at a few requests per second saturated Mongo (issue #211). This
+        // is the same figure the Nanopub-Registry-Nanopub-Count header and the metrics report.
+        ri.nanopubCount = collection(Collection.NANOPUBS.toString()).estimatedDocumentCount();
         logger.debug("Counts: accountCount={}, nanopubCount={}", ri.accountCount, ri.nanopubCount);
 
         ri.isTestInstance = si.get("testInstance") != null && (Boolean) si.get("testInstance");

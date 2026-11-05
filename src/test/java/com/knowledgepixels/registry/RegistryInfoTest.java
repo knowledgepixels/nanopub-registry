@@ -26,7 +26,7 @@ class RegistryInfoTest {
     public static final String ORIGINAL_SETTING = "original_setting";
     public static final Long AGENT_COUNT = 0L;
     public static final Long ACCOUNT_COUNT = 0L;
-    public static final Long NANOPUB_COUNT = 0L;
+    public static final Long NANOPUB_COUNT = 102638L;
     public static final Long LOAD_COUNTER = 0L;
     public static final Boolean IS_TEST_INSTANCE = Boolean.FALSE;
 
@@ -40,7 +40,7 @@ class RegistryInfoTest {
             registry.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "current")).thenReturn(CURRENT_SETTING);
             registry.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "original")).thenReturn(ORIGINAL_SETTING);
             when(db.collection(Collection.ACCOUNTS.toString()).countDocuments(db.session)).thenReturn(ACCOUNT_COUNT);
-            when(db.collection(Collection.NANOPUBS.toString()).countDocuments(db.session)).thenReturn(NANOPUB_COUNT);
+            when(db.collection(Collection.NANOPUBS.toString()).estimatedDocumentCount()).thenReturn(NANOPUB_COUNT);
 
             String json = RegistryInfo.getLocal(db.session).asJson();
 
@@ -96,7 +96,7 @@ class RegistryInfoTest {
 
             when(mockAgentsCollection.countDocuments(mockSession)).thenReturn(AGENT_COUNT);
             when(mockAccountsCollection.countDocuments(mockSession)).thenReturn(ACCOUNT_COUNT);
-            when(mockNanopubsCollection.countDocuments(mockSession)).thenReturn(NANOPUB_COUNT);
+            when(mockNanopubsCollection.estimatedDocumentCount()).thenReturn(NANOPUB_COUNT);
 
             RegistryInfo registryInfo = RegistryInfo.getLocal(mockSession);
             String expectedJson = "{"
@@ -120,6 +120,10 @@ class RegistryInfoTest {
                                   + "\"trustCalculationEnabled\":true"
                                   + "}";
             assertEquals(expectedJson, registryInfo.asJson());
+            // An exact count of the nanopubs is a full collection scan, too costly for a
+            // snapshot served on every status poll (issue #211).
+            verify(mockNanopubsCollection, never()).countDocuments(any(ClientSession.class));
+            verify(mockNanopubsCollection, never()).countDocuments();
         }
     }
 
@@ -164,7 +168,7 @@ class RegistryInfoTest {
 
             when(mockAgentsCollection.countDocuments(mockSession)).thenReturn(AGENT_COUNT);
             when(mockAccountsCollection.countDocuments(mockSession)).thenReturn(ACCOUNT_COUNT);
-            when(mockNanopubsCollection.countDocuments(mockSession)).thenReturn(NANOPUB_COUNT);
+            when(mockNanopubsCollection.estimatedDocumentCount()).thenReturn(NANOPUB_COUNT);
 
             RegistryInfo registryInfo = RegistryInfo.getLocal(mockSession);
             String expectedJson = "{"
