@@ -28,8 +28,9 @@ Identifier lists:
 Invalidations (retractions, new versions):
 
 - If a nanopublication invalidates another nanopublication, then the types of the latter also apply to the former, so an invalidating nanopublication is added also to all the lists where the invalidated nanopublication belongs
+- This holds whichever of the two a registry receives first, and down a chain of versions: an invalidating nanopublication joins the lists the invalidated one is on when the invalidation is recorded, and any list the invalidated one is put on afterwards. Which nanopublications are on a list therefore does not depend on the order of arrival; only their positions do
 - Registries provide backlink lookup to find such invalidating nanopublications for a given nanopublication identifier
-- Applying an invalidation (recording it, marking the entries of the invalidated nanopublication, adding the invalidating one to its lists) is repeatable and happens every time the invalidating nanopublication is loaded, not only when it is first stored, so a registry that stopped in between makes up for it on the next load
+- Applying an invalidation (recording it, marking the entries of the invalidated nanopublication, adding the invalidating one to its lists) is repeatable and happens every time the invalidating nanopublication is loaded, not only when it is first stored, so a registry that stopped in between makes up for it on the next load. An invalidation is on record once, enforced by a unique index
 
 Trusted agents:
 

@@ -553,31 +553,18 @@ class RegistryDBLoadNanopubTest {
             assertNotNull(targetEntry);
             assertTrue(targetEntry.getBoolean("invalidated"));
 
-            // And the invalidator is added to the lists of every type it declares, so the
-            // replacement is discoverable from the same place as the nanopub it replaces.
-            String fdoTypeHash = Utils.getHash("https://w3id.org/fdof/ontology#FAIRDigitalObject");
-            assertNotNull(listEntry(pubkeyHash, fdoTypeHash, SUPERSEDER_AC));
-        }
-
-        @Test
-        void skipsAnInvalidatingNanopubThatCannotBeRead() throws Exception {
-            Nanopub target = testSuiteNanopub(SIMPLE1_AC);
-            String pubkey = RegistryDB.getPubkey(target);
-            String pubkeyHash = Utils.getHash(pubkey);
-
-            // A stored nanopub whose Jelly payload is corrupt.
-            RegistryDB.insert(session, Collection.NANOPUBS.toString(),
-                    new Document("_id", "RAcorruptedArtifactCode00000000000000000000")
-                            .append("fullId", "http://example.org/corrupted")
-                            .append("counter", 4242L)
-                            .append("jelly", new Binary("this is not a jelly frame".getBytes())));
-            RegistryDB.insert(session, "invalidations",
-                    new Document("invalidatingNp", "RAcorruptedArtifactCode00000000000000000000")
-                            .append("invalidatingPubkey", pubkeyHash).append("invalidatedNp", SIMPLE1_AC));
-
-            // One unreadable invalidator must not abort the load of the nanopub it invalidates.
-            assertTrue(RegistryDB.loadNanopubVerified(session, target, pubkey, pubkeyHash, "$"));
-            assertNotNull(nanopubDoc(SIMPLE1_AC));
+            // And the invalidator joins the lists the target is on, so the replacement is
+            // discoverable from the same place as the nanopub it replaces, just as if it had
+            // arrived second.
+            List<String> listsOfTarget = RegistryDB.collection("listEntries")
+                    .find(session, new Document("pubkey", pubkeyHash).append("np", SIMPLE1_AC))
+                    .map(e -> e.getString("type")).into(new java.util.ArrayList<>());
+            assertTrue(listsOfTarget.size() > 1, "the target is on the lists of its types as well");
+            for (String typeHash : listsOfTarget) {
+                Document invalidatorEntry = listEntry(pubkeyHash, typeHash, SUPERSEDER_AC);
+                assertNotNull(invalidatorEntry, "the invalidator has to be on list " + typeHash);
+                assertFalse(invalidatorEntry.getBoolean("invalidated"));
+            }
         }
     }
 
@@ -1104,7 +1091,130 @@ class RegistryDBLoadNanopubTest {
                 Document entry = listEntry(pubkeyHash, type, invalidatedAc);
                 assertNotNull(entry);
                 assertTrue(entry.getBoolean("invalidated"), "the invalidation reaches the entries written after it was recorded");
+                assertNotNull(listEntry(pubkeyHash, type, TrustyUriUtils.getArtifactCode(pair.get(1).getUri().stringValue())),
+                        "the invalidating nanopub joins the lists of entries written after it was recorded");
             }
+        }
+
+        /** Three versions of a nanopub, each superseding the one before; only the first has a type of its own. */
+        private static List<Nanopub> threeVersions() throws Exception {
+            List<Nanopub> versions = new java.util.ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                NanopubCreator creator = new NanopubCreator("http://example.org/version/" + i + "/");
+                creator.addAssertionStatement(iri("http://example.org/thing"), RDF.TYPE, iri("http://example.org/Thing"));
+                creator.addProvenanceStatement(iri("http://www.w3.org/ns/prov#wasAttributedTo"), iri("http://example.org/someone"));
+                creator.addPubinfoStatement(iri("http://purl.org/dc/terms/description"), SimpleValueFactory.getInstance().createLiteral("version " + i));
+                if (i == 0) {
+                    creator.addPubinfoStatement(RDF.TYPE, TYPE_OF_INVALIDATED);
+                } else {
+                    creator.addPubinfoStatement(org.nanopub.vocabulary.NPX.SUPERSEDES, versions.get(i - 1).getUri());
+                }
+                versions.add(creator.finalizeTrustyNanopub());
+            }
+            return versions;
+        }
+
+        /** What is on the lists of a pubkey, order aside: list -> the nanopubs on it, with their invalidated flag. */
+        private java.util.Map<String, Set<String>> listContents(String pubkeyHash) {
+            java.util.Map<String, Set<String>> contents = new java.util.TreeMap<>();
+            for (Document entry : RegistryDB.collection("listEntries").find(session, new Document("pubkey", pubkeyHash))) {
+                contents.computeIfAbsent(entry.getString("type"), k -> new java.util.TreeSet<>())
+                        .add(entry.getString("np") + (entry.getBoolean("invalidated") ? " (invalidated)" : ""));
+            }
+            return contents;
+        }
+
+        private static final int[][] ARRIVAL_ORDERS = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+
+        /**
+         * The types of an invalidated nanopub also apply to the one that invalidates it, down
+         * a chain of versions. That is a statement about the nanopubs, not about the order in
+         * which a registry happens to receive them, so every order has to give the same lists.
+         */
+        @Test
+        void theListsDoNotDependOnTheOrderOfArrival() throws Exception {
+            List<Nanopub> versions = threeVersions();
+            List<String> acs = versions.stream().map(np -> TrustyUriUtils.getArtifactCode(np.getUri().stringValue())).toList();
+            java.util.Map<String, Set<String>> expected = null;
+            for (int[] order : ARRIVAL_ORDERS) {
+                String pubkey = "arrival-order-key-" + java.util.Arrays.toString(order);
+                String pubkeyHash = Utils.getHash(pubkey);
+                for (int i : order) {
+                    assertTrue(RegistryDB.loadNanopubVerified(session, versions.get(i), pubkey, pubkeyHash, "$"));
+                }
+                java.util.Map<String, Set<String>> contents = listContents(pubkeyHash);
+                if (expected == null) {
+                    // The order of publication, which earlier versions handled as well.
+                    expected = contents;
+                    String typeHash = Utils.getHash(TYPE_OF_INVALIDATED.stringValue());
+                    assertEquals(Set.of(acs.get(0) + " (invalidated)", acs.get(1) + " (invalidated)", acs.get(2)), contents.get(typeHash),
+                            "every version is on the list of the first one's type, and only the last is current");
+                    assertEquals(contents.get(typeHash), contents.get("$"));
+                } else {
+                    assertEquals(expected, contents, "arrival order " + java.util.Arrays.toString(order));
+                }
+            }
+        }
+
+        /** The same for a parallel load, where the entries of the stream wait in a batch. */
+        @Test
+        void theListsOfAParallelLoadDoNotDependOnTheOrderOfTheStream() throws Exception {
+            List<Nanopub> versions = threeVersions();
+            java.util.Map<String, Set<String>> expected = null;
+            for (int[] order : ARRIVAL_ORDERS) {
+                String pubkey = "stream-order-key-" + java.util.Arrays.toString(order);
+                String pubkeyHash = Utils.getHash(pubkey);
+                loadInParallel(java.util.Arrays.stream(order).mapToObj(versions::get).map(org.nanopub.jelly.MaybeNanopub::new), pubkey, pubkeyHash);
+                java.util.Map<String, Set<String>> contents = listContents(pubkeyHash);
+                if (expected == null) {
+                    expected = contents;
+                    assertEquals(3, contents.get(Utils.getHash(TYPE_OF_INVALIDATED.stringValue())).size());
+                } else {
+                    assertEquals(expected, contents, "stream order " + java.util.Arrays.toString(order));
+                }
+                // Every list is one sequential chain, whoever was appended when.
+                for (String typeHash : contents.keySet()) {
+                    String checksum = NanopubUtils.INIT_CHECKSUM;
+                    long position = 0;
+                    for (Document entry : RegistryDB.collection("listEntries").find(session, new Document("pubkey", pubkeyHash).append("type", typeHash))
+                            .sort(new Document("position", 1))) {
+                        checksum = NanopubUtils.updateXorChecksum(iri("https://w3id.org/np/" + entry.getString("np")), checksum);
+                        assertEquals(position++, entry.getLong("position"));
+                        assertEquals(checksum, entry.getString("checksum"));
+                    }
+                }
+            }
+        }
+
+        /**
+         * Several writers loading the same invalidating nanopub at the same moment, as a peer
+         * load and a publisher's POST can, put the invalidation on record once.
+         */
+        @Test
+        void concurrentLoadsRecordAnInvalidationOnce() throws Exception {
+            String pubkey = "concurrent-invalidation-key";
+            String pubkeyHash = Utils.getHash(pubkey);
+            List<Nanopub> pair = invalidatedAndInvalidating();
+            assertTrue(RegistryDB.loadNanopubVerified(session, pair.get(0), pubkey, pubkeyHash, "$"));
+
+            ExecutorService executor = Executors.newFixedThreadPool(8);
+            try {
+                List<Future<Boolean>> results = new java.util.ArrayList<>();
+                for (int i = 0; i < 8; i++) {
+                    results.add(executor.submit(() -> {
+                        try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
+                            return RegistryDB.loadNanopubVerified(workerSession, pair.get(1), pubkey, pubkeyHash, "$");
+                        }
+                    }));
+                }
+                for (Future<Boolean> result : results) {
+                    assertTrue(result.get());
+                }
+            } finally {
+                executor.shutdownNow();
+            }
+
+            assertInvalidationApplied(pair, pubkeyHash, entryCount(pubkeyHash));
         }
 
         /**

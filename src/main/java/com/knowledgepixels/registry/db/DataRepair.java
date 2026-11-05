@@ -1,7 +1,9 @@
 package com.knowledgepixels.registry.db;
 
 import com.knowledgepixels.registry.Collection;
+import com.knowledgepixels.registry.RegistryDB;
 import com.mongodb.MongoBulkWriteException;
+import com.mongodb.MongoException;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UpdateOneModel;
@@ -52,8 +54,9 @@ import static com.knowledgepixels.registry.RegistryDB.setValue;
  *
  * <p>Reshaping documents is a different problem and does not belong here: a schema change wants
  * backward-compatible reads, so that a half-migrated database still serves. Recomputing a stored
- * value that is a pure function of other stored data, such as a list's checksum chain, does
- * belong here, as it meets all of the above.
+ * value that is a pure function of other stored data, such as a list's checksum chain or the
+ * list entries that follow from an invalidation record, does belong here, as it meets all of
+ * the above.
  */
 public final class DataRepair {
 
@@ -66,7 +69,7 @@ public final class DataRepair {
      * The repair level this version of the code knows about. Bump it when adding a repair,
      * and run the new repair for every stored version below it in {@link #runIfNeeded}.
      */
-    static final int CURRENT_REPAIR_VERSION = 2;
+    static final int CURRENT_REPAIR_VERSION = 3;
 
     private static final String REPAIR_VERSION_KEY = "repairVersion";
 
@@ -107,6 +110,10 @@ public final class DataRepair {
         }
         if (applied < 2) {
             repairListChecksumChains(mongoSession);
+        }
+        if (applied < 3) {
+            removeDoubledInvalidationRecords(mongoSession);
+            completeInvalidations(mongoSession);
         }
         markUpToDate(mongoSession);
     }
@@ -300,6 +307,85 @@ public final class DataRepair {
             logger.warn("Rewrote {} checksum(s) of list pubkey={} type={} (last position {})", rewritten, pubkeyHash, typeHash, scan.lastPosition);
         }
         return rewritten;
+    }
+
+    /**
+     * Removes invalidation records that are on record more than once, and creates the unique
+     * index that keeps it that way.
+     *
+     * <p>Without the index, two writers loading the same invalidating nanopub at the same moment
+     * could both record its invalidation. Nothing reads a doubled record differently from a
+     * single one, so removing all but one of a set of identical records loses nothing. A
+     * database created by this version has the index from the start.
+     *
+     * <p>The POST handler may record an invalidation while this runs; if that doubles a record
+     * between the cleanup and the creation of the index, the cleanup is repeated. If the index
+     * still cannot be created, that is reported and the registry runs without it, as before.
+     */
+    static void removeDoubledInvalidationRecords(ClientSession mongoSession) {
+        long removed = 0;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            List<Document> doubled = collection("invalidations").aggregate(mongoSession, List.of(
+                    new Document("$group", new Document("_id", new Document("invalidatingNp", "$invalidatingNp")
+                            .append("invalidatedNp", "$invalidatedNp").append("invalidatingPubkey", "$invalidatingPubkey"))
+                            .append("ids", new Document("$push", "$_id"))),
+                    new Document("$match", new Document("ids.1", new Document("$exists", true)))
+            )).allowDiskUse(true).into(new ArrayList<>());
+            for (Document group : doubled) {
+                List<?> ids = group.getList("ids", Object.class);
+                removed += collection("invalidations").deleteMany(mongoSession,
+                        new Document("_id", new Document("$in", ids.subList(1, ids.size())))).getDeletedCount();
+            }
+            try {
+                IndexInitializer.initUniqueInvalidationIndex(mongoSession);
+                logger.info("Checked the invalidation records for doubles: removed {}; an invalidation can now be on record only once", removed);
+                return;
+            } catch (MongoException e) {
+                logger.warn("Could not create the unique index on the invalidation records (attempt {}): {}", attempt + 1, e.getMessage());
+            }
+        }
+        logger.error("Giving up on the unique index on the invalidation records after removing {} doubled record(s). "
+                + "The registry works without it, but an invalidation may be recorded twice.", removed);
+    }
+
+    /**
+     * Makes the lists reflect every invalidation record.
+     *
+     * <p>If a nanopublication invalidates another, the lists the invalidated one is on also
+     * apply to the invalidating one. Earlier versions only acted on that when the invalidating
+     * nanopub arrived second, and under parallel loading not reliably even then, so registries
+     * hold invalidating nanopubs that are missing from lists of the nanopubs they invalidate,
+     * and possibly entries of invalidated nanopubs that are not marked as such. Which lists a
+     * nanopub belongs on by an invalidation is a pure function of the records and the entries
+     * that are there, so the repair adds what is missing and marks what is unmarked. Nothing is
+     * removed. New entries are appended to the end of their lists like any other.
+     */
+    static void completeInvalidations(ClientSession mongoSession) {
+        long records = 0, incomplete = 0, changes = 0;
+        try (MongoCursor<Document> cursor = collection("invalidations").find(mongoSession).noCursorTimeout(true).cursor()) {
+            while (cursor.hasNext()) {
+                Document record = cursor.next();
+                records++;
+                String invalidatingAc = record.getString("invalidatingNp");
+                String pubkeyHash = record.getString("invalidatingPubkey");
+                String invalidatedAc = record.getString("invalidatedNp");
+                if (invalidatingAc == null || pubkeyHash == null || invalidatedAc == null || !isWellFormedArtifactCode(invalidatingAc)) {
+                    logger.error("Skipping the malformed invalidation record {}", record.toJson());
+                    continue;
+                }
+                long changed = RegistryDB.completeInvalidation(mongoSession, invalidatingAc, pubkeyHash, invalidatedAc);
+                if (changed > 0) {
+                    incomplete++;
+                    changes += changed;
+                    logger.debug("Completed the invalidation of {} by {}: {} list entries added or marked", invalidatedAc, invalidatingAc, changed);
+                }
+            }
+        }
+        if (changes > 0) {
+            logger.warn("Checked {} invalidation record(s): {} were not fully reflected in the lists; added or marked {} list entries", records, incomplete, changes);
+        } else {
+            logger.info("Checked {} invalidation record(s): all fully reflected in the lists", records);
+        }
     }
 
     /** Where a pass over a list's entries ended: the last position seen and its correct checksum. */

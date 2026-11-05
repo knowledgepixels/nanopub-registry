@@ -178,7 +178,7 @@ class ListAppendBatchTest {
     }
 
     @Test
-    void marksEntriesWhoseInvalidationWasRecordedWhileTheyWerePending() throws Exception {
+    void appliesInvalidationsRecordedWhileTheEntriesWerePending() throws Exception {
         ListAppendBatch batch = new ListAppendBatch();
         String ac = artifactCode("np");
         String untouched = artifactCode("untouched");
@@ -198,6 +198,11 @@ class ListAppendBatchTest {
         assertTrue(entries.get(0).getBoolean("invalidated"), "the invalidation reaches the entry once it is written");
         assertFalse(entries.get(1).getBoolean("invalidated"));
         assertFalse(entries.get(2).getBoolean("invalidated"), "an invalidation only counts on the lists of the pubkey that made it");
+        assertEquals(4, entries.size());
+        assertEquals(artifactCode("invalidating"), entries.get(3).getString("np"), "the invalidating nanopub joins the list of the invalidated one");
+        assertFalse(entries.get(3).getBoolean("invalidated"));
+        assertSequentialChain(entries);
+        assertEquals(3L, maxPosition());
     }
 
 }
