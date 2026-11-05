@@ -1,3 +1,17 @@
+## [1.14.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.14.0...nanopub-registry-1.14.1) (2026-11-05)
+
+### Bug Fixes
+
+* use the estimated nanopub count in the status JSON ([f4b4c96](https://github.com/knowledgepixels/nanopub-registry/commit/f4b4c963e8060412b75416efb56031d76df80f46)), closes [#211](https://github.com/knowledgepixels/nanopub-registry/issues/211)
+
+### Build and continuous integration
+
+* **deps:** update actions/setup-java action to v6.2.0 ([#209](https://github.com/knowledgepixels/nanopub-registry/issues/209)) ([2ec3369](https://github.com/knowledgepixels/nanopub-registry/commit/2ec3369284c7a3e45c8970a0a31b69349f4066b8))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([e8bd2d5](https://github.com/knowledgepixels/nanopub-registry/commit/e8bd2d5032936a644bbc6af91b84a172e6c3f476))
+
 ## [1.14.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.13.1...nanopub-registry-1.14.0) (2026-11-05)
 
 ### Features
