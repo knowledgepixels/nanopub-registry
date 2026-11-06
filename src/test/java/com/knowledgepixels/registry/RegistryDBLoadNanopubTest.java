@@ -566,6 +566,28 @@ class RegistryDBLoadNanopubTest {
                 assertFalse(invalidatorEntry.getBoolean("invalidated"));
             }
         }
+
+        /**
+         * Versions before the ingest check stored nanopubs under artifact codes that cannot be
+         * decoded. One of those on record as invalidating a nanopub cannot go on a list, and
+         * must not keep the nanopub it invalidates from being loaded.
+         */
+        @Test
+        void ignoresARecordedInvalidatorWithAMalformedArtifactCode() throws Exception {
+            Nanopub target = testSuiteNanopub(SIMPLE1_AC);
+            String pubkey = RegistryDB.getPubkey(target);
+            String pubkeyHash = Utils.getHash(pubkey);
+            String malformed = "RAtooShortToBeAnArtifactCode";
+            RegistryDB.insert(session, "invalidations",
+                    new Document("invalidatingNp", malformed).append("invalidatingPubkey", pubkeyHash).append("invalidatedNp", SIMPLE1_AC));
+
+            assertTrue(RegistryDB.loadNanopubVerified(session, target, pubkey, pubkeyHash, "$"));
+
+            Document targetEntry = listEntry(pubkeyHash, "$", SIMPLE1_AC);
+            assertNotNull(targetEntry);
+            assertTrue(targetEntry.getBoolean("invalidated"), "the record still stands for the nanopub it invalidates");
+            assertNull(listEntry(pubkeyHash, "$", malformed));
+        }
     }
 
     // --- list placement ------------------------------------------------------
