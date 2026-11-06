@@ -15,7 +15,7 @@ services:
         max-file: "3"
 
   mongodb:
-    image: mongo:7
+    image: mongo:8
     restart: unless-stopped
     # entrypoint solution adjusted from here: https://stackoverflow.com/a/75572007
     entrypoint: >
