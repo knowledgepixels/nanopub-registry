@@ -508,4 +508,81 @@ class DataRepairTest {
         assertThrows(com.mongodb.MongoWriteException.class, () -> seedInvalidation(replacement, "laterIndexPubkey", old));
     }
 
+    // --- trust edges ---------------------------------------------------------
+
+    private void seedEdge(String fromPubkey, String toAgent, String source, boolean invalidated) {
+        RegistryDB.insert(session, "trustEdges", new Document("fromAgent", "agentOf" + fromPubkey).append("fromPubkey", fromPubkey)
+                .append("toAgent", toAgent).append("toPubkey", "p").append("source", source).append("invalidated", invalidated));
+    }
+
+    private boolean edgeInvalidated(String toAgent) {
+        return RegistryDB.collection("trustEdges").find(session, new Document("toAgent", toAgent)).first().getBoolean("invalidated");
+    }
+
+    /**
+     * What earlier versions did when a nanopub signed with one pubkey named an endorsement of
+     * another pubkey as invalidated: the edge was marked, although nobody but the endorser can
+     * take an endorsement back.
+     */
+    @Test
+    void clearsATrustEdgeThatOnlyAnotherPubkeyInvalidated() {
+        String endorsement = artifactCode("endorsement");
+        seedEdge("endorser", "wronglyMarked", endorsement, true);
+        seedInvalidation(artifactCode("foreign"), "somebodyElse", endorsement);
+
+        String retracted = artifactCode("retracted");
+        seedEdge("endorser", "rightlyMarked", retracted, true);
+        seedInvalidation(artifactCode("retraction"), "endorser", retracted);
+
+        seedEdge("endorser", "untouched", artifactCode("standing"), false);
+
+        DataRepair.runIfNeeded(session);
+
+        assertFalse(edgeInvalidated("wronglyMarked"), "an invalidation by another pubkey does not count");
+        assertTrue(edgeInvalidated("rightlyMarked"), "an invalidation by the endorser stands");
+        assertFalse(edgeInvalidated("untouched"));
+    }
+
+    @Test
+    void marksATrustEdgeWhoseSourceItsSignerInvalidated() {
+        String retracted = artifactCode("retracted");
+        seedEdge("endorser", "missed", retracted, false);
+        seedInvalidation(artifactCode("retraction"), "endorser", retracted);
+
+        DataRepair.runIfNeeded(session);
+
+        assertTrue(edgeInvalidated("missed"));
+    }
+
+    /** The root edges start from the placeholder, so the signer of the setting decides. */
+    @Test
+    void judgesTheRootEdgesByTheSignerOfTheSetting() {
+        String setting = artifactCode("setting");
+        RegistryDB.insert(session, Collection.NANOPUBS.toString(), new Document("_id", setting)
+                .append("fullId", "https://w3id.org/np/" + setting).append("counter", 1L).append("pubkey", "settingSigner"));
+        seedEdge("$", "root", setting, true);
+        seedInvalidation(artifactCode("newSetting"), "settingSigner", setting);
+
+        String otherSetting = artifactCode("otherSetting");
+        RegistryDB.insert(session, Collection.NANOPUBS.toString(), new Document("_id", otherSetting)
+                .append("fullId", "https://w3id.org/np/" + otherSetting).append("counter", 2L).append("pubkey", "settingSigner"));
+        seedEdge("$", "rootOfOther", otherSetting, true);
+        seedInvalidation(artifactCode("impostor"), "somebodyElse", otherSetting);
+
+        DataRepair.runIfNeeded(session);
+
+        assertTrue(edgeInvalidated("root"), "superseded by its signer");
+        assertFalse(edgeInvalidated("rootOfOther"), "superseded only by somebody else");
+    }
+
+    @Test
+    void doesNotReconcileTrustEdgesOnceTheRepairHasRun() {
+        DataRepair.runIfNeeded(session);
+
+        seedEdge("endorser", "late", artifactCode("endorsement"), true);
+        DataRepair.runIfNeeded(session);
+
+        assertTrue(edgeInvalidated("late"));
+    }
+
 }

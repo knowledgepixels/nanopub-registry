@@ -127,7 +127,8 @@ public class TrustUpdateTrigger {
     /**
      * Whether this nanopub can change the trust state: an introduction, an
      * endorsement, or something that invalidates a nanopub currently sourcing a
-     * trust edge (a retracted approval, typically).
+     * trust edge (a retracted approval, typically), signed with the pubkey that
+     * signed that nanopub.
      *
      * <p>
      * These are exactly the inputs the cycle consumes:
@@ -142,12 +143,25 @@ public class TrustUpdateTrigger {
                 return true;
             }
         }
+        String pubkeyHash = null;
         for (IRI invalidatedId : Utils.getInvalidatedNanopubIds(np)) {
             String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
             if (invalidatedAc == null) {
                 continue;
             }
-            if (has(mongoSession, "trustEdges", new Document("source", invalidatedAc))) {
+            if (!has(mongoSession, "trustEdges", new Document("source", invalidatedAc))) {
+                continue;
+            }
+            // Only whoever signed the source of a trust edge can invalidate it, so the signer
+            // of this nanopub matters. Almost no arrival gets this far.
+            if (pubkeyHash == null) {
+                String pubkey = RegistryDB.getPubkey(np);
+                if (pubkey == null) {
+                    return false;
+                }
+                pubkeyHash = Utils.getHash(pubkey);
+            }
+            if (RegistryDB.invalidatesTrustEdges(mongoSession, pubkeyHash, invalidatedAc)) {
                 return true;
             }
         }

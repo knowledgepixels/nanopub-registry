@@ -533,6 +533,27 @@ class RegistryDBLoadNanopubTest {
             assertEquals(1L, newEntry.getLong("position"));
         }
 
+        /**
+         * A trust edge is taken back by invalidating its source, and only whoever signed the
+         * source can do that. Somebody else's nanopub naming the same source changes nothing.
+         */
+        @Test
+        void invalidatesATrustEdgeOnlyForThePubkeyThatSignedItsSource() throws Exception {
+            Nanopub superseder = testSuiteNanopub(SUPERSEDER_AC);
+            String pubkey = RegistryDB.getPubkey(superseder);
+            String pubkeyHash = Utils.getHash(pubkey);
+            RegistryDB.insert(session, "trustEdges", new Document("fromAgent", "signer").append("fromPubkey", pubkeyHash)
+                    .append("toAgent", "A").append("toPubkey", "P").append("source", SUPERSEDED_AC).append("invalidated", false));
+            RegistryDB.insert(session, "trustEdges", new Document("fromAgent", "somebodyElse").append("fromPubkey", "theHashOfAnotherPubkey")
+                    .append("toAgent", "A").append("toPubkey", "P").append("source", SUPERSEDED_AC).append("invalidated", false));
+
+            assertTrue(RegistryDB.loadNanopubVerified(session, superseder, pubkey, pubkeyHash, "$"));
+
+            assertTrue(RegistryDB.collection("trustEdges").find(session, new Document("fromAgent", "signer")).first().getBoolean("invalidated"));
+            assertFalse(RegistryDB.collection("trustEdges").find(session, new Document("fromAgent", "somebodyElse")).first().getBoolean("invalidated"),
+                    "an endorsement cannot be taken back by somebody else");
+        }
+
         @Test
         void marksListEntriesInvalidatedWhenTheInvalidatingNanopubIsAlreadyKnown() throws Exception {
             Nanopub invalidator = testSuiteNanopub(SUPERSEDER_AC);

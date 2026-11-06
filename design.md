@@ -31,6 +31,7 @@ Invalidations (retractions, new versions):
 - This holds whichever of the two a registry receives first, and down a chain of versions: an invalidating nanopublication joins the lists the invalidated one is on when the invalidation is recorded, and any list the invalidated one is put on afterwards. Which nanopublications are on a list therefore does not depend on the order of arrival; only their positions do
 - Registries provide backlink lookup to find such invalidating nanopublications for a given nanopublication identifier
 - Applying an invalidation (recording it, marking the entries of the invalidated nanopublication, adding the invalidating one to its lists) is repeatable and happens every time the invalidating nanopublication is loaded, not only when it is first stored, so a registry that stopped in between makes up for it on the next load. An invalidation is on record once, enforced by a unique index
+- An invalidation only has an effect for the pubkey that made it: it marks the entries of the invalidated nanopublication on that pubkey's lists, and it invalidates a trust edge only if that pubkey signed the nanopublication the edge is sourced from, so nobody can take back somebody else's endorsement. The root edges of an instance are sourced from its setting and are judged by the pubkey that signed the setting
 
 Trusted agents:
 

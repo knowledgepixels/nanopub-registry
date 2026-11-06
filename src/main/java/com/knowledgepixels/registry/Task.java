@@ -392,7 +392,7 @@ public enum Task implements Serializable {
                                 .append("toPubkey", agentPubkey)
                                 .append("source", sourceAc);
                         if (!has(s, "trustEdges", trustEdge)) {
-                            boolean invalidated = has(s, "invalidations", new Document("invalidatedNp", sourceAc).append("invalidatingPubkey", sourcePubkey));
+                            boolean invalidated = RegistryDB.isTrustEdgeSourceInvalidated(s, sourceAc, sourcePubkey);
                             if (invalidated) {
                                 logger.info("Trust edge from {}/{} to {}/{} is invalidated by source {}", sourceAgent, sourcePubkey, agentId, agentPubkey, sourceAc);
                             }
