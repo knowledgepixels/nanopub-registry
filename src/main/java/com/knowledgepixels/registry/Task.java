@@ -1245,11 +1245,11 @@ public enum Task implements Serializable {
                             logger.debug("Pubkey {}, typeHash={}: checksum fallbacks={}", ph, typeHash, checksums);
                             try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, ph, checksums)) {
                                 NanopubLoader.loadStreamInParallel(stream, np -> {
-                                    if (!CoverageFilter.isCovered(np)) {
-                                        logger.debug("Pubkey {}: nanopub {} not covered; skipping", ph, np);
-                                        return;
-                                    }
                                     try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                        if (!CoverageFilter.isCovered(ws, np)) {
+                                            logger.debug("Pubkey {}: nanopub {} not covered; skipping", ph, np);
+                                            return;
+                                        }
                                         if (!AgentFilter.isOverQuota(ws, ph)) {
                                             loadNanopub(ws, np, ph, "$");
                                             totalLoaded.incrementAndGet();
@@ -1374,10 +1374,10 @@ public enum Task implements Serializable {
                     String checksums = buildChecksumFallbacks(s, pubkeyHash, typeHash);
                     try (var stream = NanopubLoader.retrieveNanopubsFromPeers(typeHash, pubkeyHash, checksums)) {
                         NanopubLoader.loadStreamInParallel(stream, np -> {
-                            if (!CoverageFilter.isCovered(np)) {
-                                return;
-                            }
                             try (ClientSession ws = RegistryDB.getClient().startSession()) {
+                                if (!CoverageFilter.isCovered(ws, np)) {
+                                    return;
+                                }
                                 loadNanopub(ws, np, pubkeyHash, "$");
                                 totalLoaded.incrementAndGet();
                             }
@@ -1400,7 +1400,7 @@ public enum Task implements Serializable {
                         }
                         try (ClientSession ws = RegistryDB.getClient().startSession()) {
                             Nanopub np = NanopubLoader.retrieveLocalNanopub(ws, fullId);
-                            if (np != null && CoverageFilter.isCovered(np)) {
+                            if (np != null && CoverageFilter.isCovered(ws, np)) {
                                 loadNanopub(ws, np, pubkeyHash, "$");
                                 totalLoaded.incrementAndGet();
                             }

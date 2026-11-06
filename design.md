@@ -234,6 +234,7 @@ Registries can restrict which nanopub types they store via the `REGISTRY_COVERAG
 
 When coverage is restricted:
 - **POST handler** rejects nanopubs whose types are not covered
+- **Invalidating nanopubs** are the exception: a nanopub that invalidates one the registry holds, signed with the same key, is accepted whatever its own types. A retraction has the type `npx:retracts` and not the type of what it retracts; without the exception, a restricted registry would keep listing retracted nanopubs as valid. It goes on the lists of the nanopub it invalidates, and gets no list for its own uncovered types
 - **LOAD_FULL** and **RUN_OPTIONAL_LOAD** fetch per covered type from peers (with checksum-based skip-ahead), instead of fetching the `$` (all types) list
 - **Peer sync** (`loadRecentNanopubs`) filters uncovered nanopubs client-side
 - **`loadNanopubVerified`** only creates individual type lists for covered types when expanding `$`
