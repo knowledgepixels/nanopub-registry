@@ -23,6 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -300,6 +303,209 @@ class DataRepairTest {
         DataRepair.runIfNeeded(session);
 
         assertEquals(wrong, entriesOf(pubkeyHash).get(0).getString("checksum"));
+    }
+
+    // --- invalidations -------------------------------------------------------
+
+    private void seedEntry(String pubkeyHash, String typeHash, long position, String artifactCode, String checksum, boolean invalidated) {
+        RegistryDB.insert(session, "listEntries", new Document("pubkey", pubkeyHash).append("type", typeHash)
+                .append("position", position).append("np", artifactCode).append("checksum", checksum).append("invalidated", invalidated));
+    }
+
+    private void seedInvalidation(String invalidatingAc, String pubkeyHash, String invalidatedAc) {
+        RegistryDB.insert(session, "invalidations", new Document("invalidatingNp", invalidatingAc)
+                .append("invalidatingPubkey", pubkeyHash).append("invalidatedNp", invalidatedAc));
+    }
+
+    private List<Document> entriesOf(String pubkeyHash, String typeHash) {
+        return RegistryDB.collection("listEntries").find(session, new Document("pubkey", pubkeyHash).append("type", typeHash))
+                .sort(new Document("position", 1)).into(new ArrayList<>());
+    }
+
+    /**
+     * What earlier versions left behind when the invalidating nanopub arrived first: it is on
+     * the lists of its own load, but not on the other lists of the nanopub it invalidates.
+     */
+    @Test
+    void addsAnInvalidatingNanopubToTheListsItIsMissingFrom() {
+        String pubkeyHash = "gapPubkey";
+        String old = artifactCode("old"), unrelated = artifactCode("unrelated"), replacement = artifactCode("replacement");
+        seedNanopub(old, 1L);
+        seedNanopub(unrelated, 2L);
+        seedNanopub(replacement, 3L);
+        String c0 = chain(old, NanopubUtils.INIT_CHECKSUM), c1 = chain(unrelated, c0), c2 = chain(replacement, c1);
+        seedEntry(pubkeyHash, "$", 0L, old, c0, true);
+        seedEntry(pubkeyHash, "$", 1L, unrelated, c1, false);
+        seedEntry(pubkeyHash, "$", 2L, replacement, c2, false);
+        seedEntry(pubkeyHash, "typeOfOld", 0L, old, c0, true);
+        seedEntry(pubkeyHash, "typeOfOld", 1L, unrelated, c1, false);
+        seedInvalidation(replacement, pubkeyHash, old);
+
+        DataRepair.runIfNeeded(session);
+
+        List<Document> onType = entriesOf(pubkeyHash, "typeOfOld");
+        assertEquals(List.of(old, unrelated, replacement), onType.stream().map(e -> e.getString("np")).toList(),
+                "the invalidating nanopub is appended to the list it was missing from");
+        assertFalse(onType.get(2).getBoolean("invalidated"));
+        assertSequentialChain(onType);
+        assertEquals(3, entriesOf(pubkeyHash, "$").size(), "a list it is on already is left alone");
+    }
+
+    @Test
+    void followsAChainOfVersionsWhenFillingAList() {
+        String pubkeyHash = "chainPubkey";
+        String v0 = artifactCode("v0"), v1 = artifactCode("v1"), v2 = artifactCode("v2");
+        seedNanopub(v0, 1L);
+        seedNanopub(v1, 2L);
+        seedNanopub(v2, 3L);
+        seedEntry(pubkeyHash, "typeOfFirst", 0L, v0, chain(v0, NanopubUtils.INIT_CHECKSUM), true);
+        // The later record first, so that its own turn comes before the list reaches v1.
+        seedInvalidation(v2, pubkeyHash, v1);
+        seedInvalidation(v1, pubkeyHash, v0);
+
+        DataRepair.runIfNeeded(session);
+
+        List<Document> onType = entriesOf(pubkeyHash, "typeOfFirst");
+        assertEquals(List.of(v0, v1, v2), onType.stream().map(e -> e.getString("np")).toList());
+        assertTrue(onType.get(1).getBoolean("invalidated"), "a version that is superseded itself joins the list as invalidated");
+        assertFalse(onType.get(2).getBoolean("invalidated"));
+        assertSequentialChain(onType);
+    }
+
+    @Test
+    void marksTheEntriesOfAnInvalidatedNanopubThatWereLeftUnmarked() {
+        String pubkeyHash = "unmarkedPubkey";
+        String old = artifactCode("old"), replacement = artifactCode("replacement");
+        seedNanopub(old, 1L);
+        seedNanopub(replacement, 2L);
+        String c0 = chain(old, NanopubUtils.INIT_CHECKSUM);
+        seedEntry(pubkeyHash, "$", 0L, old, c0, false);
+        seedEntry(pubkeyHash, "$", 1L, replacement, chain(replacement, c0), false);
+        // The same nanopub under another pubkey is not touched: an invalidation only counts
+        // on the lists of the pubkey that made it.
+        seedEntry("anotherPubkey", "$", 0L, old, c0, false);
+        seedInvalidation(replacement, pubkeyHash, old);
+
+        DataRepair.runIfNeeded(session);
+
+        assertTrue(entriesOf(pubkeyHash, "$").get(0).getBoolean("invalidated"));
+        assertFalse(entriesOf(pubkeyHash, "$").get(1).getBoolean("invalidated"));
+        assertFalse(entriesOf("anotherPubkey", "$").get(0).getBoolean("invalidated"));
+    }
+
+    @Test
+    void doesNotListAnInvalidatingNanopubThatIsNotStored() {
+        String pubkeyHash = "danglingPubkey";
+        String old = artifactCode("old");
+        seedNanopub(old, 1L);
+        seedEntry(pubkeyHash, "$", 0L, old, chain(old, NanopubUtils.INIT_CHECKSUM), false);
+        seedInvalidation(artifactCode("neverStored"), pubkeyHash, old);
+
+        DataRepair.runIfNeeded(session);
+
+        List<Document> entries = entriesOf(pubkeyHash, "$");
+        assertEquals(1, entries.size());
+        assertTrue(entries.get(0).getBoolean("invalidated"), "the record still stands for the nanopub it invalidates");
+    }
+
+    /**
+     * A database of an earlier version has no unique index on the invalidation records and
+     * may hold the same record twice.
+     */
+    @Test
+    void removesDoubledInvalidationRecordsAndKeepsThemFromComingBack() {
+        RegistryDB.collection("invalidations").dropIndex(new Document("invalidatingNp", 1).append("invalidatedNp", 1).append("invalidatingPubkey", 1));
+        String old = artifactCode("old"), replacement = artifactCode("replacement");
+        seedInvalidation(replacement, "doubledPubkey", old);
+        seedInvalidation(replacement, "doubledPubkey", old);
+        seedInvalidation(replacement, "doubledPubkey", old);
+        seedInvalidation(artifactCode("another"), "doubledPubkey", old);
+
+        DataRepair.runIfNeeded(session);
+
+        assertEquals(1L, RegistryDB.collection("invalidations").countDocuments(session, new Document("invalidatingNp", replacement)));
+        assertEquals(2L, RegistryDB.collection("invalidations").countDocuments(session));
+        assertThrows(com.mongodb.MongoWriteException.class, () -> seedInvalidation(replacement, "doubledPubkey", old),
+                "the same invalidation cannot be recorded a second time");
+    }
+
+    @Test
+    void doesNotCompleteInvalidationsOnceTheRepairHasRun() {
+        DataRepair.runIfNeeded(session);
+
+        String pubkeyHash = "lateGapPubkey";
+        String old = artifactCode("old"), replacement = artifactCode("replacement");
+        seedNanopub(old, 1L);
+        seedNanopub(replacement, 2L);
+        seedEntry(pubkeyHash, "typeOfOld", 0L, old, chain(old, NanopubUtils.INIT_CHECKSUM), false);
+        seedInvalidation(replacement, pubkeyHash, old);
+        DataRepair.runIfNeeded(session);
+
+        assertEquals(1, entriesOf(pubkeyHash, "typeOfOld").size());
+    }
+
+    /**
+     * A nanopub with a malformed artifact code that is still referenced is kept by the first
+     * repair, and can be on record as invalidating another. It cannot go on a list, and must
+     * not stop the repair, which would keep the registry from starting.
+     */
+    @Test
+    void skipsAMalformedArtifactCodeFurtherDownAChainOfVersions() {
+        String pubkeyHash = "malformedChainPubkey";
+        String v0 = artifactCode("v0"), v1 = artifactCode("v1"), malformed = "RAtooShortToBeAnArtifactCode";
+        seedNanopub(v0, 1L);
+        seedNanopub(v1, 2L);
+        seedNanopub(malformed, 3L);
+        seedEntry(pubkeyHash, "typeOfFirst", 0L, v0, chain(v0, NanopubUtils.INIT_CHECKSUM), true);
+        seedEntry(pubkeyHash, "$", 0L, malformed, "ChecksumOfAnEntryThatCannotBeDecoded00000000", false);
+        seedInvalidation(v1, pubkeyHash, v0);
+        seedInvalidation(malformed, pubkeyHash, v1);
+
+        DataRepair.runIfNeeded(session);
+
+        List<Document> onType = entriesOf(pubkeyHash, "typeOfFirst");
+        assertEquals(List.of(v0, v1), onType.stream().map(e -> e.getString("np")).toList(),
+                "the chain is followed up to the nanopub that cannot be listed");
+        assertTrue(onType.get(1).getBoolean("invalidated"));
+        assertSequentialChain(onType);
+        assertEquals(DataRepair.CURRENT_REPAIR_VERSION, DataRepair.getRepairVersion(session));
+    }
+
+    /** One record the repair cannot make sense of is reported and left; the others are completed. */
+    @Test
+    void goesOnAfterARecordItCannotComplete() {
+        RegistryDB.setValue(session, Collection.SERVER_INFO.toString(), "repairVersion", 2);
+        String pubkeyHash = "brokenEntryPubkey";
+        String broken = artifactCode("broken"), old = artifactCode("old"), replacement = artifactCode("replacement");
+        seedNanopub(broken, 1L);
+        seedNanopub(old, 2L);
+        seedNanopub(replacement, 3L);
+        // An entry whose type is not a string cannot be read.
+        RegistryDB.insert(session, "listEntries", new Document("pubkey", pubkeyHash).append("type", 42)
+                .append("position", 0L).append("np", broken).append("checksum", chain(broken, NanopubUtils.INIT_CHECKSUM)).append("invalidated", false));
+        seedEntry(pubkeyHash, "typeOfOld", 0L, old, chain(old, NanopubUtils.INIT_CHECKSUM), false);
+        seedInvalidation(artifactCode("invalidatingTheBroken"), pubkeyHash, broken);
+        seedInvalidation(replacement, pubkeyHash, old);
+
+        DataRepair.runIfNeeded(session);
+
+        assertEquals(List.of(old, replacement), entriesOf(pubkeyHash, "typeOfOld").stream().map(e -> e.getString("np")).toList());
+        assertEquals(DataRepair.CURRENT_REPAIR_VERSION, DataRepair.getRepairVersion(session));
+    }
+
+    /** If the unique index could not be created when the repair ran, a later start makes up for it. */
+    @Test
+    void createsTheUniqueInvalidationIndexOnALaterStartIfItIsMissing() {
+        DataRepair.runIfNeeded(session);
+        RegistryDB.collection("invalidations").dropIndex(new Document("invalidatingNp", 1).append("invalidatedNp", 1).append("invalidatingPubkey", 1));
+        String old = artifactCode("old"), replacement = artifactCode("replacement");
+        seedInvalidation(replacement, "laterIndexPubkey", old);
+        seedInvalidation(replacement, "laterIndexPubkey", old);
+
+        DataRepair.runIfNeeded(session);
+
+        assertEquals(1L, RegistryDB.collection("invalidations").countDocuments(session));
+        assertThrows(com.mongodb.MongoWriteException.class, () -> seedInvalidation(replacement, "laterIndexPubkey", old));
     }
 
 }

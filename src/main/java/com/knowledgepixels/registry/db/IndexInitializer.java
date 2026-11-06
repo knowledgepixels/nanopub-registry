@@ -46,6 +46,7 @@ public final class IndexInitializer {
         collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey"));
         collection("invalidations").createIndex(mongoSession, ascending("invalidatedNp"));
         collection("invalidations").createIndex(mongoSession, ascending("invalidatingPubkey", "invalidatedNp"));
+        initUniqueInvalidationIndex(mongoSession);
 
         collection("trustEdges").createIndex(mongoSession, ascending("fromAgent"));
         collection("trustEdges").createIndex(mongoSession, ascending("fromPubkey"));
@@ -62,6 +63,18 @@ public final class IndexInitializer {
 
         // Supports pruning in PUBLISH_TRUST_STATE: sort by trustStateCounter desc, skip N, delete the tail.
         collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).createIndex(mongoSession, descending("trustStateCounter"));
+    }
+
+    /**
+     * Creates the index that lets an invalidation be on record only once, so that two writers
+     * loading the same invalidating nanopub at the same moment cannot both record it.
+     * <p>
+     * A database created by an earlier version gets this index from {@link DataRepair}, which
+     * first removes the doubled records that would make its creation fail.
+     */
+    static void initUniqueInvalidationIndex(ClientSession mongoSession) {
+        collection("invalidations").createIndex(mongoSession, ascending("invalidatingNp", "invalidatedNp", "invalidatingPubkey"),
+                new IndexOptions().unique(true));
     }
 
     /**

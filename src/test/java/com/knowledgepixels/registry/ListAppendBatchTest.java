@@ -178,7 +178,7 @@ class ListAppendBatchTest {
     }
 
     @Test
-    void marksEntriesWhoseInvalidationWasRecordedWhileTheyWerePending() throws Exception {
+    void appliesInvalidationsRecordedWhileTheEntriesWerePending() throws Exception {
         ListAppendBatch batch = new ListAppendBatch();
         String ac = artifactCode("np");
         String untouched = artifactCode("untouched");
@@ -198,6 +198,45 @@ class ListAppendBatchTest {
         assertTrue(entries.get(0).getBoolean("invalidated"), "the invalidation reaches the entry once it is written");
         assertFalse(entries.get(1).getBoolean("invalidated"));
         assertFalse(entries.get(2).getBoolean("invalidated"), "an invalidation only counts on the lists of the pubkey that made it");
+        assertEquals(4, entries.size());
+        assertEquals(artifactCode("invalidating"), entries.get(3).getString("np"), "the invalidating nanopub joins the list of the invalidated one");
+        assertFalse(entries.get(3).getBoolean("invalidated"));
+        assertSequentialChain(entries);
+        assertEquals(3L, maxPosition());
+    }
+
+    /**
+     * A nanopub can be invalidated by several others. Its pending entries may be marked already,
+     * by an invalidating nanopub of the same load, when another writer records a second
+     * invalidation. That one has to join the list all the same.
+     */
+    @Test
+    void appliesAnInvalidationRecordedMeanwhileToEntriesThatAreMarkedAlready() throws Exception {
+        ListAppendBatch batch = new ListAppendBatch();
+        String ac = artifactCode("np");
+        String first = artifactCode("firstInvalidating");
+        String second = artifactCode("secondInvalidating");
+        // The first invalidating nanopub came in the same load: it recorded the invalidation,
+        // joined the list and marked the pending entry on its turn.
+        batch.append(session, PUBKEY_HASH, "$", uri(ac), ac);
+        batch.append(session, PUBKEY_HASH, "$", uri(first), first);
+        RegistryDB.insert(session, "invalidations", new Document("invalidatingNp", first)
+                .append("invalidatingPubkey", PUBKEY_HASH).append("invalidatedNp", ac));
+        batch.markInvalidated(PUBKEY_HASH, ac);
+
+        // Another writer records the second invalidation meanwhile; it finds no entries.
+        RegistryDB.insert(session, "invalidations", new Document("invalidatingNp", second)
+                .append("invalidatingPubkey", PUBKEY_HASH).append("invalidatedNp", ac));
+        batch.flush(session);
+
+        List<Document> entries = entries();
+        assertEquals(List.of(ac, first, second), entries.stream().map(e -> e.getString("np")).toList(),
+                "the second invalidating nanopub joins the list, and the first one is not added again");
+        assertTrue(entries.get(0).getBoolean("invalidated"));
+        assertFalse(entries.get(1).getBoolean("invalidated"));
+        assertFalse(entries.get(2).getBoolean("invalidated"));
+        assertSequentialChain(entries);
+        assertEquals(2L, maxPosition());
     }
 
 }
