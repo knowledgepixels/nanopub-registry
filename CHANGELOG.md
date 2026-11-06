@@ -1,3 +1,31 @@
+## [1.14.2](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.14.1...nanopub-registry-1.14.2) (2026-11-06)
+
+### Dependency updates
+
+* **core-deps:** update dependency io.vertx:vertx-stack-depchain to v5.2.3 ([#203](https://github.com/knowledgepixels/nanopub-registry/issues/203)) ([374cb96](https://github.com/knowledgepixels/nanopub-registry/commit/374cb961ce19f675709858c8e38c986452b816d6))
+* **core-deps:** update dependency org.mongodb:mongodb-driver-sync to v5 ([#150](https://github.com/knowledgepixels/nanopub-registry/issues/150)) ([4fab830](https://github.com/knowledgepixels/nanopub-registry/commit/4fab830bfbbd609d900f352128a60990e889a50c))
+
+### Bug Fixes
+
+* accept the invalidations of held nanopubs on a restricted registry ([f96bf5a](https://github.com/knowledgepixels/nanopub-registry/commit/f96bf5a35e38893fdf79494beee188a3b1877eb0))
+* close a gap in applying posted invalidations and harden the repair ([584d3c3](https://github.com/knowledgepixels/nanopub-registry/commit/584d3c3351be4b1d68471ff689595e9befe89a42))
+* let only the signer of its source invalidate a trust edge ([fa92090](https://github.com/knowledgepixels/nanopub-registry/commit/fa920906812a4ac840b962ae11c17340d5844ebd)), closes [#60](https://github.com/knowledgepixels/nanopub-registry/issues/60)
+* list a nanopub on a type list only if it has that type ([187ecff](https://github.com/knowledgepixels/nanopub-registry/commit/187ecffa975e61df5041c32d9c055fef8c22d712))
+* make the lists independent of the order invalidations arrive in ([4ddfc1e](https://github.com/knowledgepixels/nanopub-registry/commit/4ddfc1ec029685248341da87b574c99b8f2e6003))
+
+### Tests
+
+* check the queue in TaskTest.loadConfig by content, not by order ([cd9b349](https://github.com/knowledgepixels/nanopub-registry/commit/cd9b349349beb3b03c8ce790dc7d1995a458554e))
+
+### Build and continuous integration
+
+* **deps:** update dependency semantic-release-preconfigured-conventional-commits to v1.1.158 ([#200](https://github.com/knowledgepixels/nanopub-registry/issues/200)) ([f077b2c](https://github.com/knowledgepixels/nanopub-registry/commit/f077b2c9da735337515b354219f8a663c5c05394))
+* **renovate:** rebase PRs only on conflict ([#214](https://github.com/knowledgepixels/nanopub-registry/issues/214)) ([46d1fc5](https://github.com/knowledgepixels/nanopub-registry/commit/46d1fc50c18838a1a86ab79f29f0b2602f5d17cd))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([59b3736](https://github.com/knowledgepixels/nanopub-registry/commit/59b37364ad5740bba97b3ddef7911cf43909260a))
+
 ## [1.14.1](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.14.0...nanopub-registry-1.14.1) (2026-11-05)
 
 ### Bug Fixes
