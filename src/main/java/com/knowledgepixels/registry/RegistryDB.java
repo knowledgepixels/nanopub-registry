@@ -792,6 +792,12 @@ public class RegistryDB {
         toAdd.add(invalidatingAc);
         while (!toAdd.isEmpty()) {
             String ac = toAdd.remove();
+            if (!Utils.isWellFormedArtifactCode(ac)) {
+                // Left from before the artifact code was checked on ingest. It cannot be
+                // decoded for the checksum of the list, so it cannot go on one.
+                logger.error("Not adding the invalidating nanopub '{}' to list pubkey={} type={}: its artifact code is malformed", ac, pubkeyHash, typeHash);
+                continue;
+            }
             // Only the artifact code of the URI enters the checksum.
             IRI uri = SimpleValueFactory.getInstance().createIRI("https://w3id.org/np/" + ac);
             if (!addToList(mongoSession, uri, ac, pubkeyHash, typeHash, true)) {

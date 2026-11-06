@@ -128,6 +128,17 @@ public class Utils {
         return invalidatedNanopubs;
     }
 
+    /**
+     * Whether the given artifact code is well-formed for its Trusty URI module. This is the cheap
+     * half of the ingest check: a code that fails here cannot be the hash of any content, and it
+     * cannot be decoded for a list checksum either.
+     */
+    public static boolean isWellFormedArtifactCode(String artifactCode) {
+        // getModuleId() reads the first two characters unguarded, so anything shorter is malformed
+        // by definition and must not reach it.
+        return artifactCode != null && artifactCode.length() > 2 && TrustyUriUtils.isPotentialArtifactCode(artifactCode);
+    }
+
     private static ReadsEnvironment ENV_READER = new ReadsEnvironment(System::getenv);
 
     /**

@@ -2,13 +2,13 @@ package com.knowledgepixels.registry.db;
 
 import com.knowledgepixels.registry.Collection;
 import com.knowledgepixels.registry.RegistryDB;
+import com.knowledgepixels.registry.Utils;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoException;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.WriteModel;
-import net.trustyuri.TrustyUriUtils;
 import org.bson.Document;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.nanopub.NanopubUtils;
@@ -73,6 +73,9 @@ public final class DataRepair {
 
     private static final String REPAIR_VERSION_KEY = "repairVersion";
 
+    /** How many invalidation records are checked between two lines of progress in the log. */
+    private static final int PROGRESS_INTERVAL = 10000;
+
     /**
      * Fields that reference a nanopub by its artifact code, as {@code collection -> field}.
      * A malformed entry reached by any of these is entangled with the trust state or with a
@@ -102,6 +105,11 @@ public final class DataRepair {
         int applied = getRepairVersion(mongoSession);
         if (applied >= CURRENT_REPAIR_VERSION) {
             logger.debug("No data repair needed (repairVersion={})", applied);
+            if (!hasUniqueInvalidationIndex(mongoSession)) {
+                // The repair gave up on the index when it ran, or the index was dropped since.
+                logger.warn("The unique index on the invalidation records is missing; trying again to create it");
+                removeDoubledInvalidationRecords(mongoSession);
+            }
             return;
         }
         logger.info("Applying data repairs (stored repairVersion={}, current={})", applied, CURRENT_REPAIR_VERSION);
@@ -154,7 +162,7 @@ public final class DataRepair {
                 .find(mongoSession).projection(new Document("_id", 1).append("fullId", 1)).cursor()) {
             while (cursor.hasNext()) {
                 Document doc = cursor.next();
-                if (!isWellFormedArtifactCode(doc.getString("_id"))) {
+                if (!Utils.isWellFormedArtifactCode(doc.getString("_id"))) {
                     malformed.add(doc);
                 }
             }
@@ -180,17 +188,6 @@ public final class DataRepair {
             ).getDeletedCount();
             logger.warn("Removed nanopub '{}' with a malformed artifact code, along with {} invalidation record(s)", ac, invalidations);
         }
-    }
-
-    /**
-     * Whether the given artifact code is well-formed for its Trusty URI module. This is the cheap
-     * half of the ingest check: a code that fails here cannot be the hash of any content, so no
-     * stored nanopub has to be re-hashed to find the broken ones.
-     */
-    private static boolean isWellFormedArtifactCode(String artifactCode) {
-        // getModuleId() reads the first two characters unguarded, so anything shorter is malformed
-        // by definition and must not reach it.
-        return artifactCode != null && artifactCode.length() > 2 && TrustyUriUtils.isPotentialArtifactCode(artifactCode);
     }
 
     /**
@@ -275,7 +272,7 @@ public final class DataRepair {
                     Document entry = cursor.next();
                     long position = entry.get("position", Number.class).longValue();
                     String artifactCode = entry.getString("np");
-                    if (!isWellFormedArtifactCode(artifactCode)) {
+                    if (!Utils.isWellFormedArtifactCode(artifactCode)) {
                         logger.error("Cannot repair the checksum chain of list pubkey={} type={}: the entry at position {} "
                                 + "has the undecodable artifact code '{}'. This list needs manual repair.", pubkeyHash, typeHash, position, artifactCode);
                         return -1;
@@ -323,7 +320,8 @@ public final class DataRepair {
      *
      * <p>The POST handler may record an invalidation while this runs; if that doubles a record
      * between the cleanup and the creation of the index, the cleanup is repeated. If the index
-     * still cannot be created, that is reported and the registry runs without it, as before.
+     * still cannot be created, that is reported and the registry runs without it, as before;
+     * {@link #runIfNeeded} tries again on the next start.
      */
     static void removeDoubledInvalidationRecords(ClientSession mongoSession) {
         long removed = 0;
@@ -348,7 +346,18 @@ public final class DataRepair {
             }
         }
         logger.error("Giving up on the unique index on the invalidation records after removing {} doubled record(s). "
-                + "The registry works without it, but an invalidation may be recorded twice.", removed);
+                + "The registry works without it, but an invalidation may be recorded twice. Trying again on the next start.", removed);
+    }
+
+    /** Whether the index of {@link IndexInitializer#initUniqueInvalidationIndex} is in place. */
+    static boolean hasUniqueInvalidationIndex(ClientSession mongoSession) {
+        Document key = new Document("invalidatingNp", 1).append("invalidatedNp", 1).append("invalidatingPubkey", 1);
+        for (Document index : collection("invalidations").listIndexes(mongoSession)) {
+            if (key.equals(index.get("key")) && Boolean.TRUE.equals(index.getBoolean("unique"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -364,28 +373,46 @@ public final class DataRepair {
      * removed. New entries are appended to the end of their lists like any other.
      */
     static void completeInvalidations(ClientSession mongoSession) {
-        long records = 0, incomplete = 0, changes = 0;
+        long total = collection("invalidations").estimatedDocumentCount();
+        logger.info("Checking {} invalidation record(s) against the lists...", total);
+        long records = 0, incomplete = 0, changes = 0, failed = 0;
         try (MongoCursor<Document> cursor = collection("invalidations").find(mongoSession).noCursorTimeout(true).cursor()) {
             while (cursor.hasNext()) {
                 Document record = cursor.next();
                 records++;
+                if (records % PROGRESS_INTERVAL == 0) {
+                    logger.info("Checked {} of {} invalidation record(s)", records, total);
+                }
                 String invalidatingAc = record.getString("invalidatingNp");
                 String pubkeyHash = record.getString("invalidatingPubkey");
                 String invalidatedAc = record.getString("invalidatedNp");
-                if (invalidatingAc == null || pubkeyHash == null || invalidatedAc == null || !isWellFormedArtifactCode(invalidatingAc)) {
+                if (invalidatingAc == null || pubkeyHash == null || invalidatedAc == null || !Utils.isWellFormedArtifactCode(invalidatingAc)) {
                     logger.error("Skipping the malformed invalidation record {}", record.toJson());
                     continue;
                 }
-                long changed = RegistryDB.completeInvalidation(mongoSession, invalidatingAc, pubkeyHash, invalidatedAc);
-                if (changed > 0) {
-                    incomplete++;
-                    changes += changed;
-                    logger.debug("Completed the invalidation of {} by {}: {} list entries added or marked", invalidatedAc, invalidatingAc, changed);
+                try {
+                    long changed = RegistryDB.completeInvalidation(mongoSession, invalidatingAc, pubkeyHash, invalidatedAc);
+                    if (changed > 0) {
+                        incomplete++;
+                        changes += changed;
+                        logger.debug("Completed the invalidation of {} by {}: {} list entries added or marked", invalidatedAc, invalidatingAc, changed);
+                    }
+                } catch (MongoException e) {
+                    // The database itself fails: nothing is marked as repaired, and the next
+                    // start tries again.
+                    throw e;
+                } catch (RuntimeException e) {
+                    // Data this code cannot make sense of. One such record must not keep the
+                    // registry from starting: what was done for it stands, and the rest is
+                    // made up for when one of the two nanopubs is loaded again.
+                    failed++;
+                    logger.error("Could not complete the invalidation of {} by {}; leaving it as it is: {}", invalidatedAc, invalidatingAc, e.getMessage(), e);
                 }
             }
         }
-        if (changes > 0) {
-            logger.warn("Checked {} invalidation record(s): {} were not fully reflected in the lists; added or marked {} list entries", records, incomplete, changes);
+        if (changes > 0 || failed > 0) {
+            logger.warn("Checked {} invalidation record(s): {} were not fully reflected in the lists; added or marked {} list entries; {} could not be completed",
+                    records, incomplete, changes, failed);
         } else {
             logger.info("Checked {} invalidation record(s): all fully reflected in the lists", records);
         }

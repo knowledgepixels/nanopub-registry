@@ -200,38 +200,49 @@ final class ListAppendBatch {
      * before that one existed. So the records are looked up once more now that the entries are
      * in the database: an invalidation recorded before this point is found here, and one
      * recorded after it finds the entries itself.
+     * <p>
+     * This covers the entries that were written as invalidated as well. They need no marking,
+     * but a nanopub can be invalidated by several others, and the one that was recorded
+     * meanwhile still has to join the lists.
      */
     private static void applyInvalidationsRecordedMeanwhile(ClientSession mongoSession, List<Pending> flushed) {
-        // nanopub -> pubkey -> the lists it was just put on, as far as not known to be invalidated
+        // nanopub -> pubkey -> the lists it was just put on
         Map<String, Map<String, List<String>>> listsByNanopub = new HashMap<>();
+        // What was just written, to tell without a round trip that a nanopub is on a list
+        Set<String> written = new HashSet<>();
+        // The nanopubs with an entry that was written as not invalidated
+        Set<String> unmarked = new HashSet<>();
         for (Pending p : flushed) {
+            listsByNanopub.computeIfAbsent(p.artifactCode, k -> new HashMap<>())
+                    .computeIfAbsent(p.pubkeyHash, k -> new ArrayList<>()).add(p.typeHash);
+            written.add(listKey(p.pubkeyHash, p.typeHash) + "|" + p.artifactCode);
             if (!p.invalidated) {
-                listsByNanopub.computeIfAbsent(p.artifactCode, k -> new HashMap<>())
-                        .computeIfAbsent(p.pubkeyHash, k -> new ArrayList<>()).add(p.typeHash);
+                unmarked.add(p.pubkeyHash + "|" + p.artifactCode);
             }
-        }
-        if (listsByNanopub.isEmpty()) {
-            return;
         }
         List<Document> records = collection("invalidations")
                 .find(mongoSession, new Document("invalidatedNp", new Document("$in", new ArrayList<>(listsByNanopub.keySet()))))
                 .into(new ArrayList<>());
-        Set<String> marked = new HashSet<>();
         for (Document record : records) {
             String artifactCode = record.getString("invalidatedNp");
             String pubkeyHash = record.getString("invalidatingPubkey");
+            String invalidatingAc = record.getString("invalidatingNp");
             // An invalidation only counts on the lists of the pubkey that made it.
             List<String> typeHashes = listsByNanopub.get(artifactCode).get(pubkeyHash);
             if (typeHashes == null) {
                 continue;
             }
-            if (marked.add(pubkeyHash + "|" + artifactCode)) {
+            if (unmarked.remove(pubkeyHash + "|" + artifactCode)) {
                 collection("listEntries").updateMany(mongoSession, new Document("np", artifactCode).append("pubkey", pubkeyHash),
                         new Document("$set", new Document("invalidated", true)));
                 logger.debug("Marked the entries of nanopub {} as invalidated; the invalidation was recorded while they were pending", artifactCode);
             }
             for (String typeHash : typeHashes) {
-                RegistryDB.addInvalidatorToList(mongoSession, pubkeyHash, typeHash, record.getString("invalidatingNp"));
+                // The usual case needs no round trip: the invalidating nanopub came in the same
+                // load and was written to the list along with the one it invalidates.
+                if (!written.contains(listKey(pubkeyHash, typeHash) + "|" + invalidatingAc)) {
+                    RegistryDB.addInvalidatorToList(mongoSession, pubkeyHash, typeHash, invalidatingAc);
+                }
             }
         }
     }
