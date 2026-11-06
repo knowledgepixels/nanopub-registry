@@ -636,17 +636,93 @@ class RegistryDBLoadNanopubTest {
             Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
             String pubkey = RegistryDB.getPubkey(nanopub);
             String pubkeyHash = Utils.getHash(pubkey);
-            String requestedType = "http://example.org/some-type";
+            String requestedType = "http://purl.org/nanopub/x/ExampleNanopub";
 
             assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, requestedType));
 
             // Only "$" triggers the expansion into the nanopub's own types; a named type
             // lists it exactly once, under that type.
             assertNotNull(listEntry(pubkeyHash, Utils.getHash(requestedType), SIMPLE1_AC));
-            assertNull(listEntry(pubkeyHash, Utils.getHash("http://purl.org/nanopub/x/ExampleNanopub"), SIMPLE1_AC),
-                    "a named type must not pull in the nanopub's declared types");
+            assertNull(listEntry(pubkeyHash, Utils.getHash("http://example.org/transmits"), SIMPLE1_AC),
+                    "a named type must not pull in the nanopub's other types");
             assertEquals(1, RegistryDB.collection("listEntries")
                     .countDocuments(session, new Document("pubkey", pubkeyHash).append("np", SIMPLE1_AC)));
+        }
+
+        /**
+         * A named type says which list is being filled, not what the nanopub is: the list of a
+         * type is for the nanopubs of that type. Whatever else comes along is stored, and
+         * stays off that list.
+         */
+        @Test
+        void storesANanopubWithoutListingItUnderATypeItDoesNotHave() throws Exception {
+            Nanopub nanopub = testSuiteNanopub(SIMPLE1_AC);
+            String pubkey = RegistryDB.getPubkey(nanopub);
+            String pubkeyHash = Utils.getHash(pubkey);
+
+            assertTrue(RegistryDB.loadNanopubVerified(session, nanopub, pubkey, pubkeyHash, NanopubLoader.INTRO_TYPE, NanopubLoader.ENDORSE_TYPE));
+
+            assertNotNull(nanopubDoc(SIMPLE1_AC), "the nanopub is stored all the same");
+            assertEquals(0, entryCount(pubkeyHash));
+        }
+
+        /** An introduction: its assertion declares a key, and nothing else. */
+        private static Nanopub introduction() throws Exception {
+            NanopubCreator creator = new NanopubCreator("http://example.org/intro/");
+            creator.addAssertionStatement(iri("http://example.org/intro/key"), org.nanopub.vocabulary.NPX.DECLARED_BY, iri("http://example.org/someone"));
+            creator.addProvenanceStatement(iri("http://www.w3.org/ns/prov#wasAttributedTo"), iri("http://example.org/someone"));
+            creator.addPubinfoStatement(iri("http://purl.org/dc/terms/creator"), iri("http://example.org/someone"));
+            return creator.finalizeTrustyNanopub();
+        }
+
+        /**
+         * While only the core lists of a pubkey are loaded, every nanopub of that pubkey that
+         * comes in is offered to both of them. Only an introduction belongs on the list of
+         * introductions, and it does not belong on the list of endorsements.
+         */
+        @Test
+        void aCoreLoadedPubkeyGetsOnlyItsIntroductionsAndEndorsementsListed() throws Exception {
+            String pubkey = "core-loaded-key";
+            String pubkeyHash = Utils.getHash(pubkey);
+            RegistryDB.insert(session, "lists", new Document("pubkey", pubkeyHash).append("type", NanopubLoader.INTRO_TYPE_HASH).append("status", "loaded"));
+            Nanopub intro = introduction();
+            String introAc = TrustyUriUtils.getArtifactCode(intro.getUri().stringValue());
+            Nanopub other = invalidatedAndInvalidating().get(0);
+            String otherAc = TrustyUriUtils.getArtifactCode(other.getUri().stringValue());
+
+            NanopubLoader.simpleLoad(session, other, pubkey);
+            NanopubLoader.simpleLoad(session, intro, pubkey);
+
+            assertNotNull(nanopubDoc(otherAc), "a nanopub of another type is stored ...");
+            assertNull(listEntry(pubkeyHash, NanopubLoader.INTRO_TYPE_HASH, otherAc), "... and stays off the list of introductions ...");
+            assertNull(listEntry(pubkeyHash, NanopubLoader.ENDORSE_TYPE_HASH, otherAc), "... and off the list of endorsements");
+            assertNotNull(listEntry(pubkeyHash, NanopubLoader.INTRO_TYPE_HASH, introAc));
+            assertNull(listEntry(pubkeyHash, NanopubLoader.ENDORSE_TYPE_HASH, introAc), "an introduction is not an endorsement");
+            assertEquals(1, entryCount(pubkeyHash));
+        }
+
+        /**
+         * A nanopub that invalidates one on a list belongs on that list whatever its own
+         * types, so it gets there although the list is filled by type, in either order.
+         */
+        @Test
+        void aNanopubWithoutTheTypeJoinsANamedListByInvalidatingOneThatIsOnIt() throws Exception {
+            String typeHash = Utils.getHash(TYPE_OF_INVALIDATED.stringValue());
+            for (int[] order : new int[][]{{0, 1}, {1, 0}}) {
+                String pubkey = "named-list-key-" + order[0];
+                String pubkeyHash = Utils.getHash(pubkey);
+                List<Nanopub> pair = invalidatedAndInvalidating();
+                String invalidatedAc = TrustyUriUtils.getArtifactCode(pair.get(0).getUri().stringValue());
+                String invalidatingAc = TrustyUriUtils.getArtifactCode(pair.get(1).getUri().stringValue());
+
+                for (int i : order) {
+                    assertTrue(RegistryDB.loadNanopubVerified(session, pair.get(i), pubkey, pubkeyHash, TYPE_OF_INVALIDATED.stringValue()));
+                }
+
+                assertTrue(listEntry(pubkeyHash, typeHash, invalidatedAc).getBoolean("invalidated"));
+                assertNotNull(listEntry(pubkeyHash, typeHash, invalidatingAc), "the invalidating nanopub is on the list of the invalidated one");
+                assertEquals(2, entryCount(pubkeyHash));
+            }
         }
 
         @Test

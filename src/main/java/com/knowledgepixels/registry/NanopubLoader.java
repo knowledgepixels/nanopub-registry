@@ -57,7 +57,7 @@ public class NanopubLoader {
     private static final Logger logger = LoggerFactory.getLogger(NanopubLoader.class);
 
     // TODO Distinguish and support these cases:
-    //      1. Simple load: load to all core lists if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"
+    //      1. Simple load: load to the core lists it belongs on if pubkey is "core-loaded", or load to all lists if pubkey is "full-loaded"
     //      2. Core load: load to all core lists (initialize if needed), or load to all lists if pubkey is "full-loaded"
     //      3. Full load: load to all lists (initialize if needed)
 
@@ -104,7 +104,10 @@ public class NanopubLoader {
             logger.debug("Loading nanopub {} into full-loaded lists for pubkey {}", np.getUri(), pubkeyHash);
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, "$");
         } else if (has(mongoSession, "lists", new Document("pubkey", pubkeyHash).append("type", INTRO_TYPE_HASH).append("status", "loaded"))) {
-            logger.debug("Loading nanopub {} into core lists (intro/endorse) for pubkey {}", np.getUri(), pubkeyHash);
+            // Only the core lists of this pubkey are kept so far. The nanopub joins the ones it
+            // belongs on by its types, which for most nanopubs is neither: those are stored,
+            // and get onto the other lists when these are loaded (see RUN_OPTIONAL_LOAD).
+            logger.debug("Loading nanopub {} into the core lists (intro/endorse) it belongs on for pubkey {}", np.getUri(), pubkeyHash);
             RegistryDB.loadNanopubVerified(mongoSession, np, verifiedPubkey, pubkeyHash, INTRO_TYPE, ENDORSE_TYPE);
         } else {
             // Pubkey not yet loaded (unknown or in transitional "encountered" state): store the
