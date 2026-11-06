@@ -504,12 +504,16 @@ public class RegistryDB {
     }
 
     /**
-     * Loads a nanopublication into the database, optionally filtering by public key hash and types.
+     * Loads a nanopublication into the database, and onto lists of its pubkey.
      *
      * @param mongoSession the MongoDB client session
      * @param nanopub      the nanopublication to load
-     * @param pubkeyHash   the public key hash to filter by (can be null)
-     * @param types        the types to filter by (can be empty)
+     * @param pubkeyHash   the hash of the public key the nanopublication has to be signed with;
+     *                     null stores it without putting it on any list of its own
+     * @param types        the lists to put it on: "$" stands for the list of all nanopublications
+     *                     of the pubkey plus one list per covered type the nanopublication has;
+     *                     a named type stands for the list of that type, which the
+     *                     nanopublication only joins if it has that type (can be empty)
      * @return true if the nanopublication was loaded, false otherwise
      */
     public static boolean loadNanopub(ClientSession mongoSession, Nanopub nanopub, String pubkeyHash, String... types) {
@@ -626,17 +630,26 @@ public class RegistryDB {
         // The lists this nanopub goes on, resolved before waiting for the turn below, as
         // recording a type hash is a round trip of its own.
         List<String> ownTypeHashes = new ArrayList<>();
-        if (pubkeyHash != null) {
+        if (pubkeyHash != null && types.length > 0) {
+            Set<IRI> nanopubTypes = NanopubUtils.getTypes(nanopub);
             for (String type : types) {
-                // TODO Check if nanopub really has the type?
-                ownTypeHashes.add(Utils.getTypeHash(mongoSession, type));
                 if (type.equals("$")) {
-                    for (IRI t : NanopubUtils.getTypes(nanopub)) {
+                    ownTypeHashes.add(Utils.getTypeHash(mongoSession, type));
+                    for (IRI t : nanopubTypes) {
                         String th = Utils.getTypeHash(mongoSession, t);
                         if (CoverageFilter.isCoveredType(th)) {
                             ownTypeHashes.add(th);
                         }
                     }
+                } else if (hasType(nanopubTypes, type)) {
+                    ownTypeHashes.add(Utils.getTypeHash(mongoSession, type));
+                } else {
+                    // A named type says which list the caller is filling, not what the nanopub
+                    // is: the callers pass the core types for every nanopub of a pubkey whose
+                    // other lists are not loaded yet, and a peer's list can hold entries of
+                    // other types. The list of a type is for the nanopubs of that type, and
+                    // for the ones that invalidate them, which get there further down.
+                    logger.debug("Not adding nanopub {} to the list of type {} of pubkey {}: it does not have that type", nanopub.getUri(), type, pubkeyHash);
                 }
             }
         }
@@ -851,6 +864,16 @@ public class RegistryDB {
             }
         }
         return changed;
+    }
+
+    /** Whether the given type is among the types of a nanopub, as {@link NanopubUtils#getTypes} reports them. */
+    private static boolean hasType(Set<IRI> nanopubTypes, String type) {
+        for (IRI t : nanopubTypes) {
+            if (t.stringValue().equals(type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The types of the lists of the given pubkey that a nanopub has an entry on. */
