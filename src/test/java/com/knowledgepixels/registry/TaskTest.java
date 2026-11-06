@@ -242,7 +242,10 @@ class TaskTest {
         assertNull(RegistryDB.getValue(session, Collection.SERVER_INFO.toString(), "coverageTypes"));
         assertNull(RegistryDB.getValue(session, Collection.SERVER_INFO.toString(), "coverageAgents"));
 
-        assertEquals(RegistryDB.collection(Collection.TASKS.toString()).find(session).sort(Sorts.descending("not-before")).first().getString("action"), Task.LOAD_SETTING.asDocument().getString("action"));
+        // The queue holds the LOAD_CONFIG that INIT_DB scheduled and the LOAD_SETTING that
+        // LOAD_CONFIG scheduled. Both can carry the same not-before millisecond, so the queue
+        // is checked by what is in it, not by its order.
+        assertEquals(List.of(Task.LOAD_CONFIG.name(), Task.LOAD_SETTING.name()), queuedActions().stream().sorted().toList());
     }
 
     @Test
