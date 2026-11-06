@@ -161,9 +161,12 @@ public class MainVerticle extends AbstractVerticle {
                             logger.info("POST: new nanopub {}", ac);
 
                             // Check if this nanopub's types are covered by this registry
-                            if (!CoverageFilter.isCovered(np)) {
+                            if (!CoverageFilter.isCovered(s, np)) {
                                 throw new NanopubRejectedException(NanopubRejectedException.FORBIDDEN,
-                                        "none of its types are covered by this registry");
+                                        Utils.getInvalidatedNanopubIds(np).isEmpty()
+                                                ? "none of its types are covered by this registry"
+                                                : "none of its types are covered by this registry, and this registry holds no nanopublication "
+                                                + "of the same key that it invalidates");
                             }
 
                             // Protected nanopubs are only accepted on local/private instances:

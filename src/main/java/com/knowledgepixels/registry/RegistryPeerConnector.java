@@ -142,10 +142,10 @@ public class RegistryPeerConnector {
                             }
                         }),
                         np -> {
-                            if (!CoverageFilter.isCovered(np)) {
-                                return;
-                            }
                             try (ClientSession workerSession = RegistryDB.getClient().startSession()) {
+                                if (!CoverageFilter.isCovered(workerSession, np)) {
+                                    return;
+                                }
                                 String pubkey = RegistryDB.getPubkey(np);
                                 if (pubkey != null) {
                                     NanopubLoader.simpleLoad(workerSession, np, pubkey);

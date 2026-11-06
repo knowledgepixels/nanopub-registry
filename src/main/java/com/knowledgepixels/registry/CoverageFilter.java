@@ -1,8 +1,14 @@
 package com.knowledgepixels.registry;
 
+import com.mongodb.client.ClientSession;
+import net.trustyuri.TrustyUriUtils;
+import org.bson.Document;
 import org.eclipse.rdf4j.model.IRI;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubUtils;
+import org.nanopub.extra.security.MalformedCryptoElementException;
+import org.nanopub.extra.security.NanopubSignatureElement;
+import org.nanopub.extra.security.SignatureUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +20,7 @@ import java.util.Set;
  * Determines whether a nanopub's types are covered by this registry's configured
  * coverage types. Core types (intro, endorsement) are always covered regardless
  * of the configuration. If no coverage types are configured, everything is covered.
+ * A nanopub that invalidates one this registry holds is taken whatever its types.
  */
 public final class CoverageFilter {
 
@@ -85,6 +92,9 @@ public final class CoverageFilter {
      * Returns true if the given nanopub has at least one type that is covered
      * by this registry, or if no coverage restriction is configured.
      * Core types (intro, endorsement) are always considered covered.
+     * <p>
+     * This looks at the types only. Whether the registry takes a nanopub is answered by
+     * {@link #isCovered(ClientSession, Nanopub)}.
      */
     public static boolean isCovered(Nanopub nanopub) {
         if (coveredTypeHashes == null) {
@@ -115,6 +125,63 @@ public final class CoverageFilter {
 
         logger.debug("Nanopub rejected: no covered types found");
         return false;
+    }
+
+    /**
+     * Whether this registry takes the given nanopub: it is covered by its types (see
+     * {@link #isCovered(Nanopub)}), or it invalidates a nanopub this registry holds.
+     * <p>
+     * A retraction has a type of its own, not the type of what it retracts. Judged by its types
+     * alone, a registry restricted to some types would take the nanopubs of those types and
+     * refuse their retractions, and go on listing as valid what its peers list as invalidated.
+     * The lists of the invalidated nanopub apply to the invalidating one, so it belongs here as
+     * much as the one it invalidates. That only holds for the pubkey that signed the invalidated
+     * nanopub, as nobody else can invalidate it.
+     * <p>
+     * In a parallel load this waits for the nanopub's turn (see {@link AppendOrder}) before it
+     * looks for the invalidated nanopub, so that one that comes earlier in the same stream is
+     * stored by then. A nanopub that arrives before the one it invalidates is refused; it is on
+     * the peers' lists of the invalidated one, and comes again with the next load of those.
+     */
+    public static boolean isCovered(ClientSession mongoSession, Nanopub nanopub) {
+        if (isCovered(nanopub)) {
+            return true;
+        }
+        Set<IRI> invalidatedIds = Utils.getInvalidatedNanopubIds(nanopub);
+        if (invalidatedIds.isEmpty()) {
+            return false;
+        }
+        String pubkeyHash = declaredPubkeyHash(nanopub);
+        if (pubkeyHash == null) {
+            return false;
+        }
+        AppendOrder.awaitTurn();
+        for (IRI invalidatedId : invalidatedIds) {
+            String invalidatedAc = TrustyUriUtils.getArtifactCode(invalidatedId.stringValue());
+            if (invalidatedAc != null && RegistryDB.has(mongoSession, Collection.NANOPUBS.toString(),
+                    new Document("_id", invalidatedAc).append("pubkey", pubkeyHash))) {
+                logger.debug("Nanopub accepted: it invalidates {}, which this registry holds", invalidatedAc);
+                return true;
+            }
+        }
+        logger.debug("Nanopub rejected: no covered types found, and it invalidates nothing this registry holds");
+        return false;
+    }
+
+    /**
+     * The hash of the public key a nanopub says it is signed with, or null if it has none.
+     * The signature is not verified here; loading the nanopub does that.
+     */
+    private static String declaredPubkeyHash(Nanopub nanopub) {
+        try {
+            NanopubSignatureElement el = SignatureUtils.getSignatureElement(nanopub);
+            if (el != null && el.getPublicKeyString() != null) {
+                return Utils.getHash(el.getPublicKeyString());
+            }
+        } catch (MalformedCryptoElementException ex) {
+            logger.debug("Nanopub {} has a malformed signature element: {}", nanopub.getUri(), ex.getMessage());
+        }
+        return null;
     }
 
     /**
