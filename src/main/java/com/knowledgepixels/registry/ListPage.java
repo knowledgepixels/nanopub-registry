@@ -276,11 +276,23 @@ public class ListPage extends Page {
         } else if (req.equals("/agent") && context.request().getParam("id") != null) {
             String agentId = context.request().getParam("id");
             logger.info("Serving agent detail for id={} format={}", Utils.getAgentLabel(agentId), format);
+            // An agent this registry does not know is not an error on our side: the agents are
+            // rebuilt with every trust calculation, and a registry that is still loading has
+            // none yet, while clients keep asking for the ones they know from elsewhere.
             if (TYPE_JSON.equals(format)) {
-                print(AgentInfo.get(mongoSession, agentId).asJson());
+                AgentInfo agentInfo = AgentInfo.get(mongoSession, agentId);
+                if (agentInfo == null) {
+                    respondAgentNotFound(agentId);
+                    return;
+                }
+                print(agentInfo.asJson());
             } else {
                 Document agentDoc = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
-                String agentName = (agentDoc != null) ? agentDoc.getString("name") : null;
+                if (agentDoc == null) {
+                    respondAgentNotFound(agentId);
+                    return;
+                }
+                String agentName = agentDoc.getString("name");
                 String headingSuffix = (agentName != null && !agentName.isBlank()) ? " (" + agentName + ")" : "";
                 printHtmlHeader("Agent " + Utils.getAgentLabel(agentId) + headingSuffix + " - Nanopub Registry");
                 println("<h1>Agent " + Utils.getAgentLabel(agentId) + headingSuffix + "</h1>");
@@ -524,6 +536,11 @@ public class ListPage extends Page {
             logger.warn("Invalid list request path: {}", getFullRequest());
             context.response().setStatusCode(400).setStatusMessage("Invalid request: " + getFullRequest());
         }
+    }
+
+    private void respondAgentNotFound(String agentId) {
+        logger.info("Agent not found: {}", Utils.getAgentLabel(agentId));
+        getContext().response().setStatusCode(404).setStatusMessage("Not found: " + getFullRequest());
     }
 
     private static String getLabel(Object obj) {

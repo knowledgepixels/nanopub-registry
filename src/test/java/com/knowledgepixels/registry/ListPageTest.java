@@ -204,6 +204,35 @@ class ListPageTest {
         }
     }
 
+    /**
+     * A registry that is still loading has no agents yet, and the agents of a loaded one
+     * change with every trust calculation, while clients ask for the ones they know from
+     * elsewhere. That is a 404, and not a failure while rendering the page.
+     */
+    @Test
+    void agentHtmlOfAnUnknownAgentIsNotFound() {
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            PageMocks.mockDb(dbMock);
+
+            PageMocks.MockContext ctx = PageMocks.context("/agent", HttpMethod.GET, Map.of("id", AGENT), "text/html");
+            ListPage.show(ctx.context);
+
+            verify(ctx.response).setStatusCode(404);
+        }
+    }
+
+    @Test
+    void agentJsonOfAnUnknownAgentIsNotFound() {
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            PageMocks.mockDb(dbMock);
+
+            PageMocks.MockContext ctx = PageMocks.context("/agent.json", Map.of("id", AGENT));
+            ListPage.show(ctx.context);
+
+            verify(ctx.response).setStatusCode(404);
+        }
+    }
+
     @Test
     void agentAccountsJsonServesAccountDocuments() {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {

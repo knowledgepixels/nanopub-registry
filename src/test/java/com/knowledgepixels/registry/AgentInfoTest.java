@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -45,6 +46,17 @@ class AgentInfoTest {
             AgentInfo agentInfo = AgentInfo.get(mockSession, AGENT_ID);
             String expectedJson = "{\"agentId\":\"" + AGENT_ID + "\",\"accountCount\":" + ACCOUNT_COUNT + ",\"avgPathCount\":" + AVG_PATH_COUNT + ",\"totalRatio\":" + TOTAL_RATIO + "}";
             assertEquals(expectedJson, agentInfo.asJson());
+        }
+    }
+
+    @Test
+    void getReturnsNullForAnUnknownAgent() {
+        ClientSession mockSession = mock(ClientSession.class);
+        try (MockedStatic<RegistryDB> registry = mockStatic(RegistryDB.class)) {
+            registry.when(() -> RegistryDB.getOne(mockSession, Collection.AGENTS.toString(), new Document("agent", AGENT_ID)))
+                    .thenReturn(null);
+
+            assertNull(AgentInfo.get(mockSession, AGENT_ID));
         }
     }
 

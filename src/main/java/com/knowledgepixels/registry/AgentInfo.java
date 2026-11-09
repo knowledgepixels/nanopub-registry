@@ -30,7 +30,8 @@ public class AgentInfo implements Serializable {
         agentInfo.agentId = agentId;
         Document d = RegistryDB.getOne(mongoSession, Collection.AGENTS.toString(), new Document("agent", agentId));
         if (d == null) {
-            logger.warn("No agent found in {} for agentId='{}'; AgentInfo will be incomplete", Collection.AGENTS, agentId);
+            logger.debug("No agent found in {} for agentId='{}'", Collection.AGENTS, agentId);
+            return null;
         }
 
         agentInfo.name = d.getString("name");
