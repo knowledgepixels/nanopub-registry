@@ -257,20 +257,8 @@ public enum Task implements Serializable {
             logger.info("Running SEED_TRUST_STATE task");
 
             if (!taskDoc.getBoolean("trustCalculation", true)) {
-                logger.info("Trust calculation disabled; seeding explicit pubkeys and skipping to FINALIZE_TRUST_STATE");
-                for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
-                    String pubkeyHash = entry.getKey();
-                    int quota = entry.getValue();
-                    Document account = new Document("agent", "")
-                            .append("pubkey", pubkeyHash)
-                            .append("status", toLoad.getValue())
-                            .append("depth", 0)
-                            .append("quota", quota);
-                    if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
-                        insert(s, "accounts_loading", account);
-                        logger.debug("Seeded explicit pubkey as account: {} (quota={})", pubkeyHash, quota);
-                    }
-                }
+                logger.info("Trust calculation disabled; seeding configured pubkeys and skipping to FINALIZE_TRUST_STATE");
+                seedConfiguredAccounts(s, configuredQuotas(QuotaGrant.readGranted(s)), toLoad);
                 schedule(s, FINALIZE_TRUST_STATE);
                 return;
             }
@@ -744,6 +732,7 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running CALCULATE_TRUST_SCORES task");
 
+            Map<String, Integer> granted = QuotaGrant.readGranted(s);
             while (true) {
                 Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
                 if (d == null) {
@@ -794,9 +783,15 @@ public enum Task implements Serializable {
                 // An explicitly configured quota wins over the computed one, as it does in
                 // AgentFilter.getQuota. Applying it here too keeps the number this registry
                 // enforces the same as the one it records, publishes and shows on its pages.
-                Integer explicitQuota = AgentFilter.getExplicitQuota(d.get("pubkey").toString());
+                // A granted quota (issue #220) sits in between: it overrides the computed one
+                // but yields to the operator's own configuration.
+                String pubkeyHash = d.get("pubkey").toString();
+                Integer explicitQuota = AgentFilter.getExplicitQuota(pubkeyHash);
+                Integer grantedQuota = granted.get(pubkeyHash);
                 if (explicitQuota != null) {
                     quota = explicitQuota;
+                } else if (grantedQuota != null) {
+                    quota = grantedQuota;
                 }
                 set(s, "accounts_loading",
                         d.append("status", processed.getValue())
@@ -903,6 +898,16 @@ public enum Task implements Serializable {
         // DB write to:  accounts
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running DETERMINE_UPDATES task");
+
+            // A pubkey that is covered by configuration — an explicit entry, a quota grant, or
+            // being a quota authority — but has no trust path still gets an account, so that
+            // it is loaded and served like an approved one. Seeded only now, after
+            // ASSIGN_PUBKEYS, so that a pubkey the trust network does reach is not claimed a
+            // second time and marked contested.
+            int seeded = seedConfiguredAccounts(s, configuredQuotas(QuotaGrant.readGranted(s)), approved);
+            if (seeded > 0) {
+                logger.info("Seeded {} configured pubkeys without a trust path as accounts", seeded);
+            }
 
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(s,
@@ -1594,6 +1599,59 @@ public enum Task implements Serializable {
     static double effectiveRatio(Document trustPath) {
         double ratio = trustPath.getDouble("ratio");
         return "primary".equals(trustPath.getString("type")) ? ratio : ratio * SELF_SHARE;
+    }
+
+    /**
+     * The pubkeys this registry covers by configuration rather than by trust path, each with
+     * the quota it gets: the explicit entries of {@code REGISTRY_COVERAGE_AGENTS}, the pubkeys
+     * with a current quota grant, and the quota authorities themselves, which get the minimum
+     * quota unless an entry or a grant (possibly their own) says otherwise. An authority has
+     * to be an account, or its grants would never be loaded from the peers. An explicit entry
+     * wins over a grant, as it does in {@link #CALCULATE_TRUST_SCORES}.
+     *
+     * @param granted the granted quotas, as {@link QuotaGrant#readGranted} returns them
+     * @return the configured quota per pubkey hash
+     */
+    static Map<String, Integer> configuredQuotas(Map<String, Integer> granted) {
+        Map<String, Integer> quotas = new HashMap<>();
+        for (String authority : AgentFilter.getQuotaAuthorities()) {
+            quotas.put(authority, MIN_USER_QUOTA);
+        }
+        quotas.putAll(granted);
+        quotas.putAll(AgentFilter.getExplicitPubkeys());
+        return quotas;
+    }
+
+    /**
+     * Inserts an account for each configured pubkey that has none in {@code accounts_loading}
+     * yet, with no agent, no trust path and the configured quota. Pubkeys that already have
+     * an account — approved, contested or otherwise — are left as they are: the account
+     * carries the quota from {@link #CALCULATE_TRUST_SCORES}, and the status from the trust
+     * network.
+     *
+     * @param s      the MongoDB client session
+     * @param quotas the configured quota per pubkey hash, see {@link #configuredQuotas}
+     * @param status the status the new accounts start in
+     * @return how many accounts were seeded
+     */
+    static int seedConfiguredAccounts(ClientSession s, Map<String, Integer> quotas, EntryStatus status) {
+        int seeded = 0;
+        for (Map.Entry<String, Integer> entry : quotas.entrySet()) {
+            String pubkeyHash = entry.getKey();
+            if (has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
+                continue;
+            }
+            insert(s, "accounts_loading", new Document("agent", "")
+                    .append("pubkey", pubkeyHash)
+                    .append("status", status.getValue())
+                    .append("depth", 0)
+                    .append("ratio", 0.0d)
+                    .append("pathCount", 0)
+                    .append("quota", entry.getValue()));
+            logger.debug("Seeded configured pubkey as account: {} (quota={})", pubkeyHash, entry.getValue());
+            seeded++;
+        }
+        return seeded;
     }
 
     // TODO Move these to setting:

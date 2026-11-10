@@ -78,6 +78,31 @@ class AgentFilterTest {
     }
 
     @Test
+    void noQuotaAuthoritiesByDefault() {
+        fakeEnv.build();
+        AgentFilter.init();
+        assertTrue(AgentFilter.getQuotaAuthorities().isEmpty());
+    }
+
+    @Test
+    void readsQuotaAuthorities() {
+        String a = "403d674304853131343af2fd56c48a808c8754d0a7aa32ffb35aa0960cdbd97b";
+        String b = "5cbb6723f232f7f716bc687ec2f4e4247650cae2a23e804504c235f590a21db1";
+        fakeEnv.addVariable("REGISTRY_QUOTA_AUTHORITIES", " " + a + "\n" + b + " ").build();
+        AgentFilter.init();
+        assertEquals(java.util.Set.of(a, b), AgentFilter.getQuotaAuthorities());
+    }
+
+    @Test
+    void rejectsAQuotaAuthorityThatIsNotAPubkeyHash() {
+        // A quota, as in REGISTRY_COVERAGE_AGENTS, does not belong here: an authority's own
+        // quota comes from the trust network, an explicit entry, or a grant.
+        fakeEnv.addVariable("REGISTRY_QUOTA_AUTHORITIES",
+                "403d674304853131343af2fd56c48a808c8754d0a7aa32ffb35aa0960cdbd97b:100000").build();
+        assertThrows(IllegalArgumentException.class, AgentFilter::init);
+    }
+
+    @Test
     void viaSettingStaysEnabledWhenTrustCalculationIsOff() {
         fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting")
                 .addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false").build();

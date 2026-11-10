@@ -7,8 +7,10 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 
@@ -23,6 +25,9 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
  * Example: viaSetting abc123...def456:5000 789xyz...abc012:10000
  * <p>
  * When unset, defaults to viaSetting (all trusted agents, no restrictions).
+ * <p>
+ * Quotas can also be set by nanopublication, by the pubkeys named in REGISTRY_QUOTA_AUTHORITIES
+ * (whitespace-separated pubkey hashes); see {@link QuotaGrant}.
  */
 public final class AgentFilter {
 
@@ -31,14 +36,17 @@ public final class AgentFilter {
     private static volatile boolean viaSetting = true;
     private static volatile boolean enforceQuota = false;
     private static volatile Map<String, Integer> explicitPubkeys = Collections.emptyMap();
+    private static volatile Set<String> quotaAuthorities = Collections.emptySet();
 
     private AgentFilter() {
     }
 
     /**
-     * Initializes the agent filter from the REGISTRY_COVERAGE_AGENTS env var.
+     * Initializes the agent filter from the REGISTRY_COVERAGE_AGENTS and
+     * REGISTRY_QUOTA_AUTHORITIES env vars.
      */
     public static void init() {
+        initQuotaAuthorities();
         String config = Utils.getEnv("REGISTRY_COVERAGE_AGENTS", "viaSetting");
         logger.debug("Initializing AgentFilter from REGISTRY_COVERAGE_AGENTS='{}'", config);
 
@@ -85,6 +93,37 @@ public final class AgentFilter {
             logger.warn("viaSetting is enabled but trust calculation is disabled — " +
                         "no agents will be discovered via the trust network; only explicit pubkeys will work");
         }
+    }
+
+    /**
+     * Reads the pubkeys whose quota grants this registry applies (see {@link QuotaGrant}):
+     * REGISTRY_QUOTA_AUTHORITIES, whitespace-separated pubkey hashes. Unset means no grants
+     * are applied.
+     */
+    private static void initQuotaAuthorities() {
+        String config = Utils.getEnv("REGISTRY_QUOTA_AUTHORITIES", "");
+        Set<String> authorities = new HashSet<>();
+        for (String entry : config.trim().split("\\s+")) {
+            if (entry.isEmpty()) {
+                continue;
+            }
+            if (!entry.matches("[0-9a-f]{64}")) {
+                logger.error("Unrecognized entry in REGISTRY_QUOTA_AUTHORITIES: '{}'", entry);
+                throw new IllegalArgumentException("Invalid entry in REGISTRY_QUOTA_AUTHORITIES: " + entry + " (expected a pubkey hash)");
+            }
+            authorities.add(entry);
+        }
+        quotaAuthorities = Collections.unmodifiableSet(authorities);
+        if (!authorities.isEmpty()) {
+            logger.info("Quota authorities (REGISTRY_QUOTA_AUTHORITIES): {}", authorities.size());
+        }
+    }
+
+    /**
+     * Returns the pubkey hashes whose quota grants this registry applies.
+     */
+    public static Set<String> getQuotaAuthorities() {
+        return quotaAuthorities;
     }
 
     /**
