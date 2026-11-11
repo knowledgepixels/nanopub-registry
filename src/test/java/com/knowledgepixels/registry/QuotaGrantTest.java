@@ -200,6 +200,50 @@ class QuotaGrantTest {
         assertEquals(0, grants.get(0).getQuota(), "zero is a valid quota: it shuts a pubkey off");
     }
 
+    /**
+     * Statements have no order that every registry agrees on, so whatever would need one to
+     * be resolved is not a grant.
+     */
+    @Test
+    void extractLeavesOutWhatOnlyStatementOrderCouldResolve() throws Exception {
+        SimpleValueFactory vf = SimpleValueFactory.getInstance();
+        String third = "a".repeat(64);
+        NanopubCreator creator = grantCreator(new Date());
+        IRI twoQuotas = iri(creator.getNanopubUri() + "twoQuotas");
+        IRI one = iri(creator.getNanopubUri() + "one");
+        IRI other = iri(creator.getNanopubUri() + "other");
+        IRI same1 = iri(creator.getNanopubUri() + "same1");
+        IRI same2 = iri(creator.getNanopubUri() + "same2");
+        creator.addAssertionStatement(twoQuotas, QuotaGrant.HAS_PUBLIC_KEY_HASH, vf.createLiteral("b".repeat(64)));
+        creator.addAssertionStatement(twoQuotas, QuotaGrant.HAS_QUOTA, vf.createLiteral(100));
+        creator.addAssertionStatement(twoQuotas, QuotaGrant.HAS_QUOTA, vf.createLiteral(200));
+        creator.addAssertionStatement(one, QuotaGrant.HAS_PUBLIC_KEY_HASH, vf.createLiteral(TARGET));
+        creator.addAssertionStatement(one, QuotaGrant.HAS_QUOTA, vf.createLiteral(100));
+        creator.addAssertionStatement(other, QuotaGrant.HAS_PUBLIC_KEY_HASH, vf.createLiteral(TARGET));
+        creator.addAssertionStatement(other, QuotaGrant.HAS_QUOTA, vf.createLiteral(200));
+        creator.addAssertionStatement(same1, QuotaGrant.HAS_PUBLIC_KEY_HASH, vf.createLiteral(third));
+        creator.addAssertionStatement(same1, QuotaGrant.HAS_QUOTA, vf.createLiteral(300));
+        creator.addAssertionStatement(same2, QuotaGrant.HAS_PUBLIC_KEY_HASH, vf.createLiteral(third));
+        creator.addAssertionStatement(same2, QuotaGrant.HAS_QUOTA, vf.createLiteral(300));
+
+        List<QuotaGrant> grants = QuotaGrant.extract(sign(creator, authorityKey));
+
+        assertEquals(1, grants.size(), "two quotas on one subject, and two subjects disagreeing on a pubkey, are dropped");
+        assertEquals(third, grants.get(0).getPubkeyHash(), "saying the same thing twice is no conflict");
+        assertEquals(300, grants.get(0).getQuota());
+    }
+
+    @Test
+    void extractLeavesOutAGrantForSomethingThatIsNotAPubkeyHash() throws Exception {
+        NanopubCreator creator = grantCreator(new Date());
+        IRI subject = iri(creator.getNanopubUri() + "grant");
+        // Uppercase hex is not how lists and accounts are keyed, so it would match nothing.
+        creator.addAssertionStatement(subject, QuotaGrant.HAS_PUBLIC_KEY_HASH, SimpleValueFactory.getInstance().createLiteral(TARGET.toUpperCase()));
+        creator.addAssertionStatement(subject, QuotaGrant.HAS_QUOTA, SimpleValueFactory.getInstance().createLiteral(100));
+
+        assertTrue(QuotaGrant.extract(sign(creator, authorityKey)).isEmpty());
+    }
+
     // --- readGranted ---------------------------------------------------------
 
     @Test

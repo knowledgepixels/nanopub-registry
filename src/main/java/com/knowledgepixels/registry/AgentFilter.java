@@ -107,7 +107,7 @@ public final class AgentFilter {
             if (entry.isEmpty()) {
                 continue;
             }
-            if (!entry.matches("[0-9a-f]{64}")) {
+            if (!QuotaGrant.PUBKEY_HASH_PATTERN.matcher(entry).matches()) {
                 logger.error("Unrecognized entry in REGISTRY_QUOTA_AUTHORITIES: '{}'", entry);
                 throw new IllegalArgumentException("Invalid entry in REGISTRY_QUOTA_AUTHORITIES: " + entry + " (expected a pubkey hash)");
             }

@@ -793,12 +793,16 @@ public enum Task implements Serializable {
                 } else if (grantedQuota != null) {
                     quota = grantedQuota;
                 }
-                set(s, "accounts_loading",
-                        d.append("status", processed.getValue())
-                                .append("ratio", ratio)
-                                .append("pathCount", pathCount)
-                                .append("quota", quota)
-                );
+                d.append("status", processed.getValue())
+                        .append("ratio", ratio)
+                        .append("pathCount", pathCount)
+                        .append("quota", quota);
+                if (explicitQuota == null && grantedQuota != null) {
+                    // Marked so that the trust state hash covers it: a granted quota changes
+                    // what this registry publishes without changing a single trust path.
+                    d.append("quotaSource", "grant");
+                }
+                set(s, "accounts_loading", d);
             }
             logger.info("CALCULATE_TRUST_SCORES complete");
             schedule(s, AGGREGATE_AGENTS);
@@ -1623,11 +1627,11 @@ public enum Task implements Serializable {
     }
 
     /**
-     * Inserts an account for each configured pubkey that has none in {@code accounts_loading}
-     * yet, with no agent, no trust path and the configured quota. Pubkeys that already have
-     * an account — approved, contested or otherwise — are left as they are: the account
-     * carries the quota from {@link #CALCULATE_TRUST_SCORES}, and the status from the trust
-     * network.
+     * Inserts an account for each configured pubkey that has no approved one in
+     * {@code accounts_loading}, with no agent, no trust path and the configured quota. An
+     * account the trust network approved is left as it is, carrying the quota from
+     * {@link #CALCULATE_TRUST_SCORES}. A pubkey whose accounts are only contested or skipped
+     * gets the seeded account next to them, as those give it no quota.
      *
      * @param s      the MongoDB client session
      * @param quotas the configured quota per pubkey hash, see {@link #configuredQuotas}
@@ -1638,7 +1642,11 @@ public enum Task implements Serializable {
         int seeded = 0;
         for (Map.Entry<String, Integer> entry : quotas.entrySet()) {
             String pubkeyHash = entry.getKey();
-            if (has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
+            // An account the trust network approved keeps the pubkey, and one seeded before
+            // is not seeded twice. A contested or skipped account does not stand in the way:
+            // the configuration covers the pubkey whatever the trust network makes of it.
+            if (has(s, "accounts_loading", new Document("pubkey", pubkeyHash).append("status", approved.getValue()))
+                    || has(s, "accounts_loading", new Document("pubkey", pubkeyHash).append("agent", ""))) {
                 continue;
             }
             insert(s, "accounts_loading", new Document("agent", "")

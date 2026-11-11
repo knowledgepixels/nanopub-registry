@@ -19,10 +19,12 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 import static com.knowledgepixels.registry.RegistryDB.collection;
 
@@ -83,6 +85,13 @@ public final class QuotaGrant {
      */
     public static final IRI HAS_PUBLIC_KEY_HASH = Values.iri(NPX.NAMESPACE, "hasPublicKeyHash");
 
+    /**
+     * What a pubkey hash looks like: a SHA-256 in lowercase hex, as lists and accounts are
+     * keyed by. A grant for anything else could never apply to a pubkey, and would only seed
+     * an account nothing can be loaded for.
+     */
+    static final Pattern PUBKEY_HASH_PATTERN = Pattern.compile("[0-9a-f]{64}");
+
     private final String pubkeyHash;
     private final int quota;
 
@@ -107,46 +116,75 @@ public final class QuotaGrant {
 
     /**
      * Reads the grants a nanopublication holds: one per assertion subject that has a quota
-     * and names a pubkey. Subjects that have only one of the two, or an unusable quota, are
-     * logged and left out; the signature is not checked here, as the caller takes the
+     * and names a pubkey. The signature is not checked here, as the caller takes the
      * nanopublication from a list that is already keyed by its signing pubkey.
      *
+     * <p>
+     * Anything that is not plainly one grant is logged and left out, rather than resolved by
+     * the order of the statements, which is not the same on every registry: a subject with
+     * only one of the two values, with more than one pubkey or quota, with a quota that is
+     * not a non-negative integer or a pubkey hash that is not one, and a pubkey that two
+     * subjects give different quotas.
+     *
      * @param np the nanopublication
-     * @return its grants, in assertion order, possibly empty
+     * @return its grants, ordered by pubkey hash, possibly empty
      */
     public static List<QuotaGrant> extract(Nanopub np) {
-        Map<Resource, String> pubkeyHashes = new LinkedHashMap<>();
-        Map<Resource, Integer> quotas = new HashMap<>();
+        Map<Resource, Set<String>> pubkeyHashes = new HashMap<>();
+        Map<Resource, Set<String>> quotas = new HashMap<>();
         for (Statement st : np.getAssertion()) {
             Resource subj = st.getSubject();
             IRI pred = st.getPredicate();
             Value obj = st.getObject();
             if (pred.equals(HAS_PUBLIC_KEY_HASH) && obj instanceof Literal) {
-                pubkeyHashes.put(subj, obj.stringValue().trim());
+                pubkeyHashes.computeIfAbsent(subj, k -> new HashSet<>()).add(obj.stringValue().trim());
             } else if (pred.equals(NPX.HAS_PUBLIC_KEY) && obj instanceof Literal) {
-                pubkeyHashes.put(subj, Utils.getHash(obj.stringValue()));
+                pubkeyHashes.computeIfAbsent(subj, k -> new HashSet<>()).add(Utils.getHash(obj.stringValue()));
             } else if (pred.equals(HAS_QUOTA) && obj instanceof Literal) {
-                try {
-                    int quota = Integer.parseInt(obj.stringValue().trim());
-                    if (quota < 0) {
-                        throw new NumberFormatException("negative");
-                    }
-                    quotas.put(subj, quota);
-                } catch (NumberFormatException ex) {
-                    logger.warn("Ignoring quota grant {} in {}: '{}' is not a non-negative integer", subj, np.getUri(), obj.stringValue());
-                }
+                quotas.computeIfAbsent(subj, k -> new HashSet<>()).add(obj.stringValue().trim());
             }
         }
-        List<QuotaGrant> grants = new ArrayList<>();
-        for (Map.Entry<Resource, String> e : pubkeyHashes.entrySet()) {
-            Integer quota = quotas.get(e.getKey());
-            if (quota == null) {
-                logger.warn("Ignoring quota grant {} in {}: it names a pubkey but no quota", e.getKey(), np.getUri());
-            } else if (e.getValue().isEmpty()) {
-                logger.warn("Ignoring quota grant {} in {}: empty pubkey", e.getKey(), np.getUri());
-            } else {
-                grants.add(new QuotaGrant(e.getValue(), quota));
+        Map<String, Integer> granted = new TreeMap<>();
+        Set<String> conflicting = new HashSet<>();
+        for (Map.Entry<Resource, Set<String>> e : pubkeyHashes.entrySet()) {
+            Resource subj = e.getKey();
+            Set<String> quotaValues = quotas.get(subj);
+            if (quotaValues == null) {
+                logger.warn("Ignoring quota grant {} in {}: it names a pubkey but no quota", subj, np.getUri());
+                continue;
             }
+            if (e.getValue().size() > 1 || quotaValues.size() > 1) {
+                logger.warn("Ignoring quota grant {} in {}: more than one pubkey or quota", subj, np.getUri());
+                continue;
+            }
+            String pubkeyHash = e.getValue().iterator().next();
+            String quotaValue = quotaValues.iterator().next();
+            if (!PUBKEY_HASH_PATTERN.matcher(pubkeyHash).matches()) {
+                logger.warn("Ignoring quota grant {} in {}: '{}' is not a pubkey hash", subj, np.getUri(), pubkeyHash);
+                continue;
+            }
+            int quota;
+            try {
+                quota = Integer.parseInt(quotaValue);
+                if (quota < 0) {
+                    throw new NumberFormatException("negative");
+                }
+            } catch (NumberFormatException ex) {
+                logger.warn("Ignoring quota grant {} in {}: '{}' is not a non-negative integer", subj, np.getUri(), quotaValue);
+                continue;
+            }
+            Integer previous = granted.put(pubkeyHash, quota);
+            if (previous != null && previous != quota) {
+                conflicting.add(pubkeyHash);
+            }
+        }
+        for (String pubkeyHash : conflicting) {
+            logger.warn("Ignoring the quota grants for {} in {}: they give different quotas", pubkeyHash, np.getUri());
+            granted.remove(pubkeyHash);
+        }
+        List<QuotaGrant> grants = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : granted.entrySet()) {
+            grants.add(new QuotaGrant(e.getKey(), e.getValue()));
         }
         return grants;
     }
