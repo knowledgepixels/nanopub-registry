@@ -1,6 +1,8 @@
 package com.knowledgepixels.registry;
 
+import com.knowledgepixels.registry.utils.FakeEnv;
 import com.knowledgepixels.registry.utils.PageMocks;
+import com.knowledgepixels.registry.utils.TestUtils;
 import io.vertx.core.http.HttpMethod;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
@@ -112,15 +114,25 @@ class PageOutputTest {
         }
     }
 
+    /**
+     * The headers advertise the coverage this registry runs with. They used to repeat a copy
+     * stored in the database at first launch, which kept naming explicit pubkeys long after
+     * they had been taken out of the configuration; such a copy is ignored now.
+     */
     @Test
     void configuredCoverageIsAdvertisedInTheHeaders() {
+        FakeEnv fakeEnv = TestUtils.setupFakeEnv();
+        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA")
+                .addVariable("REGISTRY_COVERAGE_AGENTS", "abc123:5000").build();
+        CoverageFilter.init();
+        AgentFilter.init();
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock, List.of(
                     new Document("_id", "status").append("value", "ready"),
                     new Document("_id", "setupId").append("value", 1L),
                     new Document("_id", "testInstance").append("value", true),
-                    new Document("_id", "coverageTypes").append("value", "http://example.org/TypeA"),
-                    new Document("_id", "coverageAgents").append("value", "abc123:5000")));
+                    new Document("_id", "coverageTypes").append("value", "http://example.org/StoredLongAgo"),
+                    new Document("_id", "coverageAgents").append("value", "viaSetting def456:100000")));
             PageMocks.MockContext ctx = PageMocks.context("/anything");
 
             page(db, ctx);
@@ -128,6 +140,10 @@ class PageOutputTest {
             verify(ctx.response).putHeader("Nanopub-Registry-Coverage-Types", "http://example.org/TypeA");
             verify(ctx.response).putHeader("Nanopub-Registry-Coverage-Agents", "abc123:5000");
             verify(ctx.response).putHeader("Nanopub-Registry-Test-Instance", "true");
+        } finally {
+            fakeEnv.reset();
+            CoverageFilter.init();
+            AgentFilter.init();
         }
     }
 

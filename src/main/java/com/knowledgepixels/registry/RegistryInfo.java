@@ -65,12 +65,14 @@ public class RegistryInfo implements Serializable {
             logger.warn("Server status is missing from {} ('status' key not set)", Collection.SERVER_INFO);
         }
 
-        ri.coverageTypes = si.get("coverageTypes") != null ? (String) si.get("coverageTypes") : "all";
-        ri.coverageAgents = si.get("coverageAgents") != null ? (String) si.get("coverageAgents") : "viaSetting";
+        // The configuration in effect, like the quota authorities below. These two used to be
+        // read from a copy that LOAD_CONFIG stored at first launch, which went stale as soon
+        // as the configuration changed.
+        ri.coverageTypes = CoverageFilter.getConfiguredTypes();
+        ri.coverageAgents = AgentFilter.getConfiguredAgents();
         logger.debug("Coverage settings resolved: coverageTypes={}, coverageAgents={}", ri.coverageTypes, ri.coverageAgents);
-        // Read from the running configuration, not from what LOAD_CONFIG once wrote to the
-        // database: whose grants this registry applies decides the quotas it publishes, so
-        // what is shown here has to be what is in effect.
+        // Whose grants this registry applies decides the quotas it publishes, so what is
+        // shown here has to be what is in effect.
         ri.quotaAuthorities = AgentFilter.getQuotaAuthorities().stream().sorted().toList();
 
         ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");

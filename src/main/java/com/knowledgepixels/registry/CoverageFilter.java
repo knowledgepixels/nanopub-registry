@@ -30,6 +30,7 @@ public final class CoverageFilter {
      * Cached set of covered type hashes, or null if all types are covered.
      */
     private static volatile Set<String> coveredTypeHashes;
+    private static volatile String configuredTypes = "all";
     private static volatile boolean initialized = false;
 
     private CoverageFilter() {}
@@ -43,6 +44,7 @@ public final class CoverageFilter {
         String config = Utils.getEnv("REGISTRY_COVERAGE_TYPES", null);
         if (config == null || config.isBlank() || "all".equalsIgnoreCase(config.trim())) {
             coveredTypeHashes = null;
+            configuredTypes = "all";
             logger.info("Coverage filter initialized: all types covered (REGISTRY_COVERAGE_TYPES={})", config == null ? "null" : "\"" + config.trim() + "\"");
         } else {
             Set<String> hashes = new HashSet<>();
@@ -57,10 +59,22 @@ public final class CoverageFilter {
             hashes.add(NanopubLoader.INTRO_TYPE_HASH);
             hashes.add(NanopubLoader.ENDORSE_TYPE_HASH);
             coveredTypeHashes = Collections.unmodifiableSet(hashes);
+            configuredTypes = String.join(" ", config.trim().split("\\s+"));
             logger.info("Coverage filter: {} types covered (including core types)", hashes.size());
         }
         initialized = true;
         logger.debug("CoverageFilter.initialized set to true");
+    }
+
+    /**
+     * Returns the coverage types this registry runs with, as it reports them on its main
+     * page, in its info JSON and in the {@code Nanopub-Registry-Coverage-Types} header: the
+     * type URIs of REGISTRY_COVERAGE_TYPES separated by single spaces, or "all". This is the
+     * configuration in effect, read when the filter was initialized, so it cannot differ
+     * from what the registry does.
+     */
+    public static String getConfiguredTypes() {
+        return configuredTypes;
     }
 
     /**
