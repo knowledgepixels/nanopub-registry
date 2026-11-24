@@ -38,6 +38,8 @@ class MainPageTest {
     @AfterEach
     void tearDown() {
         fakeEnv.reset();
+        // Back to no quota authorities, for the tests that set some.
+        AgentFilter.init();
     }
 
     private static PageMocks.Db mockDbWithStatus(MockedStatic<RegistryDB> dbMock, String status) {
@@ -88,6 +90,7 @@ class MainPageTest {
             assertTrue(body.contains("<em>status:</em> ready"), "status is rendered");
             assertTrue(body.contains("<em>coverageTypes:</em> all"), "coverage defaults to all types");
             assertTrue(body.contains("<em>coverageAgents:</em> viaSetting"), "coverage defaults to viaSetting");
+            assertTrue(body.contains("<em>quotaAuthorities:</em> none"), "no quota authorities unless configured");
             // The fractional seconds are trimmed off the timestamp for readability.
             assertTrue(body.contains("<em>lastTrustStateUpdate:</em> 2026-04-15T12:00:00"), "timestamp is trimmed");
             assertFalse(body.contains("12:00:00.123"), "fractional seconds are not shown");
@@ -153,6 +156,64 @@ class MainPageTest {
             // rather than shown as empty.
             assertFalse(body.contains("<h3>Agents</h3>"));
             assertTrue(body.contains("<h3>Current Trust State</h3>"), "the other sections are unaffected");
+        }
+    }
+
+    private static final String AUTHORITY_A = "1162349fdeaf431e71ab55898cb2a425b971d466150c2aa5b3c1beb498045a37";
+    private static final String AUTHORITY_B = "2a6683923dcbd9810ef4e5debda8c4152c297b12303e286622bbbb0ed1884384";
+
+    /**
+     * Whose quota grants a registry applies decides the quotas it publishes, and registries
+     * that list different authorities can differ in their trust state hash. So the
+     * authorities are shown, and from the running configuration, not from a value stored at
+     * first launch as coverageAgents is.
+     */
+    @Test
+    void htmlListsTheQuotaAuthorities() {
+        fakeEnv.addVariable("REGISTRY_QUOTA_AUTHORITIES", AUTHORITY_B + " " + AUTHORITY_A).build();
+        AgentFilter.init();
+
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            mockDbWithStatus(dbMock, "ready");
+
+            PageMocks.MockContext ctx = PageMocks.contextAccepting("/", "text/html");
+            MainPage.show(ctx.context);
+
+            String body = ctx.body();
+            assertTrue(body.contains("<em>quotaAuthorities:</em>"
+                                     + " <a href=\"/list/" + AUTHORITY_A + "\"><code>1162349fde</code></a>"
+                                     + " <a href=\"/list/" + AUTHORITY_B + "\"><code>2a6683923d</code></a></li>"),
+                    "each authority links to its list, in a fixed order");
+        }
+    }
+
+    @Test
+    void jsonListsTheQuotaAuthorities() {
+        fakeEnv.addVariable("REGISTRY_QUOTA_AUTHORITIES", AUTHORITY_B + " " + AUTHORITY_A).build();
+        AgentFilter.init();
+
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            mockDbWithStatus(dbMock, "ready");
+
+            PageMocks.MockContext ctx = PageMocks.context("/.json");
+            MainPage.show(ctx.context);
+
+            assertTrue(ctx.body().contains("\"quotaAuthorities\":[\"" + AUTHORITY_A + "\",\"" + AUTHORITY_B + "\"]"),
+                    "the full hashes, in a fixed order");
+        }
+    }
+
+    @Test
+    void jsonReportsNoQuotaAuthoritiesAsAnEmptyList() {
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            mockDbWithStatus(dbMock, "ready");
+
+            PageMocks.MockContext ctx = PageMocks.context("/.json");
+            MainPage.show(ctx.context);
+
+            // Present and empty, so that a consumer can tell "none configured" from a
+            // registry too old to report them.
+            assertTrue(ctx.body().contains("\"quotaAuthorities\":[]"));
         }
     }
 

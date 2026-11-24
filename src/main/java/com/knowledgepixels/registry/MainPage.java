@@ -79,6 +79,14 @@ public class MainPage extends Page {
             println("<li><em>setupId:</em> " + serverInfo.get("setupId") + "</li>");
             println("<li><em>coverageTypes:</em> " + (serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes") : "all") + "</li>");
             println("<li><em>coverageAgents:</em> " + (serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents") : "viaSetting") + "</li>");
+            // The pubkeys whose quota grants this registry applies, as configured right now.
+            // They decide quotas here, and registries that list different ones can differ in
+            // their trust state hash, so they are shown for anyone comparing registries.
+            StringBuilder quotaAuthorities = new StringBuilder();
+            for (String authority : AgentFilter.getQuotaAuthorities().stream().sorted().toList()) {
+                quotaAuthorities.append(" <a href=\"/list/").append(authority).append("\"><code>").append(authority, 0, 10).append("</code></a>");
+            }
+            println("<li><em>quotaAuthorities:</em>" + (quotaAuthorities.isEmpty() ? " none" : quotaAuthorities) + "</li>");
             println("<li><em>optionalLoadEnabled:</em> " + !"false".equals(Utils.getEnv("REGISTRY_ENABLE_OPTIONAL_LOAD", null)) + "</li>");
             println("<li><em>trustCalculationEnabled:</em> " + !"false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null)) + "</li>");
             println("<li><em>localInstance:</em> " + Utils.isLocalInstance() + "</li>");
