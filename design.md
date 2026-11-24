@@ -71,7 +71,8 @@ Quotas:
   for one that is not)
 - The quotas set by grants are part of the trust state hash, since they change the published state without changing a
   trust path, and a new snapshot is only published when the hash changes. Registries with different authorities can
-  therefore differ in their hash. Explicit quotas are not hashed
+  therefore differ in their hash, which is why a registry shows the authorities it lists: as `quotaAuthorities` on its
+  main page and in its info JSON, read from the running configuration. Explicit quotas are not hashed
 - For any trusted agent, if the number of nanopublications found on other registries is smaller than the agent's quota, all nanopublications are loaded
 - Nothing is held to a quota unless `REGISTRY_ENFORCE_QUOTA=true`; by default the quotas are computed and published but
   not applied

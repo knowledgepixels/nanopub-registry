@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.List;
 
 import static com.knowledgepixels.registry.RegistryDB.*;
 
@@ -25,6 +26,7 @@ public class RegistryInfo implements Serializable {
     private String status;
     private String coverageTypes;
     private String coverageAgents;
+    private List<String> quotaAuthorities;
     private String currentSetting;
     private String originalSetting;
     private Long agentCount;
@@ -66,6 +68,10 @@ public class RegistryInfo implements Serializable {
         ri.coverageTypes = si.get("coverageTypes") != null ? (String) si.get("coverageTypes") : "all";
         ri.coverageAgents = si.get("coverageAgents") != null ? (String) si.get("coverageAgents") : "viaSetting";
         logger.debug("Coverage settings resolved: coverageTypes={}, coverageAgents={}", ri.coverageTypes, ri.coverageAgents);
+        // Read from the running configuration, not from what LOAD_CONFIG once wrote to the
+        // database: whose grants this registry applies decides the quotas it publishes, so
+        // what is shown here has to be what is in effect.
+        ri.quotaAuthorities = AgentFilter.getQuotaAuthorities().stream().sorted().toList();
 
         ri.currentSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "current");
         ri.originalSetting = (String) getValue(mongoSession, Collection.SETTING.toString(), "original");
