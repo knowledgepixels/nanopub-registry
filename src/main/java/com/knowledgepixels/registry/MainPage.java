@@ -77,8 +77,8 @@ public class MainPage extends Page {
             println("<h3>Server</h3>");
             println("<ul>");
             println("<li><em>setupId:</em> " + serverInfo.get("setupId") + "</li>");
-            println("<li><em>coverageTypes:</em> " + (serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes") : "all") + "</li>");
-            println("<li><em>coverageAgents:</em> " + (serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents") : "viaSetting") + "</li>");
+            println("<li><em>coverageTypes:</em> " + CoverageFilter.getConfiguredTypes() + "</li>");
+            println("<li><em>coverageAgents:</em> " + AgentFilter.getConfiguredAgents() + "</li>");
             // The pubkeys whose quota grants this registry applies, as configured right now.
             // They decide quotas here, and registries that list different ones can differ in
             // their trust state hash, so they are shown for anyone comparing registries.

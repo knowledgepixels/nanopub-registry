@@ -5,6 +5,8 @@ import com.knowledgepixels.registry.utils.PageMocks;
 import com.knowledgepixels.registry.utils.TestUtils;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -20,8 +22,13 @@ class RegistryInfoTest {
     public static final String LAST_TRUST_STATE_UPDATE = "test_state";
     public static final String TRUST_STATE_HASH = "hash_value";
     public static final String STATUS = "test_running";
-    public static final String COVERAGE_TYPES = "coverage_type";
-    public static final String COVERAGE_AGENTS = "coverage_agent";
+    // What a registry stored at first launch, before the coverage settings were reported from
+    // the running configuration. Such values can still sit in a database and must be ignored.
+    public static final String STALE_COVERAGE_TYPES = "coverage_type";
+    public static final String STALE_COVERAGE_AGENTS = "coverage_agent";
+    // What the registry runs with.
+    public static final String COVERAGE_TYPES = "http://example.org/TypeA http://example.org/TypeB";
+    public static final String COVERAGE_AGENTS = "viaSetting abc123:5000";
     public static final String CURRENT_SETTING = "current_setting";
     public static final String ORIGINAL_SETTING = "original_setting";
     public static final Long AGENT_COUNT = 0L;
@@ -29,6 +36,23 @@ class RegistryInfoTest {
     public static final Long NANOPUB_COUNT = 102638L;
     public static final Long LOAD_COUNTER = 0L;
     public static final Boolean IS_TEST_INSTANCE = Boolean.FALSE;
+
+    @BeforeEach
+    void configureCoverage() {
+        // Given with untidy whitespace: it is reported with single spaces.
+        TestUtils.setupFakeEnv()
+                .addVariable("REGISTRY_COVERAGE_TYPES", " http://example.org/TypeA\n http://example.org/TypeB ")
+                .addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting   abc123:5000").build();
+        CoverageFilter.init();
+        AgentFilter.init();
+    }
+
+    @AfterEach
+    void restoreCoverage() {
+        TestUtils.setupFakeEnv().reset();
+        CoverageFilter.init();
+        AgentFilter.init();
+    }
 
     @Test
     void reportsDisabledFeatureFlags() {
@@ -79,8 +103,8 @@ class RegistryInfoTest {
                     new org.bson.Document("_id", "lastTrustStateUpdate").append("value", LAST_TRUST_STATE_UPDATE),
                     new org.bson.Document("_id", "trustStateHash").append("value", TRUST_STATE_HASH),
                     new org.bson.Document("_id", "status").append("value", STATUS),
-                    new org.bson.Document("_id", "coverageTypes").append("value", COVERAGE_TYPES),
-                    new org.bson.Document("_id", "coverageAgents").append("value", COVERAGE_AGENTS),
+                    new org.bson.Document("_id", "coverageTypes").append("value", STALE_COVERAGE_TYPES),
+                    new org.bson.Document("_id", "coverageAgents").append("value", STALE_COVERAGE_AGENTS),
                     new org.bson.Document("_id", "testInstance").append("value", IS_TEST_INSTANCE)
             );
             var mockFindIterable = mock(com.mongodb.client.FindIterable.class);
@@ -152,8 +176,8 @@ class RegistryInfoTest {
                     new org.bson.Document("_id", "lastTrustStateUpdate").append("value", LAST_TRUST_STATE_UPDATE),
                     new org.bson.Document("_id", "trustStateHash").append("value", TRUST_STATE_HASH),
                     new org.bson.Document("_id", "status").append("value", STATUS),
-                    new org.bson.Document("_id", "coverageTypes").append("value", COVERAGE_TYPES),
-                    new org.bson.Document("_id", "coverageAgents").append("value", COVERAGE_AGENTS),
+                    new org.bson.Document("_id", "coverageTypes").append("value", STALE_COVERAGE_TYPES),
+                    new org.bson.Document("_id", "coverageAgents").append("value", STALE_COVERAGE_AGENTS),
                     new org.bson.Document("_id", "testInstance").append("value", IS_TEST_INSTANCE)
             );
             var mockFindIterable = mock(com.mongodb.client.FindIterable.class);

@@ -37,6 +37,7 @@ public final class AgentFilter {
     private static volatile boolean enforceQuota = false;
     private static volatile Map<String, Integer> explicitPubkeys = Collections.emptyMap();
     private static volatile Set<String> quotaAuthorities = Collections.emptySet();
+    private static volatile String configuredAgents = "viaSetting";
 
     private AgentFilter() {
     }
@@ -79,6 +80,7 @@ public final class AgentFilter {
         viaSetting = via;
         enforceQuota = "true".equals(System.getenv("REGISTRY_ENFORCE_QUOTA"));
         explicitPubkeys = Collections.unmodifiableMap(pubkeys);
+        configuredAgents = String.join(" ", config.trim().split("\\s+"));
 
         if (via && pubkeys.isEmpty()) {
             logger.info("Agent filter: viaSetting (all trusted agents)");
@@ -122,6 +124,18 @@ public final class AgentFilter {
         if (!authorities.isEmpty()) {
             logger.info("Quota authorities (REGISTRY_QUOTA_AUTHORITIES): {}", authorities.size());
         }
+    }
+
+    /**
+     * Returns the coverage agents this registry runs with, as it reports them on its main
+     * page, in its info JSON and in the {@code Nanopub-Registry-Coverage-Agents} header: the
+     * entries of REGISTRY_COVERAGE_AGENTS separated by single spaces. This is the
+     * configuration in effect, read when the filter was initialized, so it cannot differ
+     * from what the registry does. It used to be a copy stored in the database at first
+     * launch, which kept showing entries long after they had been removed.
+     */
+    public static String getConfiguredAgents() {
+        return configuredAgents;
     }
 
     /**

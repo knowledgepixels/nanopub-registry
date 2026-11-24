@@ -118,22 +118,10 @@ public enum Task implements Serializable {
                 throw new IllegalTaskStatusException("Illegal status for this task: " + status);
             }
 
-            String coverageTypes = System.getenv("REGISTRY_COVERAGE_TYPES");
-            if (coverageTypes != null) {
-                logger.info("Setting coverageTypes from REGISTRY_COVERAGE_TYPES: {}", coverageTypes);
-                setValue(s, Collection.SERVER_INFO.toString(), "coverageTypes", coverageTypes);
-            } else {
-                logger.debug("REGISTRY_COVERAGE_TYPES not set; leaving coverageTypes unset");
-            }
-
-            String coverageAgents = System.getenv("REGISTRY_COVERAGE_AGENTS");
-            if (coverageAgents != null) {
-                logger.info("Setting coverageAgents from REGISTRY_COVERAGE_AGENTS: {}", coverageAgents);
-                setValue(s, Collection.SERVER_INFO.toString(), "coverageAgents", coverageAgents);
-            } else {
-                logger.debug("REGISTRY_COVERAGE_AGENTS not set; leaving coverageAgents unset");
-            }
-
+            // The coverage settings are not stored: CoverageFilter and AgentFilter read them
+            // from the environment at every start, and the pages report them from there. A
+            // copy written here at first launch only ever showed what the configuration had
+            // once been.
             logger.debug("LOAD_CONFIG complete; scheduling LOAD_SETTING task");
             schedule(s, LOAD_SETTING);
         }

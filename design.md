@@ -285,8 +285,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       lastUptodate: 20240317-...  (not yet implemented; to be added with peer sync)
       trustStateCounter: 1423293
       trustStateHash: 7a8b9c...
-      coverageAgents:_viaSetting_
-      coverageTypes:_all_
+      coverageAgents: viaSetting  (not stored; reported from the running configuration, REGISTRY_COVERAGE_AGENTS)
+      coverageTypes: all  (not stored; reported from the running configuration, REGISTRY_COVERAGE_TYPES)
       globalQuota: 1000000  (not stored; configured per instance as REGISTRY_GLOBAL_QUOTA, to be moved to setting)
     hashes:
       { hash*:a83, value*:4e8d9x... }

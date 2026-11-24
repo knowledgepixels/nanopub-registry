@@ -38,7 +38,8 @@ class MainPageTest {
     @AfterEach
     void tearDown() {
         fakeEnv.reset();
-        // Back to no quota authorities, for the tests that set some.
+        // Back to the default coverage and no quota authorities, for the tests that set some.
+        CoverageFilter.init();
         AgentFilter.init();
     }
 
@@ -159,14 +160,36 @@ class MainPageTest {
         }
     }
 
+    /**
+     * The coverage settings are reported as the registry runs with them, so that taking an
+     * explicit pubkey out of REGISTRY_COVERAGE_AGENTS shows on the page after the restart.
+     */
+    @Test
+    void htmlReportsTheCoverageTheRegistryRunsWith() {
+        fakeEnv.addVariable("REGISTRY_COVERAGE_TYPES", "http://example.org/TypeA")
+                .addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting abc123:5000").build();
+        CoverageFilter.init();
+        AgentFilter.init();
+
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            mockDbWithStatus(dbMock, "ready");
+
+            PageMocks.MockContext ctx = PageMocks.contextAccepting("/", "text/html");
+            MainPage.show(ctx.context);
+
+            String body = ctx.body();
+            assertTrue(body.contains("<em>coverageTypes:</em> http://example.org/TypeA</li>"));
+            assertTrue(body.contains("<em>coverageAgents:</em> viaSetting abc123:5000</li>"));
+        }
+    }
+
     private static final String AUTHORITY_A = "1162349fdeaf431e71ab55898cb2a425b971d466150c2aa5b3c1beb498045a37";
     private static final String AUTHORITY_B = "2a6683923dcbd9810ef4e5debda8c4152c297b12303e286622bbbb0ed1884384";
 
     /**
      * Whose quota grants a registry applies decides the quotas it publishes, and registries
      * that list different authorities can differ in their trust state hash. So the
-     * authorities are shown, and from the running configuration, not from a value stored at
-     * first launch as coverageAgents is.
+     * authorities are shown, and from the running configuration.
      */
     @Test
     void htmlListsTheQuotaAuthorities() {

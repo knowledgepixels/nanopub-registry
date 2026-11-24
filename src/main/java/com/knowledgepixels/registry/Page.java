@@ -55,8 +55,9 @@ public abstract class Page {
         context.response().putHeader("Nanopub-Registry-Load-Counter", maxCounter + "");
         context.response().putHeader("Nanopub-Registry-Nanopub-Count", collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "");
         context.response().putHeader("Nanopub-Registry-Test-Instance", String.valueOf(serverInfo.get("testInstance") != null && (Boolean) serverInfo.get("testInstance")));
-        context.response().putHeader("Nanopub-Registry-Coverage-Types", serverInfo.get("coverageTypes") != null ? serverInfo.get("coverageTypes").toString() : "all");
-        context.response().putHeader("Nanopub-Registry-Coverage-Agents", serverInfo.get("coverageAgents") != null ? serverInfo.get("coverageAgents").toString() : "viaSetting");
+        // The configuration in effect, not a copy stored at first launch, which goes stale.
+        context.response().putHeader("Nanopub-Registry-Coverage-Types", CoverageFilter.getConfiguredTypes());
+        context.response().putHeader("Nanopub-Registry-Coverage-Agents", AgentFilter.getConfiguredAgents());
 
         String r = context.request().path().substring(1);
         if (r.endsWith(".txt")) {
