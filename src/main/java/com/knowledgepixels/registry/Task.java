@@ -257,8 +257,20 @@ public enum Task implements Serializable {
             logger.info("Running SEED_TRUST_STATE task");
 
             if (!taskDoc.getBoolean("trustCalculation", true)) {
-                logger.info("Trust calculation disabled; seeding configured pubkeys and skipping to FINALIZE_TRUST_STATE");
-                seedConfiguredAccounts(s, configuredQuotas(QuotaGrant.readGranted(s)), toLoad);
+                logger.info("Trust calculation disabled; seeding explicit pubkeys and skipping to FINALIZE_TRUST_STATE");
+                for (Map.Entry<String, Integer> entry : AgentFilter.getExplicitPubkeys().entrySet()) {
+                    String pubkeyHash = entry.getKey();
+                    int quota = entry.getValue();
+                    Document account = new Document("agent", "")
+                            .append("pubkey", pubkeyHash)
+                            .append("status", toLoad.getValue())
+                            .append("depth", 0)
+                            .append("quota", quota);
+                    if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
+                        insert(s, "accounts_loading", account);
+                        logger.debug("Seeded explicit pubkey as account: {} (quota={})", pubkeyHash, quota);
+                    }
+                }
                 schedule(s, FINALIZE_TRUST_STATE);
                 return;
             }
@@ -732,7 +744,8 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running CALCULATE_TRUST_SCORES task");
 
-            Map<String, Integer> granted = QuotaGrant.readGranted(s);
+            Map<QuotaGrant.Target, Integer> granted = QuotaGrant.readGranted(s);
+            Set<QuotaGrant.Target> unapplied = new HashSet<>(granted.keySet());
             while (true) {
                 Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
                 if (d == null) {
@@ -784,10 +797,14 @@ public enum Task implements Serializable {
                 // AgentFilter.getQuota. Applying it here too keeps the number this registry
                 // enforces the same as the one it records, publishes and shows on its pages.
                 // A granted quota (issue #220) sits in between: it overrides the computed one
-                // but yields to the operator's own configuration.
+                // but yields to the operator's own configuration. A grant names the account,
+                // agent and pubkey, and is only ever applied here, to an account the trust
+                // network reached: it sets a quota and approves nothing.
                 String pubkeyHash = d.get("pubkey").toString();
                 Integer explicitQuota = AgentFilter.getExplicitQuota(pubkeyHash);
-                Integer grantedQuota = granted.get(pubkeyHash);
+                QuotaGrant.Target account = new QuotaGrant.Target(d.get("agent").toString(), pubkeyHash);
+                Integer grantedQuota = granted.get(account);
+                unapplied.remove(account);
                 if (explicitQuota != null) {
                     quota = explicitQuota;
                 } else if (grantedQuota != null) {
@@ -803,6 +820,12 @@ public enum Task implements Serializable {
                     d.append("quotaSource", "grant");
                 }
                 set(s, "accounts_loading", d);
+            }
+            // A grant waiting for its account to be approved is in order, and one with a
+            // mistyped agent or key looks exactly the same: say which ones found no account.
+            for (QuotaGrant.Target target : unapplied) {
+                logger.info("Quota grant for agent {} with pubkey {} applies to no account the trust network reaches",
+                        target.agent(), target.pubkeyHash());
             }
             logger.info("CALCULATE_TRUST_SCORES complete");
             schedule(s, AGGREGATE_AGENTS);
@@ -903,16 +926,6 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running DETERMINE_UPDATES task");
 
-            // A pubkey that is covered by configuration — an explicit entry, a quota grant, or
-            // being a quota authority — but has no trust path still gets an account, so that
-            // it is loaded and served like an approved one. Seeded only now, after
-            // ASSIGN_PUBKEYS, so that a pubkey the trust network does reach is not claimed a
-            // second time and marked contested.
-            int seeded = seedConfiguredAccounts(s, configuredQuotas(QuotaGrant.readGranted(s)), approved);
-            if (seeded > 0) {
-                logger.info("Seeded {} configured pubkeys without a trust path as accounts", seeded);
-            }
-
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(s,
                     new DbEntryWrapper(approved).getDocument())) {
@@ -936,6 +949,7 @@ public enum Task implements Serializable {
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
                 }
             }
+            warnAboutQuotaAuthoritiesNotLoadedInFull(s);
             logger.info("DETERMINE_UPDATES complete");
             schedule(s, FINALIZE_TRUST_STATE);
 
@@ -1606,60 +1620,31 @@ public enum Task implements Serializable {
     }
 
     /**
-     * The pubkeys this registry covers by configuration rather than by trust path, each with
-     * the quota it gets: the explicit entries of {@code REGISTRY_COVERAGE_AGENTS}, the pubkeys
-     * with a current quota grant, and the quota authorities themselves, which get the minimum
-     * quota unless an entry or a grant (possibly their own) says otherwise. An authority has
-     * to be an account, or its grants would never be loaded from the peers. An explicit entry
-     * wins over a grant, as it does in {@link #CALCULATE_TRUST_SCORES}.
+     * Warns about each quota authority whose nanopublications this registry does not load in
+     * full from the peers, as the cycle leaves it: one without an approved account, and one
+     * whose account is capped at its quota. Being listed as an authority makes a pubkey's
+     * grants count, but it does not make the pubkey an account, and only an account with
+     * quota room is loaded in full. The grants of any other key reach this registry only as
+     * far as they happen to be published here or picked up among the recent
+     * nanopublications, and registries may then disagree on them.
      *
-     * @param granted the granted quotas, as {@link QuotaGrant#readGranted} returns them
-     * @return the configured quota per pubkey hash
+     * @param s the MongoDB client session
      */
-    static Map<String, Integer> configuredQuotas(Map<String, Integer> granted) {
-        Map<String, Integer> quotas = new HashMap<>();
+    static void warnAboutQuotaAuthoritiesNotLoadedInFull(ClientSession s) {
+        List<String> fullyLoadedStatuses = List.of(loaded.getValue(), toLoad.getValue());
         for (String authority : AgentFilter.getQuotaAuthorities()) {
-            quotas.put(authority, MIN_USER_QUOTA);
-        }
-        quotas.putAll(granted);
-        quotas.putAll(AgentFilter.getExplicitPubkeys());
-        return quotas;
-    }
-
-    /**
-     * Inserts an account for each configured pubkey that has no approved one in
-     * {@code accounts_loading}, with no agent, no trust path and the configured quota. An
-     * account the trust network approved is left as it is, carrying the quota from
-     * {@link #CALCULATE_TRUST_SCORES}. A pubkey whose accounts are only contested or skipped
-     * gets the seeded account next to them, as those give it no quota.
-     *
-     * @param s      the MongoDB client session
-     * @param quotas the configured quota per pubkey hash, see {@link #configuredQuotas}
-     * @param status the status the new accounts start in
-     * @return how many accounts were seeded
-     */
-    static int seedConfiguredAccounts(ClientSession s, Map<String, Integer> quotas, EntryStatus status) {
-        int seeded = 0;
-        for (Map.Entry<String, Integer> entry : quotas.entrySet()) {
-            String pubkeyHash = entry.getKey();
-            // An account the trust network approved keeps the pubkey, and one seeded before
-            // is not seeded twice. A contested or skipped account does not stand in the way:
-            // the configuration covers the pubkey whatever the trust network makes of it.
-            if (has(s, "accounts_loading", new Document("pubkey", pubkeyHash).append("status", approved.getValue()))
-                    || has(s, "accounts_loading", new Document("pubkey", pubkeyHash).append("agent", ""))) {
+            if (has(s, "accounts_loading", new Document("pubkey", authority)
+                    .append("status", new Document("$in", fullyLoadedStatuses)))) {
                 continue;
             }
-            insert(s, "accounts_loading", new Document("agent", "")
-                    .append("pubkey", pubkeyHash)
-                    .append("status", status.getValue())
-                    .append("depth", 0)
-                    .append("ratio", 0.0d)
-                    .append("pathCount", 0)
-                    .append("quota", entry.getValue()));
-            logger.debug("Seeded configured pubkey as account: {} (quota={})", pubkeyHash, entry.getValue());
-            seeded++;
+            if (has(s, "accounts_loading", new Document("pubkey", authority).append("status", capped.getValue()))) {
+                logger.warn("Quota authority {} is capped at its quota, so its grants are not loaded in full from the peers;" +
+                            " it needs a larger quota for its grants to be complete here", authority);
+            } else {
+                logger.warn("Quota authority {} has no approved account, so its grants are not loaded from the peers;" +
+                            " it has to be approved through the trust network for its grants to be complete here", authority);
+            }
         }
-        return seeded;
     }
 
     // TODO Move these to setting:

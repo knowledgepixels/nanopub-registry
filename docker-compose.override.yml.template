@@ -102,6 +102,11 @@ services:
 #     - REGISTRY_UNAPPROVED_PUBLISH_QUOTA=100  # Nanopubs all unapproved pubkeys together may publish per window
 #                                              # (0 disables unapproved publishing, answering 403 instead of 429)
 #     - REGISTRY_UNAPPROVED_PUBLISH_WINDOW=3600  # Length of that window, in seconds
+#     - REGISTRY_QUOTA_AUTHORITIES=<pubkeyHash> <pubkeyHash>  # Pubkeys whose quota grants (nanopubs of type npx:QuotaGrant)
+#                                             # set the quota of an approved account without touching this file: 64 lowercase
+#                                             # hex characters each, whitespace-separated. An explicit quota (Section 1) wins
+#                                             # over a grant. An authority should itself be an agent the trust network
+#                                             # approves, or its grants are not loaded from the peers. Needs trust calculation.
 
       # ----------------------------------------------------------------------
       # Section 3: SHARED MONGODB - ONLY for setups that use an external

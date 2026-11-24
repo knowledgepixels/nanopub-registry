@@ -840,13 +840,13 @@ class TaskTest {
     private static KeyPair authorityKey;
 
     /**
-     * Publishes a grant of the given quota for the given pubkey hash, signed with a key that
-     * is then configured as this registry's one quota authority, and stores it the way the
+     * Publishes a grant of the given quota for the given account, signed with a key that is
+     * then configured as this registry's one quota authority, and stores it the way the
      * loaders do: on the "$" list and the type lists of its pubkey.
      *
      * @return the pubkey hash of the authority
      */
-    private String storeGrant(String pubkeyHash, int quota) throws Exception {
+    private String storeGrant(String agent, String pubkeyHash, int quota) throws Exception {
         if (authorityKey == null) {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
@@ -855,6 +855,7 @@ class TaskTest {
         SimpleValueFactory vf = SimpleValueFactory.getInstance();
         NanopubCreator creator = new NanopubCreator("http://example.org/grant" + System.nanoTime() + "/");
         IRI subject = vf.createIRI(creator.getNanopubUri() + "grant");
+        creator.addAssertionStatement(subject, QuotaGrant.FOR_AGENT, vf.createIRI(agent));
         creator.addAssertionStatement(subject, QuotaGrant.HAS_PUBLIC_KEY_HASH, vf.createLiteral(pubkeyHash));
         creator.addAssertionStatement(subject, QuotaGrant.HAS_QUOTA, vf.createLiteral(quota));
         creator.addProvenanceStatement(vf.createIRI("http://www.w3.org/ns/prov#wasAttributedTo"), SOMEONE);
@@ -870,27 +871,28 @@ class TaskTest {
         return authority;
     }
 
-    /** Pubkey hashes for the grant tests: a grant only counts for something shaped like one. */
+    /** The account the grant tests are about: a grant names an agent IRI and a pubkey hash. */
+    private static final String GRANTEE_AGENT = "http://example.org/grantee";
     private static final String GRANTEE = "403d674304853131343af2fd56c48a808c8754d0a7aa32ffb35aa0960cdbd97b";
 
-    /** An expanded account of agent A with the grantee's pubkey and a negligible trust path. */
+    /** An expanded account of the grantee with a negligible trust path. */
     private void seedExpandedGrantee() {
-        seed("accounts_loading", new Document("agent", "A").append("pubkey", GRANTEE)
+        seed("accounts_loading", new Document("agent", GRANTEE_AGENT).append("pubkey", GRANTEE)
                 .append("status", EntryStatus.expanded.getValue()).append("depth", 1));
-        seed("trustPaths_loading", new Document("_id", "$ X|1 A|" + GRANTEE).append("sorthash", "x")
-                .append("agent", "A").append("pubkey", GRANTEE).append("depth", 2)
+        seed("trustPaths_loading", new Document("_id", "$ X|1 " + GRANTEE_AGENT + "|" + GRANTEE).append("sorthash", "x")
+                .append("agent", GRANTEE_AGENT).append("pubkey", GRANTEE).append("depth", 2)
                 .append("ratio", 1e-9).append("type", "primary"));
     }
 
     @Test
     void calculateTrustScoresAppliesAGrantedQuota() throws Exception {
         prepareLoadingCollections();
-        storeGrant(GRANTEE, 20000);
+        storeGrant(GRANTEE_AGENT, GRANTEE, 20000);
         seedExpandedGrantee();
 
         Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
 
-        Document account = one("accounts_loading", new Document("agent", "A"));
+        Document account = one("accounts_loading", new Document("agent", GRANTEE_AGENT));
         assertEquals(20000, account.getInteger("quota"), "the granted quota replaces the ratio-derived one");
         assertEquals("grant", account.getString("quotaSource"), "and is marked, for the trust state hash to cover it");
     }
@@ -899,101 +901,92 @@ class TaskTest {
     void calculateTrustScoresPrefersAnExplicitEntryOverAGrant() throws Exception {
         prepareLoadingCollections();
         fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting " + GRANTEE + ":250000").build();
-        storeGrant(GRANTEE, 20000);
+        storeGrant(GRANTEE_AGENT, GRANTEE, 20000);
         seedExpandedGrantee();
 
         Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
 
-        Document account = one("accounts_loading", new Document("agent", "A"));
+        Document account = one("accounts_loading", new Document("agent", GRANTEE_AGENT));
         assertEquals(250000, account.getInteger("quota"),
                 "the operator's own configuration has the final say on their instance");
         assertNull(account.getString("quotaSource"));
     }
 
     /**
-     * A grant doubles as approval: a pubkey the trust network does not reach still becomes
-     * an account, so that its nanopubs are loaded and served. The authority itself has to be
-     * an account too, or its grants would never be fetched from the peers.
+     * A grant is for one account. Another agent declaring the same key does not come by the
+     * quota that way.
      */
     @Test
-    void determineUpdatesSeedsAGrantedPubkeyWithoutATrustPath() throws Exception {
+    void calculateTrustScoresLeavesAGrantForAnotherAgentOfTheSameKeyAside() throws Exception {
         prepareLoadingCollections();
-        String authority = storeGrant(GRANTEE, 20000);
+        storeGrant("http://example.org/someone-else", GRANTEE, 20000);
+        seedExpandedGrantee();
+
+        Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
+
+        Document account = one("accounts_loading", new Document("agent", GRANTEE_AGENT));
+        assertEquals(1000, account.getInteger("quota"), "the ratio-derived quota, here the minimum, stays");
+        assertNull(account.getString("quotaSource"));
+    }
+
+    /**
+     * A grant sets a quota and approves nothing: an account the trust network does not reach
+     * is not created by it, and neither is one for the authority that signed it.
+     */
+    @Test
+    void aGrantCreatesNoAccount() throws Exception {
+        prepareLoadingCollections();
+        String authority = storeGrant(GRANTEE_AGENT, GRANTEE, 20000);
+
+        Task.runTask(Task.CALCULATE_TRUST_SCORES, Task.CALCULATE_TRUST_SCORES.asDocument());
+        clearQueue();
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertNull(one("accounts_loading", new Document("pubkey", GRANTEE)));
+        assertNull(one("accounts_loading", new Document("pubkey", authority)));
+    }
+
+    /**
+     * Nor does a grant lift an account the trust network leaves contested or skipped: those
+     * carry no quota, and a grant does not decide whose key it is.
+     */
+    @Test
+    void aGrantLeavesAContestedOrSkippedAccountAsItIs() throws Exception {
+        prepareLoadingCollections();
+        seed("accounts_loading", new Document("agent", GRANTEE_AGENT).append("pubkey", GRANTEE)
+                .append("status", EntryStatus.contested.getValue()));
+        seed("accounts_loading", new Document("agent", "B").append("pubkey", GRANTEE)
+                .append("status", EntryStatus.skipped.getValue()));
+        storeGrant(GRANTEE_AGENT, GRANTEE, 20000);
 
         Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
 
-        Document granted = one("accounts_loading", new Document("pubkey", GRANTEE));
-        assertNotNull(granted);
-        assertEquals("", granted.getString("agent"));
-        assertEquals(20000, granted.getInteger("quota"));
-        assertEquals(EntryStatus.toLoad.getValue(), granted.getString("status"));
-        Document authorityAccount = one("accounts_loading", new Document("pubkey", authority));
-        assertNotNull(authorityAccount, "the authority is an account as well");
-        assertEquals(1000, authorityAccount.getInteger("quota"), "with the minimum quota, as nothing says otherwise");
-        assertEquals(EntryStatus.toLoad.getValue(), authorityAccount.getString("status"));
+        List<Document> accounts = collection("accounts_loading").find(session, new Document("pubkey", GRANTEE)).into(new ArrayList<>());
+        assertEquals(2, accounts.size(), "no account is added next to them");
+        assertEquals(EntryStatus.contested.getValue(), one("accounts_loading", new Document("agent", GRANTEE_AGENT)).getString("status"));
+        assertEquals(EntryStatus.skipped.getValue(), one("accounts_loading", new Document("agent", "B")).getString("status"));
     }
 
+    /**
+     * An explicit entry is no different with the trust network on: it sets the quota of an
+     * account the network reaches, and is honoured for publishing by {@link AgentFilter},
+     * but it is not turned into an account without an agent.
+     */
     @Test
-    void determineUpdatesSeedsAnExplicitPubkeyWithoutATrustPath() throws Exception {
+    void determineUpdatesCreatesNoAccountForAnExplicitPubkey() throws Exception {
         prepareLoadingCollections();
         fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "viaSetting PK1:500").build();
         AgentFilter.init();
 
         Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
 
-        Document explicit = one("accounts_loading", new Document("pubkey", "PK1"));
-        assertNotNull(explicit, "an explicit entry covers the pubkey whether or not the trust network reaches it");
-        assertEquals(500, explicit.getInteger("quota"));
-        assertEquals(EntryStatus.toLoad.getValue(), explicit.getString("status"));
+        assertNull(one("accounts_loading", new Document("pubkey", "PK1")));
     }
 
     @Test
-    void determineUpdatesLeavesAPubkeyTheTrustNetworkReachesToItsAccount() throws Exception {
-        prepareLoadingCollections();
-        seed("accounts_loading", new Document("agent", "A").append("pubkey", GRANTEE)
-                .append("status", EntryStatus.approved.getValue()).append("quota", 5));
-        storeGrant(GRANTEE, 20000);
-
-        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
-
-        // Seeding a second account for the same pubkey would make it contested. The grant
-        // reaches this account through CALCULATE_TRUST_SCORES, not here.
-        List<Document> accounts = collection("accounts_loading").find(session, new Document("pubkey", GRANTEE)).into(new ArrayList<>());
-        assertEquals(1, accounts.size());
-        assertEquals("A", accounts.get(0).getString("agent"));
-        assertEquals(5, accounts.get(0).getInteger("quota"));
-    }
-
-    /**
-     * A contested or skipped account gives its pubkey no quota, so it must not keep a grant
-     * from taking effect: these are the pubkeys a grant is most needed for.
-     */
-    @Test
-    void determineUpdatesSeedsAGrantedPubkeyThatIsOnlyContestedOrSkipped() throws Exception {
-        prepareLoadingCollections();
-        seed("accounts_loading", new Document("agent", "A").append("pubkey", GRANTEE)
-                .append("status", EntryStatus.contested.getValue()));
-        seed("accounts_loading", new Document("agent", "B").append("pubkey", GRANTEE)
-                .append("status", EntryStatus.skipped.getValue()));
-        storeGrant(GRANTEE, 20000);
-
-        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
-        // The cycle may run this task again; the seeded account must not be inserted twice.
-        clearQueue();
-        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
-
-        Document seeded = one("accounts_loading", new Document("pubkey", GRANTEE).append("agent", ""));
-        assertNotNull(seeded);
-        assertEquals(20000, seeded.getInteger("quota"));
-        assertEquals(EntryStatus.toLoad.getValue(), seeded.getString("status"));
-        assertEquals(EntryStatus.contested.getValue(), one("accounts_loading", new Document("agent", "A")).getString("status"));
-        assertEquals(EntryStatus.skipped.getValue(), one("accounts_loading", new Document("agent", "B")).getString("status"));
-    }
-
-    @Test
-    void seedTrustStateSeedsTheQuotaAuthorityWhenTrustCalculationIsDisabled() throws Exception {
+    void seedTrustStateSeedsNoGrantedAccountWhenTrustCalculationIsDisabled() throws Exception {
         bootstrap();
-        String authority = storeGrant(GRANTEE, 20000);
+        String authority = storeGrant(GRANTEE_AGENT, GRANTEE, 20000);
         fakeEnv.addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false").build();
         setStatus(ServerStatus.coreLoading);
         clearQueue();
@@ -1001,45 +994,42 @@ class TaskTest {
         Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
         runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
 
-        assertEquals(20000, one("accounts_loading", new Document("pubkey", GRANTEE)).getInteger("quota"));
-        assertEquals(1000, one("accounts_loading", new Document("pubkey", authority)).getInteger("quota"));
+        // Without a trust network there is no approved account for a grant to apply to.
+        assertNull(one("accounts_loading", new Document("pubkey", GRANTEE)));
+        assertNull(one("accounts_loading", new Document("pubkey", authority)));
         assertEquals(List.of(Task.FINALIZE_TRUST_STATE.name()), queuedActions());
     }
 
     /**
      * The trust state is only published anew when its hash changes, and the hash is built
-     * from the trust paths. What configuration adds has no trust path, so it has to enter
-     * the hash by itself, or consumers of the published state would never hear of it.
+     * from the trust paths. A granted quota changes no trust path, so it has to enter the
+     * hash by itself, or consumers of the published state would never hear of it.
      */
     @Test
-    void trustStateHashCoversSeededAccountsAndGrantedQuotas() throws Exception {
+    void trustStateHashCoversGrantedQuotas() throws Exception {
         prepareLoadingCollections();
         String empty = RegistryDB.calculateTrustStateHash(session);
 
-        // Reached by the trust network, explicit or computed quota: not covered, as before.
+        // Explicit or computed quotas, with or without an agent: not covered, as before.
         seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
                 .append("status", EntryStatus.loaded.getValue()).append("quota", 5000));
+        seed("accounts_loading", new Document("agent", "").append("pubkey", "PK1")
+                .append("status", EntryStatus.loaded.getValue()).append("quota", 500));
         assertEquals(empty, RegistryDB.calculateTrustStateHash(session));
 
-        // Seeded but not servable yet: becoming loaded is the change that gets published.
-        seed("accounts_loading", new Document("agent", "").append("pubkey", GRANTEE)
-                .append("status", EntryStatus.toLoad.getValue()).append("quota", 20000));
+        // Granted, but not servable yet: becoming loaded is the change that gets published.
+        seed("accounts_loading", new Document("agent", GRANTEE_AGENT).append("pubkey", GRANTEE)
+                .append("status", EntryStatus.toLoad.getValue()).append("quota", 20000).append("quotaSource", "grant"));
         assertEquals(empty, RegistryDB.calculateTrustStateHash(session));
         collection("accounts_loading").updateOne(session, new Document("pubkey", GRANTEE),
                 new Document("$set", new Document("status", EntryStatus.loaded.getValue())));
-        String withSeeded = RegistryDB.calculateTrustStateHash(session);
-        assertFalse(empty.equals(withSeeded), "a seeded account that is loaded is part of the state");
+        String withGrant = RegistryDB.calculateTrustStateHash(session);
+        assertFalse(empty.equals(withGrant), "a granted quota of a loaded account is part of the state");
 
         // A new grant for it changes the state again.
         collection("accounts_loading").updateOne(session, new Document("pubkey", GRANTEE),
                 new Document("$set", new Document("quota", 30000)));
-        String withLargerQuota = RegistryDB.calculateTrustStateHash(session);
-        assertFalse(withSeeded.equals(withLargerQuota));
-
-        // And so does a grant for an account the trust network reaches.
-        collection("accounts_loading").updateOne(session, new Document("pubkey", "P"),
-                new Document("$set", new Document("quota", 9000).append("quotaSource", "grant")));
-        assertFalse(withLargerQuota.equals(RegistryDB.calculateTrustStateHash(session)));
+        assertFalse(withGrant.equals(RegistryDB.calculateTrustStateHash(session)));
     }
 
     // ------------------------------------------------------- AGGREGATE_AGENTS

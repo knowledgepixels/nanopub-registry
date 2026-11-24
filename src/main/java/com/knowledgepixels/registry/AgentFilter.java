@@ -26,8 +26,8 @@ import static com.knowledgepixels.registry.RegistryDB.collection;
  * <p>
  * When unset, defaults to viaSetting (all trusted agents, no restrictions).
  * <p>
- * Quotas can also be set by nanopublication, by the pubkeys named in REGISTRY_QUOTA_AUTHORITIES
- * (whitespace-separated pubkey hashes); see {@link QuotaGrant}.
+ * The quotas of approved accounts can also be set by nanopublication, by the pubkeys named in
+ * REGISTRY_QUOTA_AUTHORITIES (whitespace-separated pubkey hashes); see {@link QuotaGrant}.
  */
 public final class AgentFilter {
 
@@ -89,9 +89,14 @@ public final class AgentFilter {
         }
         logger.info("Quota enforcement (REGISTRY_ENFORCE_QUOTA): {}", enforceQuota);
 
-        if (via && "false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null))) {
+        boolean trustCalculationOff = "false".equals(Utils.getEnv("REGISTRY_ENABLE_TRUST_CALCULATION", null));
+        if (via && trustCalculationOff) {
             logger.warn("viaSetting is enabled but trust calculation is disabled — " +
                         "no agents will be discovered via the trust network; only explicit pubkeys will work");
+        }
+        if (!quotaAuthorities.isEmpty() && trustCalculationOff) {
+            logger.warn("REGISTRY_QUOTA_AUTHORITIES is set but trust calculation is disabled — " +
+                        "quota grants apply to accounts the trust network approves, so none will be applied");
         }
     }
 

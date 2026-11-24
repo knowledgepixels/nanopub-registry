@@ -50,26 +50,28 @@ Quotas:
   recorded, published and enforced — a trust ratio says how much an agent is trusted, not how much they publish, so
   high-volume publishers need this
 - A quota can also be set by nanopublication (issue #220): a *quota grant* is a nanopublication of type `npx:QuotaGrant`
-  whose assertion names a pubkey (`npx:hasPublicKeyHash`, or `npx:hasPublicKey` with the full key) and a quota
-  (`npx:hasQuota`), signed with one of the keys listed in `REGISTRY_QUOTA_AUTHORITIES` (whitespace-separated pubkey
-  hashes). A grant is published once and reaches every registry that lists its signer through the ordinary sync,
-  where the explicit env var needs a configuration change and a restart on every host. The trust cycle applies the
-  grants where it records the quotas: an explicit entry wins over a grant, a grant over the computed quota; where
-  several current grants name the same pubkey, the most recently created nanopublication wins; a retracted or
-  superseded grant stops counting, which lets the one before it hold again, so a replacement should supersede its
-  predecessor. A grant that is not plainly one — a pubkey hash that is not 64 lowercase hex characters, two quotas
-  for one pubkey in the same nanopublication — is ignored rather than resolved by statement order. A grant is not bounded by `REGISTRY_MAX_USER_QUOTA`, and a quota of 0 shuts a
-  pubkey off. A registry restricted to some types (`REGISTRY_COVERAGE_TYPES`) only sees grants if `npx:QuotaGrant`
-  is among them. See [QuotaGrant.java](src/main/java/com/knowledgepixels/registry/QuotaGrant.java)
-- A pubkey that is covered by configuration — an explicit entry, a quota grant, or being a quota authority — but not
-  reached by the trust network still becomes an account (with no agent and no trust path), so that it is loaded and
-  served like an approved one. This also holds for a pubkey whose accounts are only contested or skipped, as those
-  give it no quota. An authority gets `REGISTRY_MIN_USER_QUOTA` unless an entry or a grant, possibly its own, says
-  otherwise
-- Such seeded accounts and the quotas set by grants are part of the trust state hash, since they change the published
-  state without changing a trust path, and a new snapshot is only published when the hash changes. Registries with
-  different authorities or explicit entries can therefore differ in their hash. Explicit quotas of accounts the
-  trust network reaches are not hashed
+  (declared in its pubinfo with `npx:hasNanopubType`, which is what puts it on the list the grants are read from)
+  whose assertion names an account — an agent (`npx:forAgent`) and one of its pubkeys (`npx:hasPublicKeyHash`, or
+  `npx:hasPublicKey` with the full key) — and a quota (`npx:hasQuota`), signed with one of the keys listed in
+  `REGISTRY_QUOTA_AUTHORITIES` (whitespace-separated pubkey hashes). A grant is published once and reaches every
+  registry that lists its signer through the ordinary sync, where the explicit env var needs a configuration change
+  and a restart on every host. The trust cycle applies the grants where it records the quotas: an explicit entry wins
+  over a grant, a grant over the computed quota; where several current grants name the same account, the most
+  recently created nanopublication wins; a retracted or superseded grant stops counting, which lets the one before it
+  hold again, so a replacement should supersede its predecessor. A grant that is not plainly one — no agent, a pubkey
+  hash that is not 64 lowercase hex characters, two quotas for one account in the same nanopublication — is ignored
+  rather than resolved by statement order. A grant is not bounded by `REGISTRY_MAX_USER_QUOTA`, and a quota of 0
+  shuts an account off. A registry restricted to some types (`REGISTRY_COVERAGE_TYPES`) only sees grants if
+  `npx:QuotaGrant` is among them. See [QuotaGrant.java](src/main/java/com/knowledgepixels/registry/QuotaGrant.java)
+- A grant sets a quota and approves nothing: it applies to the account of that agent and pubkey once the trust
+  network approves it, and has no effect before that or for any other agent declaring the same key. Approval stays
+  with introductions and endorsements, so a registry that does not compute the trust network applies no grants. The
+  same holds for the authorities: being listed makes a key's grants count, but only an approved account is loaded in
+  full from the peers, so an authority should be an agent the trust network approves (the trust cycle logs a warning
+  for one that is not)
+- The quotas set by grants are part of the trust state hash, since they change the published state without changing a
+  trust path, and a new snapshot is only published when the hash changes. Registries with different authorities can
+  therefore differ in their hash. Explicit quotas are not hashed
 - For any trusted agent, if the number of nanopublications found on other registries is smaller than the agent's quota, all nanopublications are loaded
 - Nothing is held to a quota unless `REGISTRY_ENFORCE_QUOTA=true`; by default the quotas are computed and published but
   not applied
@@ -162,8 +164,8 @@ is about *this moment*: the same nanopublication offered after `Retry-After` is 
 With `REGISTRY_ENFORCE_QUOTA=false` (the default) any pubkey may publish anything. With enforcement on, a POST is
 decided in this order (see [PublishPolicy.java](src/main/java/com/knowledgepixels/registry/PublishPolicy.java)):
 
-1. **An approved pubkey** — one with a quota, whether from the trust network, from `REGISTRY_COVERAGE_AGENTS` or
-   from a quota grant — publishes until its quota is reached, and is refused with `403` after that.
+1. **An approved pubkey** — one with a quota, whether from the trust network or from `REGISTRY_COVERAGE_AGENTS` —
+   publishes until its quota is reached, and is refused with `403` after that.
 2. **An agent introduction that an approved agent has already endorsed** is accepted in all situations, without
    touching any allowance. The endorsement (`npx:approvesOf`) names the one artifact code it approves of, and the
    introduction has to declare the pubkey it is signed with, so this grants exactly one specific nanopublication.

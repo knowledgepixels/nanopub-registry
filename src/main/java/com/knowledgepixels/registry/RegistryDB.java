@@ -1198,21 +1198,20 @@ public class RegistryDB {
             }
         }
 
-        // The same trap once more, for what configuration adds (issue #220): an account seeded
-        // for a pubkey without a trust path, and a quota set by a grant, change the published
-        // state without touching a trust path. Accounts still in 'toLoad' are left out as above,
-        // so that becoming servable is itself a change. Explicit quotas of accounts the trust
-        // network reaches are deliberately not covered, as they never were: nothing is appended
-        // on a registry without seeded accounts and grants, which leaves its hash where it is.
+        // The same trap once more, for a quota set by a grant (issue #220): it changes the
+        // published state without touching a trust path. Accounts still in 'toLoad' are left
+        // out as above, so that becoming servable is itself a change. Explicit quotas are
+        // deliberately not covered, as they never were: nothing is appended on a registry
+        // without grants, which leaves its hash where it is.
         try (MongoCursor<Document> ac = collection("accounts_loading")
-                .find(mongoSession, new Document("$or", List.of(new Document("agent", ""), new Document("quotaSource", "grant")))
+                .find(mongoSession, new Document("quotaSource", "grant")
                         .append("status", new Document("$ne", EntryStatus.toLoad.getValue())))
                 .projection(new Document("agent", 1).append("pubkey", 1).append("quota", 1))
                 .sort(ascending("agent", "pubkey"))
                 .cursor()) {
             while (ac.hasNext()) {
                 Document d = ac.next();
-                s += "configured " + d.getString("agent") + "|" + d.getString("pubkey") + " " + d.get("quota") + "\n";
+                s += "granted " + d.getString("agent") + "|" + d.getString("pubkey") + " " + d.get("quota") + "\n";
             }
         }
 
