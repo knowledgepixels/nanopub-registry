@@ -744,6 +744,8 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running CALCULATE_TRUST_SCORES task");
 
+            Map<QuotaGrant.Target, Integer> granted = QuotaGrant.readGranted(s);
+            Set<QuotaGrant.Target> unapplied = new HashSet<>(granted.keySet());
             while (true) {
                 Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
                 if (d == null) {
@@ -794,16 +796,36 @@ public enum Task implements Serializable {
                 // An explicitly configured quota wins over the computed one, as it does in
                 // AgentFilter.getQuota. Applying it here too keeps the number this registry
                 // enforces the same as the one it records, publishes and shows on its pages.
-                Integer explicitQuota = AgentFilter.getExplicitQuota(d.get("pubkey").toString());
+                // A granted quota (issue #220) sits in between: it overrides the computed one
+                // but yields to the operator's own configuration. A grant names the account,
+                // agent and pubkey, and is only ever applied here, to an account the trust
+                // network reached: it sets a quota and approves nothing.
+                String pubkeyHash = d.get("pubkey").toString();
+                Integer explicitQuota = AgentFilter.getExplicitQuota(pubkeyHash);
+                QuotaGrant.Target account = new QuotaGrant.Target(d.get("agent").toString(), pubkeyHash);
+                Integer grantedQuota = granted.get(account);
+                unapplied.remove(account);
                 if (explicitQuota != null) {
                     quota = explicitQuota;
+                } else if (grantedQuota != null) {
+                    quota = grantedQuota;
                 }
-                set(s, "accounts_loading",
-                        d.append("status", processed.getValue())
-                                .append("ratio", ratio)
-                                .append("pathCount", pathCount)
-                                .append("quota", quota)
-                );
+                d.append("status", processed.getValue())
+                        .append("ratio", ratio)
+                        .append("pathCount", pathCount)
+                        .append("quota", quota);
+                if (explicitQuota == null && grantedQuota != null) {
+                    // Marked so that the trust state hash covers it: a granted quota changes
+                    // what this registry publishes without changing a single trust path.
+                    d.append("quotaSource", "grant");
+                }
+                set(s, "accounts_loading", d);
+            }
+            // A grant waiting for its account to be approved is in order, and one with a
+            // mistyped agent or key looks exactly the same: say which ones found no account.
+            for (QuotaGrant.Target target : unapplied) {
+                logger.info("Quota grant for agent {} with pubkey {} applies to no account the trust network reaches",
+                        target.agent(), target.pubkeyHash());
             }
             logger.info("CALCULATE_TRUST_SCORES complete");
             schedule(s, AGGREGATE_AGENTS);
@@ -927,6 +949,7 @@ public enum Task implements Serializable {
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
                 }
             }
+            warnAboutQuotaAuthoritiesNotLoadedInFull(s);
             logger.info("DETERMINE_UPDATES complete");
             schedule(s, FINALIZE_TRUST_STATE);
 
@@ -1594,6 +1617,34 @@ public enum Task implements Serializable {
     static double effectiveRatio(Document trustPath) {
         double ratio = trustPath.getDouble("ratio");
         return "primary".equals(trustPath.getString("type")) ? ratio : ratio * SELF_SHARE;
+    }
+
+    /**
+     * Warns about each quota authority whose nanopublications this registry does not load in
+     * full from the peers, as the cycle leaves it: one without an approved account, and one
+     * whose account is capped at its quota. Being listed as an authority makes a pubkey's
+     * grants count, but it does not make the pubkey an account, and only an account with
+     * quota room is loaded in full. The grants of any other key reach this registry only as
+     * far as they happen to be published here or picked up among the recent
+     * nanopublications, and registries may then disagree on them.
+     *
+     * @param s the MongoDB client session
+     */
+    static void warnAboutQuotaAuthoritiesNotLoadedInFull(ClientSession s) {
+        List<String> fullyLoadedStatuses = List.of(loaded.getValue(), toLoad.getValue());
+        for (String authority : AgentFilter.getQuotaAuthorities()) {
+            if (has(s, "accounts_loading", new Document("pubkey", authority)
+                    .append("status", new Document("$in", fullyLoadedStatuses)))) {
+                continue;
+            }
+            if (has(s, "accounts_loading", new Document("pubkey", authority).append("status", capped.getValue()))) {
+                logger.warn("Quota authority {} is capped at its quota, so its grants are not loaded in full from the peers;" +
+                            " it needs a larger quota for its grants to be complete here", authority);
+            } else {
+                logger.warn("Quota authority {} has no approved account, so its grants are not loaded from the peers;" +
+                            " it has to be approved through the trust network for its grants to be complete here", authority);
+            }
+        }
     }
 
     // TODO Move these to setting:

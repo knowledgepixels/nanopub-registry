@@ -1198,6 +1198,23 @@ public class RegistryDB {
             }
         }
 
+        // The same trap once more, for a quota set by a grant (issue #220): it changes the
+        // published state without touching a trust path. Accounts still in 'toLoad' are left
+        // out as above, so that becoming servable is itself a change. Explicit quotas are
+        // deliberately not covered, as they never were: nothing is appended on a registry
+        // without grants, which leaves its hash where it is.
+        try (MongoCursor<Document> ac = collection("accounts_loading")
+                .find(mongoSession, new Document("quotaSource", "grant")
+                        .append("status", new Document("$ne", EntryStatus.toLoad.getValue())))
+                .projection(new Document("agent", 1).append("pubkey", 1).append("quota", 1))
+                .sort(ascending("agent", "pubkey"))
+                .cursor()) {
+            while (ac.hasNext()) {
+                Document d = ac.next();
+                s += "granted " + d.getString("agent") + "|" + d.getString("pubkey") + " " + d.get("quota") + "\n";
+            }
+        }
+
         String hash = Utils.getHash(s);
         logger.debug("Calculated trust state hash: {}", hash);
         return hash;
