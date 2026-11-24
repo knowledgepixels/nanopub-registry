@@ -1,3 +1,31 @@
+## [1.15.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.14.2...nanopub-registry-1.15.0) (2026-11-24)
+
+### Features
+
+* a quota grant names its account and approves nothing ([#220](https://github.com/knowledgepixels/nanopub-registry/issues/220)) ([1e2a736](https://github.com/knowledgepixels/nanopub-registry/commit/1e2a736bac71932ec33cd10e820a04e19d34e085))
+* set quotas by nanopublication ([#220](https://github.com/knowledgepixels/nanopub-registry/issues/220)) ([5811faa](https://github.com/knowledgepixels/nanopub-registry/commit/5811faabd5312913c3cf2c994209f4130fec105d))
+
+### Dependency updates
+
+* **core-deps:** update dependency org.nanopub:nanopub to v1.96.0 ([#224](https://github.com/knowledgepixels/nanopub-registry/issues/224)) ([3f7d827](https://github.com/knowledgepixels/nanopub-registry/commit/3f7d8275dd6691a65537e3b1981c62eb7e31e242))
+* **core-deps:** update dependency org.nanopub:nanopub to v1.97.1 ([#232](https://github.com/knowledgepixels/nanopub-registry/issues/232)) ([6426293](https://github.com/knowledgepixels/nanopub-registry/commit/6426293b3e0a2dcaf228d1becb21b63b695a7773))
+* **deps:** update dependency maven to v3.10.1 ([#226](https://github.com/knowledgepixels/nanopub-registry/issues/226)) ([915c280](https://github.com/knowledgepixels/nanopub-registry/commit/915c2806a3997f76cfa1aaafeecf13a99aeb1db2))
+* **deps:** update dependency maven to v3.10.2 ([#233](https://github.com/knowledgepixels/nanopub-registry/issues/233)) ([3e4d767](https://github.com/knowledgepixels/nanopub-registry/commit/3e4d76745f5437d8a7b3d8f8a4e0e521943e4ae6))
+
+### Bug Fixes
+
+* answer a request for an unknown agent with 404 ([c27a598](https://github.com/knowledgepixels/nanopub-registry/commit/c27a5980ac497059fca032910feb6d00bdb14eb6))
+* publish what grants change, and make them unambiguous ([#220](https://github.com/knowledgepixels/nanopub-registry/issues/220)) ([bbd764b](https://github.com/knowledgepixels/nanopub-registry/commit/bbd764b3765591a4b51e501ad4aa64222a4902d2))
+
+### Build and continuous integration
+
+* **deps:** update actions/setup-java action to v6.3.0 ([#225](https://github.com/knowledgepixels/nanopub-registry/issues/225)) ([e1b6a2e](https://github.com/knowledgepixels/nanopub-registry/commit/e1b6a2e90f210531deaec4cbe267fd2e47aaa8a5))
+* **deps:** update dependency semantic-release-preconfigured-conventional-commits to v1.1.159 ([#227](https://github.com/knowledgepixels/nanopub-registry/issues/227)) ([c3fb397](https://github.com/knowledgepixels/nanopub-registry/commit/c3fb3975ac0e2edd5d211dca19412071b597767f))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([d3aa81c](https://github.com/knowledgepixels/nanopub-registry/commit/d3aa81cfc70db50e35e0fb467135fe9d0fac5421))
+
 ## [1.14.2](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.14.1...nanopub-registry-1.14.2) (2026-11-06)
 
 ### Dependency updates
