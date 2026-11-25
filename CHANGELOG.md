@@ -1,3 +1,17 @@
+## [1.16.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.15.0...nanopub-registry-1.16.0) (2026-11-25)
+
+### Features
+
+* show the quota authorities on the main page and in the info JSON ([bfee8f6](https://github.com/knowledgepixels/nanopub-registry/commit/bfee8f65ea1f76dde1956b705429a7ed5b2355ed))
+
+### Bug Fixes
+
+* report the coverage settings the registry runs with ([5ab306a](https://github.com/knowledgepixels/nanopub-registry/commit/5ab306adfec8a1102b6b33d9565c43b1740e89b8))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([9de2dbf](https://github.com/knowledgepixels/nanopub-registry/commit/9de2dbfc3a01642d3540ecc2c868606d68db6ae5))
+
 ## [1.15.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.14.2...nanopub-registry-1.15.0) (2026-11-24)
 
 ### Features
