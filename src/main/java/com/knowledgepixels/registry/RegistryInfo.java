@@ -23,6 +23,7 @@ public class RegistryInfo implements Serializable {
     private Long trustStateCounter;
     private String lastTrustStateUpdate;
     private String trustStateHash;
+    private String trustNetworkHash;
     private String status;
     private String coverageTypes;
     private String coverageAgents;
@@ -55,6 +56,7 @@ public class RegistryInfo implements Serializable {
         ri.trustStateCounter = (Long) si.get("trustStateCounter");
         ri.lastTrustStateUpdate = (String) si.get("lastTrustStateUpdate");
         ri.trustStateHash = (String) si.get("trustStateHash");
+        ri.trustNetworkHash = (String) si.get("trustNetworkHash");
         ri.loadCounter = (Long) getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
         if (ri.loadCounter == null) {
             logger.debug("No max 'counter' value found in {} (collection may be empty)", Collection.NANOPUBS);

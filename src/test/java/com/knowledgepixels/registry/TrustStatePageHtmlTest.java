@@ -7,6 +7,7 @@ import org.mockito.MockedStatic;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mockStatic;
@@ -24,6 +25,7 @@ class TrustStatePageHtmlTest {
         return new Document("_id", HASH)
                 .append("trustStateCounter", 42L)
                 .append("createdAt", "2026-04-15T12:00:00.123Z")
+                .append("trustNetworkHash", "fedcba0987654321")
                 .append("accounts", List.of(
                         new Document("pubkey", "pk1234567890abc")
                                 .append("agent", "https://orcid.org/0000-0000-0000-0001")
@@ -42,7 +44,8 @@ class TrustStatePageHtmlTest {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
             PageMocks.Db db = PageMocks.mockDb(dbMock);
             db.stubFindAll(Collection.TRUST_STATE_SNAPSHOTS.toString(), List.of(
-                    new Document("_id", HASH).append("trustStateCounter", 42L).append("createdAt", "2026-04-15T12:00:00Z"),
+                    new Document("_id", HASH).append("trustStateCounter", 42L).append("createdAt", "2026-04-15T12:00:00Z")
+                            .append("trustNetworkHash", "fedcba0987654321"),
                     new Document("_id", "0987654321fedcba").append("trustStateCounter", 41L).append("createdAt", "2026-04-14T12:00:00Z")));
 
             PageMocks.MockContext ctx = PageMocks.context("/trust-state.json");
@@ -52,6 +55,8 @@ class TrustStatePageHtmlTest {
             assertTrue(body.contains("\"trustStateHash\""), "each entry carries its hash");
             assertTrue(body.contains(HASH), "the newest snapshot is listed");
             assertTrue(body.contains("\"trustStateCounter\""), "each entry carries its counter");
+            assertEquals(1, body.split("trustNetworkHash", -1).length - 1,
+                    "the network hash is listed where a snapshot has one, and left out where it has none");
             // The accounts array is heavy and deliberately excluded from the index.
             assertFalse(body.contains("\"accounts\""), "the index omits the accounts array");
         }
@@ -102,6 +107,7 @@ class TrustStatePageHtmlTest {
             String body = ctx.body();
             assertTrue(body.contains("<h1>Trust State <code>abcdef1234</code></h1>"), "hash is truncated in the heading");
             assertTrue(body.contains("<em>trustStateCounter:</em> 42"), "counter is rendered");
+            assertTrue(body.contains("<em>trustNetworkHash:</em> <code>fedcba0987654321</code>"), "the network hash is rendered");
             assertTrue(body.contains("<em>createdAt:</em> 2026-04-15T12:00:00"), "timestamp is trimmed");
             // Only the two Document entries count; the stray string is ignored.
             assertTrue(body.contains("<em>accountCount:</em> 3"), "the raw account list size is reported");

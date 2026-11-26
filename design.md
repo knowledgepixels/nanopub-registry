@@ -69,10 +69,11 @@ Quotas:
   same holds for the authorities: being listed makes a key's grants count, but only an approved account is loaded in
   full from the peers, so an authority should be an agent the trust network approves (the trust cycle logs a warning
   for one that is not)
-- The quotas set by grants are part of the trust state hash, since they change the published state without changing a
-  trust path, and a new snapshot is only published when the hash changes. Registries with different authorities can
-  therefore differ in their hash, which is why a registry shows the authorities it lists: as `quotaAuthorities` on its
-  main page and in its info JSON, read from the running configuration. Explicit quotas are not hashed
+- A quota, however it was set (computed, explicit, or by a grant), is part of what a registry publishes about an
+  account, and so of its trust state hash (see [Trust State Snapshots](#trust-state-snapshots)): a changed quota is
+  published as a new trust state. Registries with different authorities or explicit quotas therefore differ in their
+  trust state hash while agreeing in their trust network hash, which is why a registry shows the authorities it
+  lists: as `quotaAuthorities` on its main page and in its info JSON, read from the running configuration
 - For any trusted agent, if the number of nanopublications found on other registries is smaller than the agent's quota, all nanopublications are loaded
 - Nothing is held to a quota unless `REGISTRY_ENFORCE_QUOTA=true`; by default the quotas are computed and published but
   not applied
@@ -116,7 +117,8 @@ All responses include the following headers:
 - `Nanopub-Registry-Setup-Id` — unique ID, changes on reset
 - `Nanopub-Registry-Trust-State-Counter` — incremented on trust state changes
 - `Nanopub-Registry-Last-Trust-State-Update` — ISO 8601 timestamp of last trust state update
-- `Nanopub-Registry-Trust-State-Hash` — SHA256 hash of the current trust state
+- `Nanopub-Registry-Trust-State-Hash` — SHA256 hash of what this registry currently publishes as its trust state; the key of the current snapshot
+- `Nanopub-Registry-Trust-Network-Hash` — SHA256 hash of the trust paths alone, comparable between registries; left out by a registry that has no trust paths
 - `Nanopub-Registry-SeqNum` — max sequence number from nanopubs collection (monotonic cursor for sync, may have gaps)
 - `Nanopub-Registry-Nanopub-Count` — approximate number of nanopubs (via `estimatedDocumentCount`)
 - `Nanopub-Registry-Load-Counter` — same as SeqNum (transition compatibility for old peers)
@@ -285,6 +287,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       lastUptodate: 20240317-...  (not yet implemented; to be added with peer sync)
       trustStateCounter: 1423293
       trustStateHash: 7a8b9c...
+      trustNetworkHash: 5d6e7f...  (absent on a registry without trust paths)
       coverageAgents: viaSetting  (not stored; reported from the running configuration, REGISTRY_COVERAGE_AGENTS)
       coverageTypes: all  (not stored; reported from the running configuration, REGISTRY_COVERAGE_TYPES)
       globalQuota: 1000000  (not stored; configured per instance as REGISTRY_GLOBAL_QUOTA, to be moved to setting)
@@ -392,30 +395,54 @@ Therefore, each account can only append its endorsements to the location in its 
 
 ## Trust State Snapshots
 
+A registry reports two hashes, for two different questions:
+
+- The **trust network hash** (`trustNetworkHash`, header `Nanopub-Registry-Trust-Network-Hash`) is the input side: who endorses whom.
+  It is taken over the trust paths and nothing else, so registries running the same setting report the same value once they hold the same introductions and endorsements, whatever their local configuration.
+  This is the value to compare between registries.
+  It says that the paths are equal, not that the scores derived from them are: registries on different versions can agree on the network and still compute different ratios.
+- The **trust state hash** (`trustStateHash`, header `Nanopub-Registry-Trust-State-Hash`) is the outcome on one registry: the accounts as it publishes them.
+  It is taken over the content of the snapshot described below, so it depends on the network and also on what is local to the registry: explicit quotas, the quota authorities it lists, quota enforcement, and how far accounts have been loaded.
+  This is the value consumers watch, and it is not meant to be compared between registries.
+
+A change of the network changes the trust state, but not the other way round.
+
 Downstream consumers (e.g. Nanopub Query) mirror the registry's trust state as immutable snapshots keyed by `trustStateHash`.
 To let them load a given trust state atomically and side-by-side with earlier states, the registry persists a structured snapshot each time the hash transitions.
 
-Snapshot writes happen inside `PUBLISH_TRUST_STATE`, which runs right after `RELEASE_DATA` has renamed the `_loading` collections into place.
+Snapshot writes happen inside `PUBLISH_TRUST_STATE`, which `RELEASE_DATA` queues as the very next task after it has renamed the `_loading` collections into place, so that what is published is the state the cycle computed and not one the loading chain has meanwhile worked on.
+The task reads the accounts and edges once, takes the trust state hash over them, and compares it with the one recorded.
+Because the hash is that of the content itself, anything a snapshot contains is covered by it: a changed status, ratio, quota, name or edge is a new trust state, with no list of cases to keep complete.
 For each hash transition, a single document is upserted into the `trustStateSnapshots` collection:
 
     trustStateSnapshots:
-      { _id:'<trustStateHash>', trustStateCounter:42, createdAt:'2026-04-15T...',
-        accounts: [ { pubkey, agent, status, depth, pathCount, ratio, quota }, ... ] }
+      { _id:'<trustStateHash>', trustStateCounter:42, createdAt:'2026-04-15T...', trustNetworkHash:'5d6e7f...',
+        accounts: [ { pubkey, agent, name, nameCreatedAt, introNanopub, status, depth, pathCount, ratio, quota }, ... ],
+        edges: [ { fromAgent, fromPubkey, toAgent, toPubkey, viaNanopub }, ... ] }
 
-The `accounts` array omits the `$` sentinel and projects only fields that are outputs of the trust computation (volatile fields like the per-pubkey nanopub `count` are excluded).
+The `accounts` array omits the `$` sentinel and the accounts still in the internal `toLoad` status, and projects only fields that are outputs of the trust computation (volatile fields like the per-pubkey nanopub `count` are excluded).
+The `edges` array holds the non-invalidated endorsements between published accounts.
+Both are stored in the order they are hashed in: accounts by agent and pubkey, edges by their endpoints and source nanopublication.
+`createdAt`, `trustStateCounter` and `trustNetworkHash` describe the snapshot and are not part of the hash.
 Retention is capped at the 100 most recent snapshots; older entries are pruned in the same task.
+
+An account can have several introductions. Its `name`, `nameCreatedAt` and `introNanopub` all come from one of them, chosen by a rule that does not depend on the order they are met in: an introduction with a name before one without, then the one created later (a dated one before an undated one), then the one with the smaller URI.
+
+The hash is taken over a text with one line per account and per edge, each a JSON array of the values in a fixed order, after a first line naming the format (`trust-state-1`).
+See `calculateTrustStateHash` in [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java) for the exact form.
 
 Consumers read snapshots via:
 
     GET /trust-state/<trustStateHash>.json
 
-which returns an envelope `{ trustStateHash, trustStateCounter, createdAt, accounts }` with `Cache-Control: public, immutable, max-age=31536000`.
+which returns an envelope `{ trustStateHash, trustStateCounter, createdAt, trustNetworkHash, accounts, edges }` with `Cache-Control: public, immutable, max-age=31536000`.
+Snapshots recorded by older versions lack `trustNetworkHash`, and the oldest `edges`.
 Returns `404` if the hash has been pruned or never existed.
 
-Change detection uses the existing `Nanopub-Registry-Trust-State-Hash` response header (set on every response).
+Change detection uses the `Nanopub-Registry-Trust-State-Hash` response header (set on every response).
 A typical consumer workflow:
 
 1. `HEAD /` → read `Nanopub-Registry-Trust-State-Hash`
 2. If the hash differs from the last seen, `GET /trust-state/<new_hash>.json` and load alongside the previous snapshot
 
-See also [TrustStatePage.java](src/main/java/com/knowledgepixels/registry/TrustStatePage.java) and the snapshot writer in [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`RELEASE_DATA`).
+See also [TrustStatePage.java](src/main/java/com/knowledgepixels/registry/TrustStatePage.java) and the snapshot writer in [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`PUBLISH_TRUST_STATE`).

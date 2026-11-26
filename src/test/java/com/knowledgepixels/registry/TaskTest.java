@@ -1000,38 +1000,6 @@ class TaskTest {
         assertEquals(List.of(Task.FINALIZE_TRUST_STATE.name()), queuedActions());
     }
 
-    /**
-     * The trust state is only published anew when its hash changes, and the hash is built
-     * from the trust paths. A granted quota changes no trust path, so it has to enter the
-     * hash by itself, or consumers of the published state would never hear of it.
-     */
-    @Test
-    void trustStateHashCoversGrantedQuotas() throws Exception {
-        prepareLoadingCollections();
-        String empty = RegistryDB.calculateTrustStateHash(session);
-
-        // Explicit or computed quotas, with or without an agent: not covered, as before.
-        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
-                .append("status", EntryStatus.loaded.getValue()).append("quota", 5000));
-        seed("accounts_loading", new Document("agent", "").append("pubkey", "PK1")
-                .append("status", EntryStatus.loaded.getValue()).append("quota", 500));
-        assertEquals(empty, RegistryDB.calculateTrustStateHash(session));
-
-        // Granted, but not servable yet: becoming loaded is the change that gets published.
-        seed("accounts_loading", new Document("agent", GRANTEE_AGENT).append("pubkey", GRANTEE)
-                .append("status", EntryStatus.toLoad.getValue()).append("quota", 20000).append("quotaSource", "grant"));
-        assertEquals(empty, RegistryDB.calculateTrustStateHash(session));
-        collection("accounts_loading").updateOne(session, new Document("pubkey", GRANTEE),
-                new Document("$set", new Document("status", EntryStatus.loaded.getValue())));
-        String withGrant = RegistryDB.calculateTrustStateHash(session);
-        assertFalse(empty.equals(withGrant), "a granted quota of a loaded account is part of the state");
-
-        // A new grant for it changes the state again.
-        collection("accounts_loading").updateOne(session, new Document("pubkey", GRANTEE),
-                new Document("$set", new Document("quota", 30000)));
-        assertFalse(withGrant.equals(RegistryDB.calculateTrustStateHash(session)));
-    }
-
     // ------------------------------------------------------- AGGREGATE_AGENTS
 
     private void seedProcessedAccount(String agent, String pubkey, int pathCount, double ratio, String name) {
@@ -1183,7 +1151,7 @@ class TaskTest {
     // --------------------------------------------------- FINALIZE_TRUST_STATE
 
     @Test
-    void finalizeTrustStateHandsTheComputedHashToReleaseData() throws Exception {
+    void finalizeTrustStateRecordsTheTimeAndHandsOverToReleaseData() throws Exception {
         prepareLoadingCollections();
         seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
                 .append("status", EntryStatus.approved.getValue()));
@@ -1194,29 +1162,70 @@ class TaskTest {
         assertNotNull(getValue(session, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate"));
         Document next = queuedTask(Task.RELEASE_DATA);
         assertNotNull(next);
-        assertEquals(RegistryDB.calculateTrustStateHash(session), next.getString("newTrustStateHash"));
-        assertNull(next.getString("previousTrustStateHash"), "there is no previous state on the first cycle");
+        // The hash is taken where the snapshot is written, from the data that is stored (#223).
+        assertFalse(next.containsKey("newTrustStateHash"), "no hash is computed ahead of the release");
     }
 
-    // ------------------------------------------------------------ RELEASE_DATA
+    // ------------------------------------- RELEASE_DATA / PUBLISH_TRUST_STATE
+
+    private static Document accountA() {
+        return new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.loaded.getValue()).append("depth", 1)
+                .append("name", "Alice").append("pathCount", 2).append("ratio", 0.5).append("quota", 1000);
+    }
+
+    private static Document accountB(EntryStatus status) {
+        return new Document("agent", "B").append("pubkey", "Q")
+                .append("status", status.getValue()).append("depth", 1);
+    }
 
     /**
      * Seeds a complete loading state ready to be published.
      */
     private void seedReleasableState() {
-        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
-                .append("status", EntryStatus.loaded.getValue()).append("depth", 1)
-                .append("name", "Alice").append("pathCount", 2).append("ratio", 0.5).append("quota", 1000));
-        // The synthetic root and staging accounts are internal and must stay out of snapshots.
+        seedReleasableState(accountA(), accountB(EntryStatus.toLoad));
+    }
+
+    /**
+     * Seeds a complete loading state with the given accounts, as a trust cycle leaves it
+     * behind. Can be called again after a release, for the cycle that follows.
+     */
+    private void seedReleasableState(Document... accounts) {
+        IndexInitializer.initLoadingCollections(session);
+        for (Document account : accounts) {
+            seed("accounts_loading", account);
+        }
+        // The synthetic root is internal and must stay out of snapshots.
         seed("accounts_loading", new Document("agent", "$").append("pubkey", "$")
                 .append("status", EntryStatus.approved.getValue()).append("depth", 0));
-        seed("accounts_loading", new Document("agent", "B").append("pubkey", "Q")
-                .append("status", EntryStatus.toLoad.getValue()).append("depth", 1));
         seedTrustPath("$ A|P", 1, 0.5);
         seed("agents_loading", new Document("agent", "A").append("accountCount", 1)
                 .append("avgPathCount", 2.0).append("totalRatio", 0.5));
         seed("endorsements_loading", new Document("agent", "A").append("pubkey", "P")
                 .append("endorsedNanopub", "RAxyz").append("status", EntryStatus.retrieved.getValue()));
+    }
+
+    /**
+     * Runs the end of a trust cycle on what is in the loading collections.
+     */
+    private void releaseAndPublish() throws Exception {
+        Task.runTask(Task.RELEASE_DATA, Task.RELEASE_DATA.asDocument());
+        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
+    }
+
+    private String publishedHash() {
+        return (String) getValue(session, Collection.SERVER_INFO.toString(), "trustStateHash");
+    }
+
+    private Object publishedCounter() {
+        return getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Document> snapshotAccounts(String hash) {
+        Document snapshot = one(Collection.TRUST_STATE_SNAPSHOTS.toString(), new Document("_id", hash));
+        assertNotNull(snapshot, "there is a snapshot for the published hash");
+        return (List<Document>) snapshot.get("accounts");
     }
 
     @Test
@@ -1228,9 +1237,7 @@ class TaskTest {
         setStatus(ServerStatus.coreLoading);
         seedReleasableState();
 
-        Task.runTask(Task.RELEASE_DATA,
-                Task.RELEASE_DATA.asDocument().append("newTrustStateHash", "hash1"));
-        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
+        releaseAndPublish();
 
         // The *_loading collections become the live ones.
         assertEquals(3, all(Collection.ACCOUNTS.toString()).size());
@@ -1239,17 +1246,28 @@ class TaskTest {
         assertEquals(1, all("endorsements").size());
         assertFalse(RegistryDB.hasCollection("accounts_loading"));
 
-        assertEquals("hash1", getValue(session, Collection.SERVER_INFO.toString(), "trustStateHash"));
-        assertEquals(1L, getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter"));
+        String hash = publishedHash();
+        assertNotNull(hash);
+        assertEquals(1L, publishedCounter());
         assertEquals(1, all("debug_trustPaths").size());
 
-        Document snapshot = one(Collection.TRUST_STATE_SNAPSHOTS.toString(), new Document("_id", "hash1"));
+        Document snapshot = one(Collection.TRUST_STATE_SNAPSHOTS.toString(), new Document("_id", hash));
         assertNotNull(snapshot);
         @SuppressWarnings("unchecked")
         List<Document> snapshotAccounts = (List<Document>) snapshot.get("accounts");
+        @SuppressWarnings("unchecked")
+        List<Document> snapshotEdges = (List<Document>) snapshot.get("edges");
         assertEquals(1, snapshotAccounts.size(), "only servable accounts are published");
         assertEquals("P", snapshotAccounts.getFirst().getString("pubkey"));
         assertEquals("Alice", snapshotAccounts.getFirst().getString("name"));
+        // The hash is that of the content stored under it, which is what makes it cover
+        // everything that is published (#223).
+        assertEquals(hash, RegistryDB.calculateTrustStateHash(snapshotAccounts, snapshotEdges));
+
+        // The network hash is the trust paths alone, and travels with the snapshot.
+        String networkHash = Utils.getHash("$ A|P (primary)\n");
+        assertEquals(networkHash, getValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash"));
+        assertEquals(networkHash, snapshot.getString("trustNetworkHash"));
 
         // Core loading is finished, but the full backlog has not been fetched yet.
         assertEquals(ServerStatus.coreReady.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"));
@@ -1259,17 +1277,21 @@ class TaskTest {
     @Test
     void releaseDataSkipsTheSnapshotWhenTheTrustStateIsUnchanged() throws Exception {
         prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
         setStatus(ServerStatus.updating);
         seedReleasableState();
-        RegistryDB.setValue(session, Collection.SERVER_INFO.toString(), "trustStateHash", "hash1");
+        releaseAndPublish();
+        String hash = publishedHash();
 
-        Task.runTask(Task.RELEASE_DATA, Task.RELEASE_DATA.asDocument()
-                .append("newTrustStateHash", "hash1").append("previousTrustStateHash", "hash1"));
-        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
+        // The next cycle computes the very same state.
+        setStatus(ServerStatus.updating);
+        seedReleasableState();
+        releaseAndPublish();
 
         // Consumers poll the hash; re-emitting an identical state would churn their caches.
-        assertTrue(all(Collection.TRUST_STATE_SNAPSHOTS.toString()).isEmpty());
-        assertEquals(0L, getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter"));
+        assertEquals(hash, publishedHash());
+        assertEquals(1L, publishedCounter());
+        assertEquals(1, all(Collection.TRUST_STATE_SNAPSHOTS.toString()).size());
         // The collections are still published, and an updating registry returns to ready.
         assertEquals(3, all(Collection.ACCOUNTS.toString()).size());
         assertEquals(ServerStatus.ready.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"));
@@ -1281,9 +1303,7 @@ class TaskTest {
         setStatus(ServerStatus.coreLoading);
         seedReleasableState();
 
-        Task.runTask(Task.RELEASE_DATA,
-                Task.RELEASE_DATA.asDocument().append("newTrustStateHash", "hash1"));
-        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
+        releaseAndPublish();
 
         // Nothing has ever been published and an account is still waiting for the initial full
         // load, so the computed state is the near-empty bootstrap one: publishing it would hand
@@ -1291,9 +1311,216 @@ class TaskTest {
         // still promoted; only the hash, counter and snapshot are held back until a later cycle
         // finds the load complete.
         assertEquals(3, all(Collection.ACCOUNTS.toString()).size());
-        assertNull(getValue(session, Collection.SERVER_INFO.toString(), "trustStateHash"));
-        assertEquals(0L, getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter"));
+        assertNull(publishedHash());
+        assertEquals(0L, publishedCounter());
         assertTrue(all(Collection.TRUST_STATE_SNAPSHOTS.toString()).isEmpty());
+        // The network is known all the same, and comparable with other registries.
+        assertEquals(Utils.getHash("$ A|P (primary)\n"), getValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash"));
+    }
+
+    /**
+     * A change to what is published without any change to the trust paths: a quota set by a
+     * grant or by the operator, or ratios moved by a change to the scoring. The latter left a
+     * registry serving a snapshot that disagreed with its own accounts in 80 ratios and 53
+     * quotas, because the hash was computed from the paths and had not moved (issue #223).
+     */
+    @Test
+    void aChangedQuotaOrRatioIsPublishedThoughNoTrustPathChanged() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+        seedReleasableState();
+        releaseAndPublish();
+        String before = publishedHash();
+        Object networkBefore = getValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash");
+
+        seedReleasableState(accountA().append("quota", 20000), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+        String withQuota = publishedHash();
+        assertFalse(before.equals(withQuota), "a changed quota is a new trust state");
+        assertEquals(2L, publishedCounter());
+        assertEquals(20000, snapshotAccounts(withQuota).getFirst().getInteger("quota"));
+
+        seedReleasableState(accountA().append("quota", 20000).append("ratio", 0.4), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+        assertFalse(withQuota.equals(publishedHash()), "a changed ratio is a new trust state");
+        assertEquals(3L, publishedCounter());
+
+        assertEquals(networkBefore, getValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash"),
+                "the network is the same network throughout");
+    }
+
+    /**
+     * An account enters the published state when it becomes loaded, and that has to be a
+     * change of the state, or it would be left out of it indefinitely (issue #119).
+     */
+    @Test
+    void anAccountBecomingLoadedIsPublished() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+        seedReleasableState(accountA(), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+        String before = publishedHash();
+        assertEquals(1, snapshotAccounts(before).size());
+
+        seedReleasableState(accountA(), accountB(EntryStatus.loaded));
+        releaseAndPublish();
+
+        assertFalse(before.equals(publishedHash()));
+        assertEquals(2, snapshotAccounts(publishedHash()).size());
+    }
+
+    /**
+     * Reaching a quota changes an account's published status without touching a trust path.
+     */
+    @Test
+    void anAccountReachingItsQuotaIsPublished() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+        seedReleasableState();
+        releaseAndPublish();
+        String before = publishedHash();
+
+        seedReleasableState(accountA().append("status", EntryStatus.capped.getValue()), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertFalse(before.equals(publishedHash()));
+        assertEquals(EntryStatus.capped.getValue(), snapshotAccounts(publishedHash()).getFirst().getString("status"));
+    }
+
+    /**
+     * RELEASE_DATA is not transactional, and an interrupted run of it queues its successor a
+     * second time. The second run finds the state it computes already recorded.
+     */
+    @Test
+    void publishingTheSameStateTwiceCountsItOnce() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+        seedReleasableState();
+        releaseAndPublish();
+        String hash = publishedHash();
+
+        Task.runTask(Task.PUBLISH_TRUST_STATE, Task.PUBLISH_TRUST_STATE.asDocument());
+
+        assertEquals(hash, publishedHash());
+        assertEquals(1L, publishedCounter());
+        assertEquals(1, all(Collection.TRUST_STATE_SNAPSHOTS.toString()).size());
+        assertEquals(1, all("debug_trustPaths").size());
+    }
+
+    /**
+     * The hash is recorded before its snapshot is written. If the task stops in between,
+     * consumers are pointed at a snapshot that does not exist, so the next run has to write
+     * it although the state itself is not new.
+     */
+    @Test
+    void aRecordedStateWithoutASnapshotGetsItsSnapshot() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+        seedReleasableState();
+        releaseAndPublish();
+        String hash = publishedHash();
+        collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).deleteMany(session, new Document());
+
+        Task.runTask(Task.PUBLISH_TRUST_STATE, Task.PUBLISH_TRUST_STATE.asDocument());
+
+        assertEquals(1, snapshotAccounts(hash).size());
+        assertEquals(hash, publishedHash());
+        assertEquals(1L, publishedCounter(), "the state is not a new one");
+    }
+
+    /**
+     * The runner picks the queued task with the smallest 'not-before'. A LOAD_FULL that got in
+     * between would move accounts on before they are published, and what is published would
+     * depend on that timing.
+     */
+    @Test
+    void releaseDataQueuesPublishingAheadOfEverythingElse() throws Exception {
+        prepareLoadingCollections();
+        seedReleasableState();
+        long now = System.currentTimeMillis();
+        Document releaseData = Task.RELEASE_DATA.asDocument().append("not-before", now - 5000);
+        // Became due after RELEASE_DATA, and well before it finished.
+        seed(Collection.TASKS.toString(), Task.LOAD_FULL.asDocument().append("not-before", now - 4999));
+
+        Task.runTask(Task.RELEASE_DATA, releaseData);
+
+        Document next = collection(Collection.TASKS.toString()).find(session).sort(Sorts.ascending("not-before")).first();
+        assertEquals(Task.PUBLISH_TRUST_STATE.name(), next.getString("action"));
+    }
+
+    /**
+     * A registry that computes no trust network has no network hash, and must not go on
+     * showing the one from a time when it did.
+     */
+    @Test
+    void theTrustNetworkHashIsRemovedWhenThereAreNoTrustPaths() throws Exception {
+        prepareLoadingCollections();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+        RegistryDB.setValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash", "from-an-earlier-configuration");
+        IndexInitializer.initLoadingCollections(session);
+        seed("accounts_loading", new Document("agent", "").append("pubkey", "PK1")
+                .append("status", EntryStatus.loaded.getValue()).append("depth", 0).append("quota", 500));
+
+        releaseAndPublish();
+
+        assertNull(getValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash"));
+        assertNotNull(publishedHash(), "the accounts are published all the same");
+    }
+
+    // ------------------------------------------------- choice of introduction
+
+    private static Document accountWithIntro(String name, java.util.Date createdAt, String nanopub) {
+        return new Document("agent", "A").append("pubkey", "P")
+                .append("name", name).append("nameCreatedAt", createdAt).append("introNanopub", nanopub);
+    }
+
+    /**
+     * Folds introductions onto an account the way LOAD_DECLARATIONS does, in the given order.
+     */
+    private static Document applyIntros(Document... intros) {
+        Document account = intros[0];
+        for (int i = 1; i < intros.length; i++) {
+            Document intro = intros[i];
+            if (Task.introTakesPrecedence(intro.getString("name"), intro.getDate("nameCreatedAt"),
+                    intro.getString("introNanopub"), account)) {
+                account = intro;
+            }
+        }
+        return account;
+    }
+
+    /**
+     * Name and introduction are published in the trust state. Introductions are met in an
+     * order that depends on how peers list them, so a choice that depended on it could flip
+     * from one cycle to the next and publish a new state each time.
+     */
+    @Test
+    void theChoiceOfIntroductionDoesNotDependOnTheOrderTheyAreMetIn() {
+        java.util.Date earlier = new java.util.Date(1700000000000L);
+        java.util.Date later = new java.util.Date(1700000001000L);
+        List<Document> intros = List.of(
+                accountWithIntro("Named, later", later, "https://w3id.org/np/RAb"),
+                accountWithIntro("Named, later too", later, "https://w3id.org/np/RAa"),
+                accountWithIntro("Named, earlier", earlier, "https://w3id.org/np/RAc"),
+                accountWithIntro("Named, undated", null, "https://w3id.org/np/RAd"),
+                accountWithIntro(null, new java.util.Date(1800000000000L), "https://w3id.org/np/RAe"),
+                accountWithIntro(null, null, "https://w3id.org/np/RAf"));
+
+        // A named introduction before an unnamed one, then the later one, then the smaller URI.
+        String expected = "https://w3id.org/np/RAa";
+        for (int rotation = 0; rotation < intros.size(); rotation++) {
+            List<Document> order = new ArrayList<>(intros);
+            java.util.Collections.rotate(order, rotation);
+            assertEquals(expected, applyIntros(order.toArray(new Document[0])).getString("introNanopub"));
+            java.util.Collections.reverse(order);
+            assertEquals(expected, applyIntros(order.toArray(new Document[0])).getString("introNanopub"));
+        }
+
+        // Without any named introduction: the latest, and an undated one last.
+        assertEquals("https://w3id.org/np/RAe", applyIntros(intros.get(5), intros.get(4)).getString("introNanopub"));
+        assertEquals("https://w3id.org/np/RAe", applyIntros(intros.get(4), intros.get(5)).getString("introNanopub"));
+        // An introduction does not replace itself.
+        assertFalse(Task.introTakesPrecedence("Named, later", later, "https://w3id.org/np/RAb", intros.get(0)));
     }
 
     // ------------------------------------------------------------------ UPDATE

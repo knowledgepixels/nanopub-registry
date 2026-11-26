@@ -881,85 +881,164 @@ class RegistryDBTest {
         }
     }
 
+    // ------------------------------------------------- trust network hash (#223)
+
+    private static Document trustPath(String id, String agent, String pubkey) {
+        return new Document("_id", id).append("type", "primary").append("agent", agent).append("pubkey", pubkey);
+    }
+
+    /**
+     * The network hash is the trust paths and nothing else, in the line format the trust state
+     * hash had while it was computed from them: that is what keeps a registry on this version
+     * comparable with one that still reports the old value.
+     */
     @Test
-    void calculateTrustStateHashExcludesToLoadAccounts() {
+    void trustNetworkHashIsTheHashOfTheTrustPathLines() {
         RegistryDB.init();
         try (ClientSession session = RegistryDB.getClient().startSession()) {
-            // Account A is loaded; account B (a leaf) is still in the 'toLoad' staging status.
-            RegistryDB.insert(session, "accounts_loading",
-                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
-            RegistryDB.insert(session, "accounts_loading",
+            RegistryDB.insert(session, "trustPaths", trustPath("pathB", "agentB", "pkB").append("type", "extended"));
+            RegistryDB.insert(session, "trustPaths", trustPath("pathA", "agentA", "pkA"));
+
+            assertEquals(Utils.getHash("pathA (primary)\npathB (extended)\n"), RegistryDB.calculateTrustNetworkHash(session));
+        }
+    }
+
+    /**
+     * Whether an account has been loaded, has reached its quota, or had its quota set by a
+     * grant is local to one registry, and two registries with the same trust paths have to
+     * report the same network whatever they differ in there.
+     */
+    @Test
+    void trustNetworkHashDoesNotDependOnAccounts() {
+        RegistryDB.init();
+        try (ClientSession session = RegistryDB.getClient().startSession()) {
+            RegistryDB.insert(session, "trustPaths", trustPath("pathA", "agentA", "pkA"));
+            RegistryDB.insert(session, "trustPaths", trustPath("pathB", "agentB", "pkB"));
+            String pathsOnly = RegistryDB.calculateTrustNetworkHash(session);
+
+            RegistryDB.insert(session, Collection.ACCOUNTS.toString(),
+                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.capped.getValue())
+                            .append("quota", 20000).append("quotaSource", "grant"));
+            // The path of an account that is still loading counts as well: the network is the
+            // same network before and after its nanopublications have arrived.
+            RegistryDB.insert(session, Collection.ACCOUNTS.toString(),
                     new Document("agent", "agentB").append("pubkey", "pkB").append("status", EntryStatus.toLoad.getValue()));
 
-            // One trust path per account.
-            RegistryDB.insert(session, "trustPaths_loading",
-                    new Document("_id", "pathA").append("type", "primary").append("agent", "agentA").append("pubkey", "pkA"));
-            RegistryDB.insert(session, "trustPaths_loading",
-                    new Document("_id", "pathB").append("type", "primary").append("agent", "agentB").append("pubkey", "pkB"));
-
-            String hashWithBToLoad = RegistryDB.calculateTrustStateHash(session);
-
-            // B's path must be excluded while B is 'toLoad': removing the path doc entirely yields the same hash.
-            RegistryDB.collection("trustPaths_loading").deleteOne(session, new Document("_id", "pathB"));
-            String hashWithBAbsent = RegistryDB.calculateTrustStateHash(session);
-            assertEquals(hashWithBAbsent, hashWithBToLoad,
-                    "A 'toLoad' account's trust path must not contribute to the hash");
-
-            // Restore B's path and promote B to 'loaded': it now enters the hash, so the hash changes.
-            RegistryDB.insert(session, "trustPaths_loading",
-                    new Document("_id", "pathB").append("type", "primary").append("agent", "agentB").append("pubkey", "pkB"));
-            RegistryDB.collection("accounts_loading").updateOne(session,
-                    new Document("agent", "agentB").append("pubkey", "pkB"),
-                    new Document("$set", new Document("status", EntryStatus.loaded.getValue())));
-            String hashWithBLoaded = RegistryDB.calculateTrustStateHash(session);
-            assertNotEquals(hashWithBToLoad, hashWithBLoaded,
-                    "Promoting a leaf account 'toLoad' -> 'loaded' must change the trust state hash (issue #119)");
+            assertEquals(pathsOnly, RegistryDB.calculateTrustNetworkHash(session));
         }
     }
 
-    /**
-     * Reaching a quota changes an account's published status without touching a trust path, so
-     * unless the hash notices, no new snapshot is emitted and the published state goes on
-     * calling a capped account 'loaded'.
-     */
     @Test
-    void calculateTrustStateHashNoticesACappedAccount() {
+    void trustNetworkHashIsAbsentWithoutTrustPaths() {
         RegistryDB.init();
         try (ClientSession session = RegistryDB.getClient().startSession()) {
-            RegistryDB.insert(session, "accounts_loading",
-                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
-            RegistryDB.insert(session, "trustPaths_loading",
-                    new Document("_id", "pathA").append("type", "primary").append("agent", "agentA").append("pubkey", "pkA"));
-
-            String hashWhenLoaded = RegistryDB.calculateTrustStateHash(session);
-
-            RegistryDB.collection("accounts_loading").updateOne(session,
-                    new Document("agent", "agentA").append("pubkey", "pkA"),
-                    new Document("$set", new Document("status", EntryStatus.capped.getValue())));
-
-            assertNotEquals(hashWhenLoaded, RegistryDB.calculateTrustStateHash(session),
-                    "'loaded' -> 'capped' has to change the hash, or the new status is never published");
+            assertNull(RegistryDB.calculateTrustNetworkHash(session),
+                    "a registry that computes no trust network has no network hash to compare");
         }
     }
 
+    // --------------------------------------------------- trust state hash (#223)
+
+    private static Document publishedAccount(String agent, String pubkey) {
+        return new Document()
+                .append("pubkey", pubkey)
+                .append("agent", agent)
+                .append("name", "Name of " + agent)
+                .append("nameCreatedAt", new java.util.Date(1700000000000L))
+                .append("introNanopub", "https://w3id.org/np/RAintro" + pubkey)
+                .append("status", EntryStatus.loaded.getValue())
+                .append("depth", 2)
+                .append("pathCount", 1)
+                .append("ratio", 0.25)
+                .append("quota", 1000);
+    }
+
+    private static Document publishedEdge(String fromAgent, String toAgent, String via) {
+        return new Document()
+                .append("fromAgent", fromAgent).append("fromPubkey", "pk" + fromAgent)
+                .append("toAgent", toAgent).append("toPubkey", "pk" + toAgent)
+                .append("viaNanopub", via);
+    }
+
+    @Test
+    void trustStateHashDoesNotDependOnTheOrderOfItsInput() {
+        Document a = publishedAccount("agentA", "pkagentA");
+        Document b = publishedAccount("agentB", "pkagentB");
+        Document e1 = publishedEdge("agentA", "agentB", "https://w3id.org/np/RA1");
+        Document e2 = publishedEdge("agentB", "agentA", "https://w3id.org/np/RA2");
+
+        assertEquals(RegistryDB.calculateTrustStateHash(java.util.List.of(a, b), java.util.List.of(e1, e2)),
+                RegistryDB.calculateTrustStateHash(java.util.List.of(b, a), java.util.List.of(e2, e1)));
+    }
+
     /**
-     * Quota enforcement is off by default, so no account is ever capped on a registry that has
-     * not switched it on — and the hash such a registry computes must be the one it computed
-     * before capping existed, or every instance would emit a snapshot over a formula change.
+     * Every value a snapshot publishes has to move the hash, because a value that does not is
+     * a published change no consumer is told about. Each of these was such a gap at some
+     * point: the status (issue #119, capped accounts), the quota (grants), and the ratio,
+     * which a change to the scoring moved on a registry that then kept serving the old
+     * snapshot.
      */
     @Test
-    void calculateTrustStateHashIsUnchangedWhenNothingIsCapped() {
-        RegistryDB.init();
-        try (ClientSession session = RegistryDB.getClient().startSession()) {
-            RegistryDB.insert(session, "accounts_loading",
-                    new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.loaded.getValue()));
-            RegistryDB.insert(session, "trustPaths_loading",
-                    new Document("_id", "pathA").append("type", "primary").append("agent", "agentA").append("pubkey", "pkA"));
+    void trustStateHashChangesWithEveryPublishedValue() {
+        java.util.List<Document> edges = java.util.List.of(publishedEdge("agentA", "agentB", "https://w3id.org/np/RA1"));
+        String base = RegistryDB.calculateTrustStateHash(java.util.List.of(publishedAccount("agentA", "pkagentA")), edges);
 
-            // The hash of exactly the trust path lines, as it was before capped accounts were
-            // appended to the input at all.
-            assertEquals(Utils.getHash("pathA (primary)\n"), RegistryDB.calculateTrustStateHash(session));
+        java.util.Map<String, Object> changes = new java.util.LinkedHashMap<>();
+        changes.put("status", EntryStatus.capped.getValue());
+        changes.put("depth", 3);
+        changes.put("pathCount", 2);
+        changes.put("ratio", 0.2500000001);
+        changes.put("quota", 1001);
+        changes.put("name", "Another name");
+        changes.put("nameCreatedAt", new java.util.Date(1700000000001L));
+        changes.put("introNanopub", "https://w3id.org/np/RAother");
+        for (java.util.Map.Entry<String, Object> change : changes.entrySet()) {
+            Document account = publishedAccount("agentA", "pkagentA").append(change.getKey(), change.getValue());
+            assertNotEquals(base, RegistryDB.calculateTrustStateHash(java.util.List.of(account), edges),
+                    "a changed " + change.getKey() + " has to change the hash");
         }
+
+        assertNotEquals(base, RegistryDB.calculateTrustStateHash(
+                        java.util.List.of(publishedAccount("agentA", "pkagentA"), publishedAccount("agentB", "pkagentB")), edges),
+                "an added account has to change the hash");
+        assertNotEquals(base, RegistryDB.calculateTrustStateHash(
+                        java.util.List.of(publishedAccount("agentA", "pkagentA")), java.util.List.of()),
+                "a removed edge has to change the hash");
+        assertNotEquals(base, RegistryDB.calculateTrustStateHash(java.util.List.of(publishedAccount("agentA", "pkagentA")),
+                        java.util.List.of(publishedEdge("agentA", "agentB", "https://w3id.org/np/RA2"))),
+                "an edge resting on another nanopublication has to change the hash");
+    }
+
+    /**
+     * Accounts the trust calculation did not score ({@code skipped}, {@code contested}) carry
+     * no ratio, path count or quota, and an account can lack a name and an introduction.
+     */
+    @Test
+    void trustStateHashAcceptsMissingValues() {
+        Document bare = new Document("pubkey", "pkA").append("agent", "agentA").append("status", EntryStatus.skipped.getValue());
+        Document scored = publishedAccount("agentA", "pkA");
+
+        String hash = RegistryDB.calculateTrustStateHash(java.util.List.of(bare), java.util.List.of());
+        assertNotNull(hash);
+        assertNotEquals(hash, RegistryDB.calculateTrustStateHash(java.util.List.of(scored), java.util.List.of()));
+        // A whole number is the same value whether the database hands it back as int or long.
+        assertEquals(RegistryDB.calculateTrustStateHash(java.util.List.of(scored), java.util.List.of()),
+                RegistryDB.calculateTrustStateHash(java.util.List.of(publishedAccount("agentA", "pkA").append("quota", 1000L)), java.util.List.of()));
+    }
+
+    /**
+     * A name is free text. Whatever it contains, it must not be possible to read one
+     * account's values as another's.
+     */
+    @Test
+    void trustStateHashKeepsValuesApartWhateverANameContains() {
+        Document tricky = publishedAccount("agentA", "pkA").append("name", "x\",\"https://w3id.org/np/RAfake")
+                .append("introNanopub", null);
+        Document plain = publishedAccount("agentA", "pkA").append("name", "x").append("nameCreatedAt", null)
+                .append("introNanopub", "https://w3id.org/np/RAfake");
+
+        assertNotEquals(RegistryDB.calculateTrustStateHash(java.util.List.of(tricky), java.util.List.of()),
+                RegistryDB.calculateTrustStateHash(java.util.List.of(plain), java.util.List.of()));
     }
 
 }
