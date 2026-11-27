@@ -1,3 +1,17 @@
+## [1.17.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.16.0...nanopub-registry-1.17.0) (2026-11-27)
+
+### Features
+
+* split the trust state hash into a network hash and a published-state hash ([#223](https://github.com/knowledgepixels/nanopub-registry/issues/223)) ([1a51449](https://github.com/knowledgepixels/nanopub-registry/commit/1a514494281616bc38197e2b28c96c8f4aba2238))
+
+### Bug Fixes
+
+* publish a new account and the scores it moves as one trust state ([#223](https://github.com/knowledgepixels/nanopub-registry/issues/223)) ([81b44c1](https://github.com/knowledgepixels/nanopub-registry/commit/81b44c15a654b0d4b62096da554337f8406fde45))
+
+### General maintenance
+
+* setting next snapshot version [skip ci] ([0788f39](https://github.com/knowledgepixels/nanopub-registry/commit/0788f394db039feab605ee1d6253f3540913ec96))
+
 ## [1.16.0](https://github.com/knowledgepixels/nanopub-registry/compare/nanopub-registry-1.15.0...nanopub-registry-1.16.0) (2026-11-25)
 
 ### Features
