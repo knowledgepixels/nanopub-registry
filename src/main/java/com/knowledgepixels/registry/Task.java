@@ -77,6 +77,7 @@ import com.mongodb.client.MongoCursor;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Filters.in;
 import com.mongodb.client.model.ReplaceOptions;
+import com.mongodb.client.model.UpdateOptions;
 import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
 import static com.mongodb.client.model.Sorts.orderBy;
@@ -260,22 +261,28 @@ public enum Task implements Serializable {
                         logger.debug("Seeded explicit pubkey as account: {} (quota={})", pubkeyHash, quota);
                     }
                 }
-                schedule(s, FINALIZE_TRUST_STATE);
+                scheduleUnlessQueued(s, FINALIZE_TRUST_STATE.asDocument());
                 return;
             }
+
+            // This task's writes are not rolled back when it fails, and it is then run again
+            // (issue #238). Every write below therefore copes with finding what an interrupted
+            // run wrote already: the root trust path is written again unchanged, and the
+            // endorsements and the root account are only inserted if they are missing.
 
             logger.debug("Inserting root trust path entry for base agent");
             // since this may take long, we start with postfix "_loading"
             // and only at completion it's changed to trustPath, endorsements, accounts
-            insert(s, "trustPaths_loading",
+            collection("trustPaths_loading").replaceOne(s,
+                    new Document("_id", "$"),
                     new Document("_id", "$")
                             .append("sorthash", "")
                             .append("agent", "$")
                             .append("pubkey", "$")
                             .append("depth", 0)
                             .append("ratio", 1.0d)
-                            .append("type", "extended")
-            );
+                            .append("type", "extended"),
+                    new ReplaceOptions().upsert(true));
 
             String agentIntroCollectionUri = Utils.getSetting().getAgentIntroCollection().stringValue();
             // Strictly local: INIT_COLLECTIONS has already stored this and verified it is here, so
@@ -290,24 +297,22 @@ public enum Task implements Serializable {
                 String declarationAc = TrustyUriUtils.getArtifactCode(el.stringValue());
                 Validate.notNull(declarationAc);
 
-                insert(s, "endorsements_loading",
+                collection("endorsements_loading").updateOne(s,
                         new Document("agent", "$")
                                 .append("pubkey", "$")
                                 .append("endorsedNanopub", declarationAc)
-                                .append("source", currentSetting)
-                                .append("status", toRetrieve.getValue())
-                );
+                                .append("source", currentSetting),
+                        new Document("$setOnInsert", new Document("status", toRetrieve.getValue())),
+                        new UpdateOptions().upsert(true));
 
             }
-            insert(s, "accounts_loading",
-                    new Document("agent", "$")
-                            .append("pubkey", "$")
-                            .append("status", visited.getValue())
-                            .append("depth", 0)
-            );
+            collection("accounts_loading").updateOne(s,
+                    new Document("agent", "$").append("pubkey", "$"),
+                    new Document("$setOnInsert", new Document("status", visited.getValue()).append("depth", 0)),
+                    new UpdateOptions().upsert(true));
 
             logger.info("Starting iteration at depth 0");
-            schedule(s, LOAD_DECLARATIONS.with("depth", 1));
+            scheduleUnlessQueued(s, LOAD_DECLARATIONS.with("depth", 1));
         }
 
         // At the end of this task, the base agent is initialized:
@@ -464,6 +469,19 @@ public enum Task implements Serializable {
                 String pubkeyHash = d.getString("pubkey");
                 Validate.notNull(pubkeyHash);
 
+                // This task's writes are not rolled back when it fails, and it is then run again
+                // (issue #238). A run that got as far as marking this account's trust path as
+                // 'primary' has handed out its ratio and inserted the child paths already. Doing
+                // it again would expand the next of the account's paths, or, if it has no other,
+                // move the account on to the next depth without ever expanding it. So only the
+                // last step is left to do. Nothing else marks a path at this depth as 'primary'.
+                if (has(s, "trustPaths_loading",
+                        new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "primary").append("depth", depth - 1))) {
+                    logger.info("Account {}/{} was expanded by an interrupted run; marking it as expanded", agentId, pubkeyHash);
+                    set(s, "accounts_loading", d.append("status", expanded.getValue()));
+                    continue;
+                }
+
                 Document trustPath = collection("trustPaths_loading").find(s,
                         new Document("agent", agentId).append("pubkey", pubkeyHash).append("type", "extended").append("depth", depth - 1)
                 ).sort(orderBy(descending("ratio"), ascending("sorthash"))).first();
@@ -507,7 +525,10 @@ public enum Task implements Serializable {
                         Document pd = newPaths.get(pathId);
                         // first divide by agents; then for each agent, divide by number of pubkeys:
                         double newRatio = (trustPath.getDouble("ratio") * (1 - SELF_SHARE)) / pubkeySets.size() / pubkeySets.get(pd.getString("agent")).size();
-                        insert(s, "trustPaths_loading", pd.append("ratio", newRatio));
+                        // Replaced, not inserted: an interrupted run may have inserted some of
+                        // these already, and the parent's ratio they come from is still the same.
+                        collection("trustPaths_loading").replaceOne(s, new Document("_id", pathId),
+                                pd.append("ratio", newRatio), new ReplaceOptions().upsert(true));
                     }
                     // Retain only the self share of the ratio; the rest was distributed to the children
                     double retainedRatio = trustPath.getDouble("ratio") * SELF_SHARE;
@@ -516,7 +537,7 @@ public enum Task implements Serializable {
                 }
             }
             logger.info("EXPAND_TRUST_PATHS at depth {} complete.", depth);
-            schedule(s, LOAD_CORE.with("depth", depth).append("load-count", 0));
+            scheduleUnlessQueued(s, LOAD_CORE.with("depth", depth).append("load-count", 0));
         }
 
         // At the end of this step, trust paths are updated to include
@@ -2193,6 +2214,25 @@ public enum Task implements Serializable {
     private static void schedule(ClientSession mongoSession, Document taskDoc) {
         logger.info("Scheduling task: {}", taskDoc.getString("action"));
         tasksCollection.insertOne(mongoSession, taskDoc);
+    }
+
+    /**
+     * Queues a task unless the same task, with the same parameters, is queued already. A task
+     * that is run again after it had queued its successor (because it failed after that, for
+     * instance while being removed from the queue) must not queue a second one, which would
+     * run the rest of the cycle twice (issue #238).
+     *
+     * @param mongoSession the MongoDB client session
+     * @param taskDoc      the task to queue, as {@link #schedule(ClientSession, Document)} takes it
+     */
+    private static void scheduleUnlessQueued(ClientSession mongoSession, Document taskDoc) {
+        Document sameTask = new Document(taskDoc);
+        sameTask.remove("not-before");
+        if (tasksCollection.find(mongoSession, sameTask).first() != null) {
+            logger.info("Not scheduling task {}: it is queued already", taskDoc.getString("action"));
+            return;
+        }
+        schedule(mongoSession, taskDoc);
     }
 
 }

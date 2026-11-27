@@ -410,6 +410,66 @@ class TaskTest {
         assertEquals(1, next.getInteger("depth"), "the iteration starts one level below the root");
     }
 
+
+    private Nanopub seededAgentIndex;
+
+    /**
+     * Prepares the run of SEED_TRUST_STATE that INIT_COLLECTIONS queues, and returns its task
+     * document.
+     */
+    private Document queuedSeedTrustState() throws Exception {
+        bootstrap();
+        useTestSuiteSettingFile();
+        RegistryDB.setValue(session, Collection.SETTING.toString(), "current", SETTING_ID);
+        seededAgentIndex = seedTestSuiteNanopub(AGENT_INDEX_AC);
+        setStatus(ServerStatus.coreLoading);
+        clearQueue();
+        Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        Document seedTask = queuedTask(Task.SEED_TRUST_STATE);
+        assertNotNull(seedTask);
+        return seedTask;
+    }
+
+    private void assertSeededOnce() throws Exception {
+        assertEquals(1, all("trustPaths_loading").size(), "one root trust path");
+        assertEquals(1.0, one("trustPaths_loading", new Document("_id", "$")).getDouble("ratio"), 1e-12);
+        assertEquals(1, all("accounts_loading").size(), "one root account");
+        int elementCount = IndexUtils.castToIndex(seededAgentIndex).getElements().size();
+        assertEquals(elementCount, all("endorsements_loading").size(), "one endorsement per element of the intro collection");
+        assertEquals(List.of(Task.LOAD_DECLARATIONS.name()), queuedActions(), "and the next step queued once");
+    }
+
+    /**
+     * SEED_TRUST_STATE's writes are not rolled back when it fails, and it is then run again
+     * (issue #238). A run that fails after its last write, e.g. while the task is being
+     * removed from the queue, leaves everything in place: the next run must not trip over it.
+     */
+    @Test
+    void seedTrustStateCanBeRunAgainAfterItsWritesWereMade() throws Exception {
+        Document seedTask = queuedSeedTrustState();
+
+        Task.runTask(Task.SEED_TRUST_STATE, seedTask);
+        Task.runTask(Task.SEED_TRUST_STATE, seedTask);
+
+        assertSeededOnce();
+    }
+
+    /**
+     * A run that fails after inserting the root trust path, its first write, used to leave a
+     * task that failed on that same insert every time it was run again (issue #238).
+     */
+    @Test
+    void seedTrustStateCompletesARunThatFailedAfterItsFirstWrite() throws Exception {
+        Document seedTask = queuedSeedTrustState();
+        seed("trustPaths_loading", new Document("_id", "$").append("sorthash", "")
+                .append("agent", "$").append("pubkey", "$").append("depth", 0)
+                .append("ratio", 1.0d).append("type", "extended"));
+
+        Task.runTask(Task.SEED_TRUST_STATE, seedTask);
+
+        assertSeededOnce();
+    }
+
     // ------------------------------------------------------ LOAD_DECLARATIONS
 
     /**
@@ -742,6 +802,95 @@ class TaskTest {
         Document account = one("accounts_loading", new Document("agent", "A"));
         assertEquals(EntryStatus.visited.getValue(), account.getString("status"));
         assertEquals(1, account.getInteger("depth"));
+    }
+
+
+    /**
+     * EXPAND_TRUST_PATHS's writes are not rolled back when it fails, and it is then run again
+     * (issue #238). A run that fails after inserting some of an account's child paths used to
+     * fail on the same inserts every time it was run again.
+     */
+    @Test
+    void expandTrustPathsCompletesARunThatInsertedSomeChildPaths() throws Exception {
+        prepareLoadingCollections();
+        seedRootTrustPath(1.0);
+        seedTrustEdge("B", "Q1", false);
+        seedTrustEdge("B", "Q2", false);
+        seedTrustEdge("C", "R", false);
+        // What the failed run had inserted before it stopped:
+        seed("trustPaths_loading", new Document("_id", "$ C|R").append("sorthash", "x")
+                .append("agent", "C").append("pubkey", "R").append("depth", 1)
+                .append("ratio", 0.45).append("type", "extended"));
+
+        Task.runTask(Task.EXPAND_TRUST_PATHS, Task.EXPAND_TRUST_PATHS.asDocument().append("depth", 1));
+
+        assertEquals(4, all("trustPaths_loading").size(), "the root and its three children, once each");
+        assertEquals(0.225, one("trustPaths_loading", new Document("_id", "$ B|Q1")).getDouble("ratio"), 1e-12);
+        assertEquals(0.225, one("trustPaths_loading", new Document("_id", "$ B|Q2")).getDouble("ratio"), 1e-12);
+        assertEquals(0.45, one("trustPaths_loading", new Document("_id", "$ C|R")).getDouble("ratio"), 1e-12);
+        assertEquals(0.1, one("trustPaths_loading", new Document("_id", "$")).getDouble("ratio"), 1e-12);
+        assertEquals(EntryStatus.expanded.getValue(),
+                one("accounts_loading", new Document("agent", "$")).getString("status"));
+    }
+
+    /**
+     * A run that fails after marking an account's trust path as expanded, but before marking
+     * the account, has handed out the path's ratio already. Running it again must not do that
+     * a second time, nor expand another of the account's paths (issue #238).
+     */
+    @Test
+    void expandTrustPathsDoesNotExpandAnAccountASecondTime() throws Exception {
+        prepareLoadingCollections();
+        // Account A|P was reached over two paths; only the one with the higher ratio is expanded.
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.visited.getValue()).append("depth", 1));
+        seedTrustPath("$ A|P", 1, 0.5, "extended");
+        seedTrustPath("$ X|Y A|P", 1, 0.3, "extended");
+        seed("trustEdges", new Document("fromAgent", "A").append("fromPubkey", "P")
+                .append("toAgent", "D").append("toPubkey", "S")
+                .append("source", "RAsourceNanopub").append("invalidated", false));
+        Task.runTask(Task.EXPAND_TRUST_PATHS, Task.EXPAND_TRUST_PATHS.asDocument().append("depth", 2));
+        assertEquals(0.45, one("trustPaths_loading", new Document("_id", "$ A|P D|S")).getDouble("ratio"), 1e-12);
+
+        // As the failed run would have left it: the path is marked, the account is not, and
+        // nothing is queued yet.
+        collection("accounts_loading").updateOne(session, new Document("agent", "A"),
+                new Document("$set", new Document("status", EntryStatus.visited.getValue())));
+        clearQueue();
+
+        Task.runTask(Task.EXPAND_TRUST_PATHS, Task.EXPAND_TRUST_PATHS.asDocument().append("depth", 2));
+
+        Document expandedPath = one("trustPaths_loading", new Document("_id", "$ A|P"));
+        assertEquals("primary", expandedPath.getString("type"));
+        assertEquals(0.05, expandedPath.getDouble("ratio"), 1e-12, "the self share is taken once");
+        assertEquals(0.45, one("trustPaths_loading", new Document("_id", "$ A|P D|S")).getDouble("ratio"), 1e-12);
+        assertEquals("extended", one("trustPaths_loading", new Document("_id", "$ X|Y A|P")).getString("type"),
+                "the account's other path is not expanded");
+        assertNull(one("trustPaths_loading", new Document("_id", "$ X|Y A|P D|S")));
+        Document account = one("accounts_loading", new Document("agent", "A"));
+        assertEquals(EntryStatus.expanded.getValue(), account.getString("status"));
+        assertEquals(1, account.getInteger("depth"), "and the account stays at its depth");
+        assertEquals(List.of(Task.LOAD_CORE.name()), queuedActions());
+    }
+
+    /**
+     * A run that fails after queuing its successor, e.g. while the task is being removed from
+     * the queue, must not queue a second one when it is run again: the rest of the cycle would
+     * run twice (issue #238).
+     */
+    @Test
+    void expandTrustPathsQueuesItsSuccessorOnce() throws Exception {
+        prepareLoadingCollections();
+        seedRootTrustPath(1.0);
+        seedTrustEdge("B", "Q", false);
+        Document expandTask = Task.EXPAND_TRUST_PATHS.asDocument().append("depth", 1);
+
+        Task.runTask(Task.EXPAND_TRUST_PATHS, expandTask);
+        Task.runTask(Task.EXPAND_TRUST_PATHS, expandTask);
+
+        assertEquals(List.of(Task.LOAD_CORE.name()), queuedActions());
+        assertEquals(0.1, one("trustPaths_loading", new Document("_id", "$")).getDouble("ratio"), 1e-12);
+        assertEquals(0.9, one("trustPaths_loading", new Document("_id", "$ B|Q")).getDouble("ratio"), 1e-12);
     }
 
     // ------------------------------------------------------------- LOAD_CORE
