@@ -71,10 +71,11 @@ class TaskTest {
 
     /**
      * Shared across the class; each test gets a clean database because {@link #tearDown}
-     * drops it and {@link #setUp} re-initialises the schema.
+     * drops it and {@link #setUp} re-initialises the schema. A replica set, as in production,
+     * so that the task runner's transactions are real.
      */
     @Container
-    private static final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0");
+    private static final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0.0").withReplicaSet();
 
     /**
      * Stands in for the artifact code of the setting nanopub in fixtures.
@@ -227,6 +228,44 @@ class TaskTest {
         IndexInitializer.initLoadingCollections(session);
         RegistryDB.setValue(session, Collection.SETTING.toString(), "current", SETTING_ID);
         clearQueue();
+    }
+
+    /**
+     * What the tasks of the trust calculation leave behind for the next one: the staged
+     * accounts and agents, and the server info, each in a fixed order.
+     */
+    private Map<String, List<Document>> trustCalculationState() {
+        Map<String, List<Document>> state = new HashMap<>();
+        for (String name : List.of("accounts_loading", "agents_loading", Collection.SERVER_INFO.toString())) {
+            state.put(name, collection(name).find(session).sort(Sorts.ascending("_id")).into(new ArrayList<>()));
+        }
+        return state;
+    }
+
+    /**
+     * Runs a task, puts part of what it wrote back the way a run that failed part-way would
+     * have left it, and runs it again. A task that does not run in a transaction is run again
+     * on top of a failed run (issue #238), so the second run has to come to the same result as
+     * the first, and must not queue the successor the first one queued already.
+     */
+    private void assertRunningAgainCompletesAPartialRun(Task task, Runnable undoPartOfTheRun) throws Exception {
+        assertFalse(task.runAsTransaction(), "only a task without a transaction is run again on top of its own writes");
+        clearQueue();
+        Task.runTask(task, task.asDocument());
+        Map<String, List<Document>> result = trustCalculationState();
+        List<String> queued = queuedActions();
+        assertEquals(1, queued.size());
+
+        undoPartOfTheRun.run();
+        Task.runTask(task, task.asDocument());
+
+        assertEquals(result, trustCalculationState());
+        assertEquals(queued, queuedActions(), "the successor is queued once");
+    }
+
+    private void setStatusOf(String collectionName, Document filter, EntryStatus status) {
+        collection(collectionName).updateMany(session, filter,
+                new Document("$set", new Document("status", status.getValue())));
     }
 
     // ------------------------------------------------------- INIT_DB / config
@@ -1141,6 +1180,24 @@ class TaskTest {
                 "the configured quota wins over the ratio-derived one, bounds and all");
     }
 
+    @Test
+    void calculateTrustScoresCompletesARunThatFailedPartway() throws Exception {
+        prepareLoadingCollections();
+        seedExpandedAccount();
+        seedTrustPath("$ X|1 A|P", 2, 0.25);
+        seed("accounts_loading", new Document("agent", "B").append("pubkey", "Q")
+                .append("status", EntryStatus.expanded.getValue()).append("depth", 1));
+        seed("trustPaths_loading", new Document("_id", "$ Y|1 B|Q").append("sorthash", "$ Y|1 B|Q")
+                .append("agent", "B").append("pubkey", "Q").append("depth", 2)
+                .append("ratio", 0.5).append("type", "primary"));
+
+        // The failed run got as far as account A.
+        assertRunningAgainCompletesAPartialRun(Task.CALCULATE_TRUST_SCORES, () ->
+                collection("accounts_loading").updateOne(session, new Document("agent", "B"), new Document()
+                        .append("$set", new Document("status", EntryStatus.expanded.getValue()))
+                        .append("$unset", new Document("ratio", "").append("pathCount", "").append("quota", ""))));
+    }
+
     // ----------------------------------------------------- quota grants (#220)
 
     private static final IRI SOMEONE = SimpleValueFactory.getInstance().createIRI("http://example.org/someone");
@@ -1354,6 +1411,25 @@ class TaskTest {
         assertEquals("Alice", one("agents_loading", new Document("agent", "A")).getString("name"));
     }
 
+    @Test
+    void aggregateAgentsCompletesARunThatFailedPartway() throws Exception {
+        prepareLoadingCollections();
+        seedProcessedAccount("A", "P1", 2, 0.25, "Alice");
+        seedProcessedAccount("A", "P2", 4, 0.5, "Alice");
+        seedProcessedAccount("B", "Q", 1, 0.125, "Bob");
+
+        assertRunningAgainCompletesAPartialRun(Task.AGGREGATE_AGENTS, () -> {
+            // The failed run wrote both agents, marked one key of A, and stopped before it
+            // marked the key of B.
+            setStatusOf("accounts_loading", new Document("pubkey", "P2"), EntryStatus.processed);
+            setStatusOf("accounts_loading", new Document("agent", "B"), EntryStatus.processed);
+        });
+
+        Document agent = one("agents_loading", new Document("agent", "A"));
+        assertEquals(2, agent.getInteger("accountCount"), "the key the failed run marked counts as well");
+        assertEquals(0.75, agent.getDouble("totalRatio"), 1e-12);
+    }
+
     // --------------------------------------------------------- ASSIGN_PUBKEYS
 
     @Test
@@ -1383,6 +1459,24 @@ class TaskTest {
         for (Document d : all("accounts_loading")) {
             assertEquals(EntryStatus.contested.getValue(), d.getString("status"));
         }
+    }
+
+    @Test
+    void assignPubkeysCompletesARunThatFailedPartway() throws Exception {
+        prepareLoadingCollections();
+        for (String[] account : new String[][]{{"A", "P"}, {"B", "P"}, {"C", "R"}}) {
+            seed("accounts_loading", new Document("agent", account[0]).append("pubkey", account[1])
+                    .append("status", EntryStatus.aggregated.getValue()));
+        }
+
+        assertRunningAgainCompletesAPartialRun(Task.ASSIGN_PUBKEYS, () -> {
+            // The failed run marked one of the two accounts that claim P, and did not get to R.
+            setStatusOf("accounts_loading", new Document("agent", "B"), EntryStatus.aggregated);
+            setStatusOf("accounts_loading", new Document("agent", "C"), EntryStatus.aggregated);
+        });
+
+        assertEquals(EntryStatus.contested.getValue(), one("accounts_loading", new Document("agent", "B")).getString("status"));
+        assertEquals(EntryStatus.approved.getValue(), one("accounts_loading", new Document("agent", "C")).getString("status"));
     }
 
     // ------------------------------------------------------- DETERMINE_UPDATES
@@ -1498,6 +1592,23 @@ class TaskTest {
                 one("accounts_loading", new Document("agent", "A")).getString("status"),
                 "there is room again, so LOAD_FULL has to pick it up and load the rest");
         assertEquals(1, newlyToLoad(), "which makes it an account handed to the loader in this cycle");
+    }
+
+    @Test
+    void determineUpdatesCompletesARunThatFailedPartway() throws Exception {
+        prepareLoadingCollections();
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()));
+        seed("accounts_loading", new Document("agent", "B").append("pubkey", "Q")
+                .append("status", EntryStatus.approved.getValue()));
+
+        assertRunningAgainCompletesAPartialRun(Task.DETERMINE_UPDATES, () -> {
+            // The failed run staged A and stopped before B and before recording the count.
+            setStatusOf("accounts_loading", new Document("agent", "B"), EntryStatus.approved);
+            collection(Collection.SERVER_INFO.toString()).deleteOne(session, new Document("_id", "accountsNewlyToLoad"));
+        });
+
+        assertEquals(2, newlyToLoad(), "the account the failed run staged counts as well");
     }
 
     // --------------------------------------------------- FINALIZE_TRUST_STATE
@@ -2069,6 +2180,78 @@ class TaskTest {
         assertEquals("https://w3id.org/np/RAe", applyIntros(intros.get(4), intros.get(5)).getString("introNanopub"));
         // An introduction does not replace itself.
         assertFalse(Task.introTakesPrecedence("Named, later", later, "https://w3id.org/np/RAb", intros.get(0)));
+    }
+
+    // --------------------------------------------- task runner and transactions
+
+    @Test
+    void theTestDatabaseRunsTransactions() {
+        // The container is a single-node replica set, so the tests below run real transactions.
+        assertTrue(RegistryDB.transactionsSupported());
+    }
+
+    @Test
+    void transactionSupportIsReadFromTheHelloResponse() {
+        assertTrue(RegistryDB.supportsTransactions(new Document("isWritablePrimary", true).append("setName", "rs0")));
+        assertTrue(RegistryDB.supportsTransactions(new Document("isWritablePrimary", true).append("msg", "isdbgrid")));
+        assertFalse(RegistryDB.supportsTransactions(new Document("isWritablePrimary", true)), "a standalone server");
+    }
+
+    /**
+     * Queues the INIT_DB task on a database that is set up already. It sets the server status
+     * and increases the trust state counter before it finds that out and fails.
+     */
+    private Document queueFailingInitDb() throws Exception {
+        bootstrap();
+        setStatus(ServerStatus.ready);
+        clearQueue();
+        Document taskDoc = Task.INIT_DB.asDocument();
+        collection(Collection.TASKS.toString()).insertOne(session, taskDoc);
+        return taskDoc;
+    }
+
+    @Test
+    void aTransactionalTaskThatFailsLeavesNothingBehindAndStaysQueued() throws Exception {
+        Document taskDoc = queueFailingInitDb();
+        Object counter = getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter");
+
+        try (ClientSession runnerSession = RegistryDB.getClient().startSession()) {
+            assertEquals(1000, Task.runQueuedTask(runnerSession, Task.INIT_DB, taskDoc), "a failed transaction is retried after a pause");
+            assertFalse(runnerSession.hasActiveTransaction());
+        }
+
+        assertEquals(ServerStatus.ready.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"));
+        assertEquals(counter, getValue(session, Collection.SERVER_INFO.toString(), "trustStateCounter"));
+        assertEquals(List.of(Task.INIT_DB.name()), queuedActions());
+    }
+
+    @Test
+    void aTransactionalTaskCommitsItsWritesWithItsRemovalFromTheQueue() throws Exception {
+        bootstrap();
+        clearQueue();
+        Document taskDoc = Task.FINALIZE_TRUST_STATE.asDocument();
+        collection(Collection.TASKS.toString()).insertOne(session, taskDoc);
+
+        try (ClientSession runnerSession = RegistryDB.getClient().startSession()) {
+            assertEquals(10, Task.runQueuedTask(runnerSession, Task.FINALIZE_TRUST_STATE, taskDoc));
+        }
+
+        assertNotNull(getValue(session, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate"));
+        assertEquals(List.of(Task.RELEASE_DATA.name()), queuedActions());
+    }
+
+    @Test
+    void withoutTransactionsATransactionalTaskRunsWithoutOne() throws Exception {
+        Document taskDoc = queueFailingInitDb();
+        TestUtils.clearStaticFields(RegistryDB.class, Map.of("transactionsSupported", false));
+
+        try (ClientSession runnerSession = RegistryDB.getClient().startSession()) {
+            assertEquals(10, Task.runQueuedTask(runnerSession, Task.INIT_DB, taskDoc));
+        }
+
+        // Nothing rolls back what it wrote before it failed.
+        assertEquals(ServerStatus.launching.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"));
+        assertEquals(List.of(Task.INIT_DB.name()), queuedActions());
     }
 
     // ------------------------------------------------------------------ UPDATE

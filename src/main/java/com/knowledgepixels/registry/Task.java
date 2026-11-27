@@ -141,9 +141,15 @@ public enum Task implements Serializable {
             NanopubSetting settingNp = Utils.getSetting();
             String settingId = TrustyUriUtils.getArtifactCode(settingNp.getNanopub().getUri().stringValue());
             logger.info("Loading setting nanopub {}", settingId);
+            // Stored on a session of its own, outside this task's transaction: loadNanopub takes a
+            // duplicate key as "stored already" and carries on, but inside a transaction that
+            // error aborts the transaction, and every retry would fail the same way (issue #238).
+            // Storing it twice is harmless, so a retry of this task is unaffected.
+            try (ClientSession loadSession = RegistryDB.getClient().startSession()) {
+                loadNanopub(loadSession, settingNp.getNanopub());
+            }
             setValue(s, Collection.SETTING.toString(), "original", settingId);
             setValue(s, Collection.SETTING.toString(), "current", settingId);
-            loadNanopub(s, settingNp.getNanopub());
 
             List<Document> bootstrapServices = new ArrayList<>();
             for (IRI i : settingNp.getBootstrapServices()) {
@@ -239,9 +245,9 @@ public enum Task implements Serializable {
         // DB write to:  trustPaths, endorsements, accounts
         /**
          * Seeds the loading collections for a fresh cycle, from data that
-         * {@link #INIT_COLLECTIONS} has already made local. Transactional: on a
-         * crash the whole seeding is rolled back and re-run, rather than
-         * half-applied (issue #128).
+         * {@link #INIT_COLLECTIONS} has already made local. Transactional: a
+         * run that fails is rolled back and run again, rather than half-applied
+         * (issues #128 and #238).
          */
         public void run(ClientSession s, Document taskDoc) throws Exception {
             logger.info("Running SEED_TRUST_STATE task");
@@ -265,10 +271,11 @@ public enum Task implements Serializable {
                 return;
             }
 
-            // This task's writes are not rolled back when it fails, and it is then run again
-            // (issue #238). Every write below therefore copes with finding what an interrupted
-            // run wrote already: the root trust path is written again unchanged, and the
-            // endorsements and the root account are only inserted if they are missing.
+            // On a MongoDB that cannot run transactions, this task's writes are not rolled back
+            // when it fails, and it is then run again (issue #238). Every write below therefore
+            // copes with finding what an interrupted run wrote already: the root trust path is
+            // written again unchanged, and the endorsements and the root account are only
+            // inserted if they are missing.
 
             logger.debug("Inserting root trust path entry for base agent");
             // since this may take long, we start with postfix "_loading"
@@ -540,6 +547,14 @@ public enum Task implements Serializable {
             scheduleUnlessQueued(s, LOAD_CORE.with("depth", depth).append("load-count", 0));
         }
 
+        @Override
+        public boolean runAsTransaction() {
+            // Goes through every account of a depth, which takes seconds and grows with the
+            // network, towards MongoDB's time limit for a transaction. A run that fails is
+            // completed by the next one instead (see above, issue #238).
+            return false;
+        }
+
         // At the end of this step, trust paths are updated to include
         // the new accounts:
         // ------------------------------------------------------------
@@ -749,8 +764,10 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running CALCULATE_TRUST_SCORES task");
 
+            // Each account is written once, with everything computed for it, and is then no
+            // longer 'expanded'. The trust paths it is computed from are not written here. So a
+            // run that follows a failed one picks up where that one stopped (issue #238).
             Map<QuotaGrant.Target, Integer> granted = QuotaGrant.readGranted(s);
-            Set<QuotaGrant.Target> unapplied = new HashSet<>(granted.keySet());
             while (true) {
                 Document d = getOne(s, "accounts_loading", new Document("status", expanded.getValue()));
                 if (d == null) {
@@ -809,7 +826,6 @@ public enum Task implements Serializable {
                 Integer explicitQuota = AgentFilter.getExplicitQuota(pubkeyHash);
                 QuotaGrant.Target account = new QuotaGrant.Target(d.get("agent").toString(), pubkeyHash);
                 Integer grantedQuota = granted.get(account);
-                unapplied.remove(account);
                 if (explicitQuota != null) {
                     quota = explicitQuota;
                 } else if (grantedQuota != null) {
@@ -823,12 +839,25 @@ public enum Task implements Serializable {
             }
             // A grant waiting for its account to be approved is in order, and one with a
             // mistyped agent or key looks exactly the same: say which ones found no account.
-            for (QuotaGrant.Target target : unapplied) {
-                logger.info("Quota grant for agent {} with pubkey {} applies to no account the trust network reaches",
-                        target.agent(), target.pubkeyHash());
+            // Looked up rather than noted along the way, so that the accounts an earlier, failed
+            // run processed count too.
+            for (QuotaGrant.Target target : granted.keySet()) {
+                if (!has(s, "accounts_loading", new Document("agent", target.agent())
+                        .append("pubkey", target.pubkeyHash()).append("status", processed.getValue()))) {
+                    logger.info("Quota grant for agent {} with pubkey {} applies to no account the trust network reaches",
+                            target.agent(), target.pubkeyHash());
+                }
             }
             logger.info("CALCULATE_TRUST_SCORES complete");
-            schedule(s, AGGREGATE_AGENTS);
+            scheduleUnlessQueued(s, AGGREGATE_AGENTS.asDocument());
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Goes through every account, which takes seconds and grows with the network,
+            // towards MongoDB's time limit for a transaction. A run that fails is completed by
+            // the next one instead (see above, issue #238).
+            return false;
         }
 
     },
@@ -845,7 +874,11 @@ public enum Task implements Serializable {
                     break;
                 }
 
-                Document agentId = new Document("agent", a.get("agent").toString()).append("status", processed.getValue());
+                String agent = a.get("agent").toString();
+                // The agent's accounts that a failed run has marked 'aggregated' already count as
+                // well: marking them all is several writes, and a failed run can stop half-way.
+                Document agentAccountsFilter = new Document("agent", agent).append("status",
+                        new Document("$in", List.of(processed.getValue(), aggregated.getValue())));
                 int count = 0;
                 int pathCountSum = 0;
                 double totalRatio = 0.0d;
@@ -855,7 +888,7 @@ public enum Task implements Serializable {
                 // "latest declaring intro wins"; this layer just folds across keys.
                 String chosenName = null;
                 double chosenRatio = Double.NEGATIVE_INFINITY;
-                try (MongoCursor<Document> agentAccounts = collection("accounts_loading").find(s, agentId).cursor()) {
+                try (MongoCursor<Document> agentAccounts = collection("accounts_loading").find(s, agentAccountsFilter).cursor()) {
                     while (agentAccounts.hasNext()) {
                         Document d = agentAccounts.next();
                         count++;
@@ -870,18 +903,32 @@ public enum Task implements Serializable {
                         }
                     }
                 }
-                collection("accounts_loading").updateMany(s, agentId, new Document("$set",
-                        new DbEntryWrapper(aggregated).getDocument()));
-                insert(s, "agents_loading",
-                        agentId.append("accountCount", count)
+                // The agent first and its accounts after, and replaced rather than inserted: a run
+                // that follows a failed one then finds the accounts still to mark and writes the
+                // agent again, instead of failing on it or leaving it out (issue #238).
+                collection("agents_loading").replaceOne(s, new Document("agent", agent),
+                        new Document("agent", agent)
+                                .append("status", processed.getValue())
+                                .append("accountCount", count)
                                 .append("avgPathCount", (double) pathCountSum / count)
                                 .append("totalRatio", totalRatio)
-                                .append("name", chosenName)
-                );
+                                .append("name", chosenName),
+                        new ReplaceOptions().upsert(true));
+                collection("accounts_loading").updateMany(s,
+                        new Document("agent", agent).append("status", processed.getValue()),
+                        new Document("$set", new DbEntryWrapper(aggregated).getDocument()));
             }
             logger.info("AGGREGATE_AGENTS complete");
-            schedule(s, ASSIGN_PUBKEYS);
+            scheduleUnlessQueued(s, ASSIGN_PUBKEYS.asDocument());
 
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Goes through every agent, which takes seconds and grows with the network, towards
+            // MongoDB's time limit for a transaction. A run that fails is completed by the next
+            // one instead (see above, issue #238).
+            return false;
         }
 
     },
@@ -894,6 +941,9 @@ public enum Task implements Serializable {
             int approvedCount = 0;
             int contestedCount = 0;
 
+            // The decision for a pubkey depends on how many accounts claim it, which this task
+            // does not change, so a run that follows a failed one decides the same for the pubkeys
+            // that one did not finish (issue #238).
             while (true) {
                 Document a = getOne(s, "accounts_loading", new DbEntryWrapper(aggregated).getDocument());
                 if (a == null) {
@@ -914,8 +964,16 @@ public enum Task implements Serializable {
                 }
             }
             logger.info("ASSIGN_PUBKEYS complete: {} approved, {} contested", approvedCount, contestedCount);
-            schedule(s, DETERMINE_UPDATES);
+            scheduleUnlessQueued(s, DETERMINE_UPDATES.asDocument());
 
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Goes through every account, which takes seconds and grows with the network,
+            // towards MongoDB's time limit for a transaction. A run that fails is completed by
+            // the next one instead (see above, issue #238).
+            return false;
         }
 
     },
@@ -926,11 +984,8 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running DETERMINE_UPDATES task");
 
-            // How many accounts this cycle hands to the loader: approved accounts that will be
-            // staged as 'toLoad' without having been so before. PUBLISH_TRUST_STATE holds a
-            // changed trust state back for one cycle on their account (see there).
-            int newlyToLoad = 0;
-
+            // Each account is written once and is then no longer 'approved', so a run that
+            // follows a failed one picks up where that one stopped (issue #238).
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(s,
                     new DbEntryWrapper(approved).getDocument())) {
@@ -951,20 +1006,38 @@ public enum Task implements Serializable {
                 } else {
                     // Either not loaded yet, or capped under a quota that has since grown — in
                     // which case LOAD_FULL picks it up again and loads the rest.
-                    // An account that was waiting already has had a cycle's worth of time to be
-                    // loaded, and one the loader passes over will not get any further by waiting.
-                    if (!has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", toLoad.getValue()))
-                            && AgentFilter.loadsApprovedAccount(pubkeyHash)) {
-                        newlyToLoad++;
-                    }
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
+                }
+            }
+
+            // How many accounts this cycle hands to the loader: approved accounts staged as
+            // 'toLoad' without having been so before. PUBLISH_TRUST_STATE holds a changed trust
+            // state back for one cycle on their account (see there). Counted over what is staged
+            // rather than along the way, so that the accounts an earlier, failed run staged count
+            // too. An account that was waiting already has had a cycle's worth of time to be
+            // loaded, and one the loader passes over will not get any further by waiting.
+            int newlyToLoad = 0;
+            for (Document d : collection("accounts_loading").find(s, new Document("status", toLoad.getValue()))) {
+                String pubkeyHash = d.get("pubkey").toString();
+                Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", pubkeyHash);
+                if (!has(s, Collection.ACCOUNTS.toString(), accountId.append("status", toLoad.getValue()))
+                        && AgentFilter.loadsApprovedAccount(pubkeyHash)) {
+                    newlyToLoad++;
                 }
             }
             setValue(s, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad", newlyToLoad);
             warnAboutQuotaAuthoritiesNotLoadedInFull(s);
             logger.info("DETERMINE_UPDATES complete");
-            schedule(s, FINALIZE_TRUST_STATE);
+            scheduleUnlessQueued(s, FINALIZE_TRUST_STATE.asDocument());
 
+        }
+
+        @Override
+        public boolean runAsTransaction() {
+            // Goes through every approved account, which takes seconds and grows with the
+            // network, towards MongoDB's time limit for a transaction. A run that fails is
+            // completed by the next one instead (see above, issue #238).
+            return false;
         }
 
     },
@@ -1163,12 +1236,13 @@ public enum Task implements Serializable {
 
                     if (changed) {
                         // Recorded only now that the snapshot is there: consumers fetch it as
-                        // soon as they see the hash, and this task's writes do not commit
-                        // together. Comparing with the stored hash is also what makes a second
-                        // run harmless: an interrupted RELEASE_DATA enqueues this task again,
-                        // and that run then finds the state it computes already recorded and
-                        // does not bump the counter again. A run that stops before this point
-                        // is repeated in full and writes the same snapshot under the same counter.
+                        // soon as they see the hash, and on a MongoDB that cannot run
+                        // transactions this task's writes do not commit together. Comparing
+                        // with the stored hash is also what makes a second run harmless: an
+                        // interrupted RELEASE_DATA enqueues this task again, and that run then
+                        // finds the state it computes already recorded and does not bump the
+                        // counter again. A run that stops before this point is repeated in
+                        // full and writes the same snapshot under the same counter.
                         increaseStateCounter(s);
                         setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
                     }
@@ -1713,11 +1787,12 @@ public enum Task implements Serializable {
      * can recover on its own (issue #50).
      *
      * <p>
-     * Task writes are not atomic with the removal of the task from the queue,
-     * so a task that was running when the process died is picked up again on
-     * restart and re-executes writes it already performed. For most of the
-     * cycle that is harmless — the tasks pick their work by entry status — but
-     * the unconditional inserts in {@link #INIT_COLLECTIONS} then fail on
+     * The writes of a non-transactional task are not atomic with the removal
+     * of the task from the queue (and no task's are on a MongoDB that cannot
+     * run transactions), so a task that was running when the process died is
+     * picked up again on restart and re-executes writes it already performed.
+     * For most of the cycle that is harmless — the tasks pick their work by
+     * entry status — but the unconditional inserts in {@link #INIT_COLLECTIONS} then fail on
      * duplicate keys, and that task retries forever without ever getting past
      * them. A crash can also leave both a task and the successor it scheduled
      * in the queue, making the rest of the cycle run twice.
@@ -1790,29 +1865,7 @@ public enum Task implements Serializable {
                     Task task = valueOf(taskDoc.getString("action"));
                     Object taskId = taskDoc.getOrDefault("_id", null);
                     logger.info("Picked task to run: {} (docId={})", task.name(), taskId);
-
-                    if (task.runAsTransaction()) {
-                        try {
-                            s.startTransaction();
-                            logger.debug("Transaction started for task {}", task.name());
-                            runTask(task, taskDoc);
-                            s.commitTransaction();
-                            logger.info("Transaction committed for task {}", task.name());
-                        } catch (Exception ex) {
-                            logger.warn("Transactional task {} failed, aborting: {}", task.name(), ex.getMessage(), ex);
-                            abortTransaction(s, ex.getMessage());
-                            logger.info("Transaction aborted for task {}", task.name());
-                            sleepTime = 1000;
-                        } finally {
-                            cleanTransactionWithRetry(s);
-                        }
-                    } else {
-                        try {
-                            runTask(task, taskDoc);
-                        } catch (Exception ex) {
-                            logger.warn("Non-transactional task {} failed: {}", task.name(), ex.getMessage(), ex);
-                        }
-                    }
+                    sleepTime = runQueuedTask(s, task, taskDoc);
                 }
                 try {
                     Thread.sleep(sleepTime);
@@ -1825,25 +1878,75 @@ public enum Task implements Serializable {
     }
 
     /**
-     * Runs a single task on the given session.
+     * Runs a task taken from the queue, on the task runner's session. A task with
+     * {@link #runAsTransaction()} runs inside a transaction, so that its writes and its
+     * removal from the queue commit together, or, if it fails, not at all and it stays
+     * queued. On a MongoDB that cannot run transactions
+     * ({@link RegistryDB#transactionsSupported()}), it runs without one, like every other
+     * task.
      *
-     * <p>
-     * The session belongs to the caller and carries the transaction, if any:
-     * for a task with {@link #runAsTransaction()}, {@link #runTasks} has
-     * already called {@code startTransaction()} on it, so the task's writes and
-     * the removal of the task from the queue below both join that transaction
-     * and commit together. Opening a session here instead would silently place
-     * both outside it (issue #128).
+     * @param s       the task runner's session, with no transaction open
+     * @param task    the task to run
+     * @param taskDoc the queue document describing this invocation
+     * @return how long to wait before picking the next task, in milliseconds
+     */
+    static long runQueuedTask(ClientSession s, Task task, Document taskDoc) {
+        if (task.runAsTransaction() && RegistryDB.transactionsSupported()) {
+            try {
+                s.startTransaction();
+                logger.debug("Transaction started for task {}", task.name());
+                runTask(s, task, taskDoc);
+                s.commitTransaction();
+                logger.info("Transaction committed for task {}", task.name());
+            } catch (Exception ex) {
+                logger.warn("Transactional task {} failed, aborting: {}", task.name(), ex.getMessage(), ex);
+                abortTransaction(s, ex.getMessage());
+                logger.info("Transaction aborted for task {}", task.name());
+                return 1000;
+            } finally {
+                cleanTransactionWithRetry(s);
+            }
+        } else {
+            try {
+                runTask(s, task, taskDoc);
+            } catch (Exception ex) {
+                logger.warn("Task {} failed: {}", task.name(), ex.getMessage(), ex);
+            }
+        }
+        return 10;
+    }
+
+    /**
+     * Runs a single task on a session of its own, without a transaction.
      *
-     * @param task the task to run
+     * @param task    the task to run
      * @param taskDoc the queue document describing this invocation
      */
     static void runTask(Task task, Document taskDoc) throws Exception {
+        try (ClientSession s = RegistryDB.getClient().startSession()) {
+            runTask(s, task, taskDoc);
+        }
+    }
+
+    /**
+     * Runs a single task on the given session and removes it from the queue.
+     *
+     * <p>
+     * The session belongs to the caller and carries the transaction, if any: the
+     * task's writes and the removal of the task from the queue both join it and
+     * commit together. Opening a session here instead would silently place both
+     * outside it (issues #128 and #238).
+     *
+     * @param s       the session to run the task on
+     * @param task    the task to run
+     * @param taskDoc the queue document describing this invocation
+     */
+    static void runTask(ClientSession s, Task task, Document taskDoc) throws Exception {
         currentTaskName = task.name();
         currentTaskStartTime = System.currentTimeMillis();
         logger.info("Starting task {} with request: {}", currentTaskName, taskDoc);
 
-        try (ClientSession s = RegistryDB.getClient().startSession()) {
+        try {
             task.run(s, taskDoc);
             long duration = System.currentTimeMillis() - currentTaskStartTime;
             tasksCollection.deleteOne(s, eq("_id", taskDoc.get("_id")));

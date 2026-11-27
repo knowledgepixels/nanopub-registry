@@ -219,16 +219,22 @@ A cycle fetches the intro and endorsement list of every account from the peers, 
 Misclassifying is cheap either way: a missed arrival waits for the regular interval, and a false positive costs one cycle that finds the trust state unchanged and publishes nothing.
 
 Some tasks run inside a MongoDB transaction, so that their writes commit atomically with their own removal from the queue; `Task.runAsTransaction()` says which, and defaults to true.
+These are the short tasks: `INIT_DB`, `LOAD_CONFIG`, `LOAD_SETTING`, `SEED_TRUST_STATE`, `FINISH_ITERATION`, `FINALIZE_TRUST_STATE`, `PUBLISH_TRUST_STATE` and `UPDATE`.
 A task opts out when it does network I/O or catalog operations (creating indexes, renaming or dropping collections), neither of which belongs in a transaction.
 Several pairs above exist for exactly that reason — `INIT_COLLECTIONS` prepares and fetches so that `SEED_TRUST_STATE` can write transactionally, and `RELEASE_DATA` renames so that `PUBLISH_TRUST_STATE` can.
+The tasks that go through every account of the trust network opt out too (`EXPAND_TRUST_PATHS`, `CALCULATE_TRUST_SCORES`, `AGGREGATE_AGENTS`, `ASSIGN_PUBKEYS`, `DETERMINE_UPDATES`): they take seconds, growing with the network, and MongoDB aborts a transaction after 60 seconds by default.
+Transactions need MongoDB to run as a replica set, as the compose files start it (`--replSet rs0`).
+On a standalone server the registry logs an error at startup and runs every task without a transaction.
 
 A task that stays non-transactional is re-executed after a crash and must be idempotent, since its writes are not atomic with its own removal from the queue.
 On startup, a trust state cycle (steps 2–4) interrupted that way is therefore not resumed but restarted: the queued cycle tasks are dropped and `INIT_COLLECTIONS` is scheduled afresh, which discards the `_loading` collections and rebuilds them.
 The exception is the tail of the cycle, `RELEASE_DATA` and `PUBLISH_TRUST_STATE`: the computation is complete by then and both are idempotent, so they are kept and left to finish rather than recomputed.
 
-A task that fails while the process keeps running is run again right away, on top of whatever it wrote before failing.
-Until [#238](https://github.com/knowledgepixels/nanopub-registry/issues/238) is resolved this applies to the transactional tasks as well, since `runTask` runs them on a session of its own, outside the transaction.
-`SEED_TRUST_STATE` and `EXPAND_TRUST_PATHS` are written so that running them again completes a partial run: their writes leave or replace what an earlier run wrote, an account whose trust path is marked as expanded is not expanded again, and they queue their successor only if it is not queued already.
+A task that fails while the process keeps running stays first in the queue and is run again right away.
+A transactional task then starts from where the failed run started, as nothing it wrote was kept.
+Any other task runs on top of whatever it wrote before failing, so the non-transactional tasks of the trust cycle are written such that running them again completes a partial run ([#238](https://github.com/knowledgepixels/nanopub-registry/issues/238)):
+their writes leave or replace what an earlier run wrote, they take their work by a status that a finished piece of work no longer has (an account whose trust path is marked as expanded is not expanded again), and they queue their successor only if it is not queued already.
+`SEED_TRUST_STATE` is written the same way, for a MongoDB that cannot run transactions.
 
 See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`recoverInterruptedCycle`).
 
