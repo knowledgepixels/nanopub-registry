@@ -14,7 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubCreator;
+import net.trustyuri.TrustyUriUtils;
 import org.nanopub.NanopubImpl;
+import org.nanopub.SimpleTimestampPattern;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.security.KeyDeclaration;
 import org.nanopub.extra.security.SignNanopub;
@@ -31,6 +33,8 @@ import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -471,10 +475,109 @@ class TaskTest {
         assertEquals(2, all("trustEdges").size());
         assertEquals(1, all("accounts_loading").stream()
                 .filter(d -> agent.equals(d.getString("agent"))).count());
-        // The second pass sees the same creation time, which is not strictly newer, so the
-        // recorded name is left as it was.
+        // The second pass meets the very same introduction, which does not take precedence
+        // over itself, so the recorded name is left as it was.
         assertEquals(Utils.extractIntroName(new IntroNanopub(introNp)),
                 one("accounts_loading", new Document("agent", agent)).getString("name"));
+    }
+
+    private static final IRI INTRODUCED = SimpleValueFactory.getInstance().createIRI("http://example.org/introduced");
+
+    private static KeyPair introducedKey;
+
+    /**
+     * Stores an introduction of {@link #INTRODUCED} that declares one and the same key each
+     * time, with the given name (or none) and creation time.
+     */
+    private Nanopub storeIntro(String name, long createdAt) throws Exception {
+        if (introducedKey == null) {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            introducedKey = generator.generateKeyPair();
+        }
+        SimpleValueFactory vf = SimpleValueFactory.getInstance();
+        NanopubCreator creator = new NanopubCreator("http://example.org/intro" + System.nanoTime() + "/");
+        IRI keyDeclaration = vf.createIRI(creator.getNanopubUri() + "key");
+        creator.addAssertionStatement(keyDeclaration, NPX.DECLARED_BY, INTRODUCED);
+        creator.addAssertionStatement(keyDeclaration, NPX.HAS_ALGORITHM, vf.createLiteral("RSA"));
+        creator.addAssertionStatement(keyDeclaration, NPX.HAS_PUBLIC_KEY,
+                vf.createLiteral(Base64.getEncoder().encodeToString(introducedKey.getPublic().getEncoded())));
+        if (name != null) {
+            creator.addAssertionStatement(INTRODUCED, vf.createIRI("http://xmlns.com/foaf/0.1/name"), vf.createLiteral(name));
+        }
+        creator.addProvenanceStatement(vf.createIRI("http://www.w3.org/ns/prov#wasAttributedTo"), INTRODUCED);
+        creator.addPubinfoStatement(vf.createIRI("http://purl.org/dc/terms/creator"), INTRODUCED);
+        creator.addTimestamp(new Date(createdAt));
+        Nanopub intro = SignNanopub.signAndTransform(creator.finalizeNanopub(),
+                new TransformContext(SignatureAlgorithm.RSA, introducedKey, INTRODUCED, false, false, false));
+        assertTrue(RegistryDB.loadNanopub(session, intro));
+        return intro;
+    }
+
+    /**
+     * Runs LOAD_DECLARATIONS over the given introductions, endorsed in the given order, and
+     * returns the account they declare.
+     */
+    private Document accountDeclaredBy(Nanopub... introsInOrder) throws Exception {
+        for (String c : List.of("accounts_loading", "endorsements_loading", "trustEdges")) {
+            collection(c).deleteMany(session, new Document());
+        }
+        clearQueue();
+        for (Nanopub intro : introsInOrder) {
+            seedIntroEndorsement(TrustyUriUtils.getArtifactCode(intro.getUri().stringValue()), SETTING_ID);
+        }
+        Task.runTask(Task.LOAD_DECLARATIONS, Task.LOAD_DECLARATIONS.asDocument().append("depth", 1));
+        Document account = one("accounts_loading", new Document("agent", INTRODUCED.stringValue()));
+        assertNotNull(account, "the introductions declare an account");
+        return account;
+    }
+
+    private static void assertTakenFrom(Nanopub intro, String name, Document account) {
+        assertEquals(intro.getUri().stringValue(), account.getString("introNanopub"));
+        assertEquals(name, account.getString("name"));
+        assertEquals(SimpleTimestampPattern.getCreationTime(intro).getTime(), account.getDate("nameCreatedAt"),
+                "name, creation time and introduction come from the same one introduction");
+    }
+
+    /**
+     * An account's name, name timestamp and introduction are published, so which of several
+     * introductions they are taken from must not depend on the order the endorsements happen
+     * to be processed in: that order is not fixed from one cycle to the next, and a choice
+     * that flipped with it would publish a new trust state each time (issue #223).
+     */
+    @Test
+    void loadDeclarationsTakesTheLaterIntroductionWhateverTheOrder() throws Exception {
+        prepareLoadingCollections();
+        Nanopub earlier = storeIntro("Earlier Name", 1_600_000_000_000L);
+        Nanopub later = storeIntro("Later Name", 1_700_000_000_000L);
+
+        assertTakenFrom(later, "Later Name", accountDeclaredBy(earlier, later));
+        assertTakenFrom(later, "Later Name", accountDeclaredBy(later, earlier));
+    }
+
+    @Test
+    void loadDeclarationsBreaksATieBetweenIntroductionsWhateverTheOrder() throws Exception {
+        prepareLoadingCollections();
+        // Created at the same time: the one with the smaller URI is taken.
+        Nanopub one = storeIntro("One Name", 1_700_000_000_000L);
+        Nanopub other = storeIntro("Other Name", 1_700_000_000_000L);
+        boolean oneFirst = one.getUri().stringValue().compareTo(other.getUri().stringValue()) < 0;
+        Nanopub expected = oneFirst ? one : other;
+        String expectedName = oneFirst ? "One Name" : "Other Name";
+
+        assertTakenFrom(expected, expectedName, accountDeclaredBy(one, other));
+        assertTakenFrom(expected, expectedName, accountDeclaredBy(other, one));
+    }
+
+    @Test
+    void loadDeclarationsPrefersAnIntroductionWithANameWhateverTheOrder() throws Exception {
+        prepareLoadingCollections();
+        Nanopub named = storeIntro("A Name", 1_600_000_000_000L);
+        // Later, but it gives no name.
+        Nanopub unnamed = storeIntro(null, 1_700_000_000_000L);
+
+        assertTakenFrom(named, "A Name", accountDeclaredBy(named, unnamed));
+        assertTakenFrom(named, "A Name", accountDeclaredBy(unnamed, named));
     }
 
     @Test
@@ -1092,7 +1195,52 @@ class TaskTest {
 
         assertEquals(EntryStatus.toLoad.getValue(),
                 one("accounts_loading", new Document("agent", "A")).getString("status"));
+        assertEquals(1, newlyToLoad(), "the account is handed to the loader in this cycle");
         assertEquals(List.of(Task.FINALIZE_TRUST_STATE.name()), queuedActions());
+    }
+
+    private Object newlyToLoad() {
+        return getValue(session, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad");
+    }
+
+    /**
+     * An account holds publication back only in the cycle that hands it to the loader. One
+     * that was waiting before has had its cycle, whether it takes long or cannot be loaded.
+     */
+    @Test
+    void determineUpdatesDoesNotCountAnAccountThatWasWaitingAlready() throws Exception {
+        prepareLoadingCollections();
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()));
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.toLoad.getValue()));
+
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertEquals(EntryStatus.toLoad.getValue(),
+                one("accounts_loading", new Document("agent", "A")).getString("status"));
+        assertEquals(0, newlyToLoad());
+    }
+
+    /**
+     * Under quota enforcement the loader passes over an account it does not cover, cycle after
+     * cycle. Waiting for it would hold every other trust state back for nothing.
+     */
+    @Test
+    void determineUpdatesDoesNotCountAnAccountTheLoaderPassesOver() throws Exception {
+        prepareLoadingCollections();
+        TestUtils.clearStaticFields(AgentFilter.class, Map.of("enforceQuota", true, "viaSetting", false));
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()));
+        // What LOAD_FULL made of it after the previous cycle.
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.skipped.getValue()));
+
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertEquals(EntryStatus.toLoad.getValue(),
+                one("accounts_loading", new Document("agent", "A")).getString("status"));
+        assertEquals(0, newlyToLoad());
     }
 
     @Test
@@ -1108,6 +1256,7 @@ class TaskTest {
         // Its nanopubs are already in the registry, so there is nothing to fetch.
         assertEquals(EntryStatus.loaded.getValue(),
                 one("accounts_loading", new Document("agent", "A")).getString("status"));
+        assertEquals(0, newlyToLoad());
     }
 
     /**
@@ -1146,6 +1295,7 @@ class TaskTest {
         assertEquals(EntryStatus.toLoad.getValue(),
                 one("accounts_loading", new Document("agent", "A")).getString("status"),
                 "there is room again, so LOAD_FULL has to pick it up and load the rest");
+        assertEquals(1, newlyToLoad(), "which makes it an account handed to the loader in this cycle");
     }
 
     // --------------------------------------------------- FINALIZE_TRUST_STATE
@@ -1426,6 +1576,198 @@ class TaskTest {
         assertEquals(1, snapshotAccounts(hash).size());
         assertEquals(hash, publishedHash());
         assertEquals(1L, publishedCounter(), "the state is not a new one");
+    }
+
+    private static Document accountA(double ratio) {
+        return accountA().append("ratio", ratio);
+    }
+
+    /**
+     * Seeds what the earlier tasks of a cycle leave behind for its end: the loading
+     * collections, what identifies the cycle, and how many accounts it hands to the loader.
+     */
+    private void seedCycle(String cycle, int newlyToLoad, Document... accounts) {
+        seedReleasableState(accounts);
+        RegistryDB.setValue(session, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate", cycle);
+        RegistryDB.setValue(session, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad", newlyToLoad);
+    }
+
+    /**
+     * Publishes a first trust state with account A alone, on a registry that loads accounts.
+     */
+    private String publishFirstState() throws Exception {
+        prepareLoadingCollections();
+        seedCycle("cycle 1", 0, accountA(0.5));
+        releaseAndPublish();
+        assertEquals(1L, publishedCounter());
+        return publishedHash();
+    }
+
+    /**
+     * A newly approved account stays out of what is published until it is loaded, but it
+     * moves the scores of the accounts next to it in the very cycle that approves it.
+     * Published as they come, that makes two trust states of one event, and every consumer
+     * rebuilds twice. Seen on the live registries: one new account, three changed ratios.
+     */
+    @Test
+    void aNewAccountAndTheScoresItMovesArePublishedAsOneState() throws Exception {
+        String first = publishFirstState();
+
+        // The cycle that approves B: A's ratio has moved, B is waiting to be loaded.
+        seedCycle("cycle 2", 1, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertEquals(first, publishedHash(), "nothing is published in this cycle");
+        assertEquals(1L, publishedCounter());
+        assertEquals(1, all(Collection.TRUST_STATE_SNAPSHOTS.toString()).size());
+        assertEquals(ServerStatus.ready.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"),
+                "the cycle ends as usual");
+        assertNotNull(queuedTask(Task.UPDATE));
+
+        // The next one finds B loaded.
+        clearQueue();
+        seedCycle("cycle 3", 0, accountA(0.25), accountB(EntryStatus.loaded));
+        releaseAndPublish();
+
+        assertFalse(first.equals(publishedHash()));
+        assertEquals(2L, publishedCounter(), "one new state for the one event");
+        List<Document> accounts = snapshotAccounts(publishedHash());
+        assertEquals(2, accounts.size());
+        assertEquals(0.25, accounts.getFirst().getDouble("ratio"), 1e-12);
+        assertEquals(2L, one(Collection.TRUST_STATE_SNAPSHOTS.toString(), new Document("_id", publishedHash())).getLong("trustStateCounter"),
+                "the snapshot carries the counter it is recorded under");
+        assertNull(getValue(session, Collection.SERVER_INFO.toString(), "trustStateHeldBackAt"));
+    }
+
+    private static Document account(String agent, String pubkey, EntryStatus status) {
+        return new Document("agent", agent).append("pubkey", pubkey)
+                .append("status", status.getValue()).append("depth", 1);
+    }
+
+    /**
+     * During a run of approvals, each cycle hands a new account to the loader. An account
+     * that has been loaded by then must not be kept waiting for that: people watch for their
+     * approval, and it is to come in the cycle after their own, as it does without holding
+     * anything back.
+     */
+    @Test
+    void anAccountThatHasBeenLoadedIsNotKeptWaitingByTheNextOne() throws Exception {
+        publishFirstState();
+        // B has been waiting for a while, so this state is published without it.
+        seedCycle("cycle 2", 0, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+        assertEquals(2L, publishedCounter());
+
+        // B is loaded, and C has just been approved.
+        seedCycle("cycle 3", 1, accountA(0.2), accountB(EntryStatus.loaded), account("C", "R", EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertEquals(3L, publishedCounter(), "published at once, as B comes with it");
+        assertEquals(2, snapshotAccounts(publishedHash()).size());
+    }
+
+    /**
+     * Accounts can keep arriving while none of them gets loaded. Holding back every time
+     * would then publish nothing for as long as that goes on.
+     */
+    @Test
+    void aTrustStateIsNotHeldBackForTwoCyclesInARow() throws Exception {
+        String first = publishFirstState();
+        seedCycle("cycle 2", 1, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+        assertEquals(first, publishedHash());
+
+        // B is still not loaded, and the next account has arrived.
+        seedCycle("cycle 3", 1, accountA(0.2), accountB(EntryStatus.toLoad), account("C", "R", EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertEquals(2L, publishedCounter(), "published, with what there is by now");
+        assertEquals(1, snapshotAccounts(publishedHash()).size());
+
+        // Whereas the cycle after that may hold back again.
+        String second = publishedHash();
+        seedCycle("cycle 4", 1, accountA(0.1), accountB(EntryStatus.toLoad), account("C", "R", EntryStatus.toLoad),
+                account("D", "S", EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertEquals(second, publishedHash());
+        assertEquals(2L, publishedCounter());
+    }
+
+    /**
+     * Whether publishing would add an account is read off the recorded snapshot. Without it
+     * that cannot be told, and the state is published.
+     */
+    @Test
+    void nothingIsHeldBackWhenTheRecordedSnapshotIsGone() throws Exception {
+        String first = publishFirstState();
+        collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).deleteMany(session, new Document());
+
+        seedCycle("cycle 2", 1, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertFalse(first.equals(publishedHash()));
+        assertEquals(2L, publishedCounter());
+    }
+
+    /**
+     * An interrupted RELEASE_DATA queues the publishing task a second time in the same cycle.
+     * The second run has to decide as the first did, not take the first for the cycle before.
+     */
+    @Test
+    void aSecondRunInTheSameCycleHoldsBackAsTheFirstDid() throws Exception {
+        String first = publishFirstState();
+        seedCycle("cycle 2", 1, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+
+        Task.runTask(Task.PUBLISH_TRUST_STATE, Task.PUBLISH_TRUST_STATE.asDocument());
+
+        assertEquals(first, publishedHash());
+        assertEquals(1L, publishedCounter());
+    }
+
+    /**
+     * An account that was waiting already, because it takes long to load or cannot be loaded,
+     * holds nothing back: other changes are published without it, as they always were.
+     */
+    @Test
+    void anAccountThatWasWaitingAlreadyHoldsNothingBack() throws Exception {
+        String first = publishFirstState();
+
+        seedCycle("cycle 2", 0, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertFalse(first.equals(publishedHash()));
+        assertEquals(2L, publishedCounter());
+        assertEquals(1, snapshotAccounts(publishedHash()).size());
+    }
+
+    @Test
+    void nothingIsHeldBackOnARegistryThatDoesNotLoadAccounts() throws Exception {
+        String first = publishFirstState();
+        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
+
+        seedCycle("cycle 2", 1, accountA(0.25), accountB(EntryStatus.toLoad));
+        releaseAndPublish();
+
+        assertFalse(first.equals(publishedHash()), "waiting would not get the account loaded");
+        assertEquals(2L, publishedCounter());
+    }
+
+    /**
+     * The count comes from DETERMINE_UPDATES, which a registry without trust calculation does
+     * not run, so an old one can be left behind. It must not hold back a state when no
+     * account is waiting.
+     */
+    @Test
+    void aLeftoverCountHoldsNothingBackWhenNoAccountIsWaiting() throws Exception {
+        String first = publishFirstState();
+
+        seedCycle("cycle 2", 1, accountA(0.25));
+        releaseAndPublish();
+
+        assertFalse(first.equals(publishedHash()));
+        assertEquals(2L, publishedCounter());
     }
 
     /**

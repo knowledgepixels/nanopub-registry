@@ -288,6 +288,8 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
       trustStateCounter: 1423293
       trustStateHash: 7a8b9c...
       trustNetworkHash: 5d6e7f...  (absent on a registry without trust paths)
+      accountsNewlyToLoad: 1  (how many accounts the current cycle has handed to the loader)
+      trustStateHeldBackAt: 2024-03-16T...  (the cycle whose changed trust state was held back, if the last one was)
       coverageAgents: viaSetting  (not stored; reported from the running configuration, REGISTRY_COVERAGE_AGENTS)
       coverageTypes: all  (not stored; reported from the running configuration, REGISTRY_COVERAGE_TYPES)
       globalQuota: 1000000  (not stored; configured per instance as REGISTRY_GLOBAL_QUOTA, to be moved to setting)
@@ -405,7 +407,8 @@ A registry reports two hashes, for two different questions:
   It is taken over the content of the snapshot described below, so it depends on the network and also on what is local to the registry: explicit quotas, the quota authorities it lists, quota enforcement, and how far accounts have been loaded.
   This is the value consumers watch, and it is not meant to be compared between registries.
 
-A change of the network changes the trust state, but not the other way round.
+The trust state can change while the network stays the same, for example when a quota is granted or an account finishes loading.
+A change of the network usually changes the trust state too, though not always in the same cycle: a newly endorsed account enters the network at once, and the trust state when it is loaded.
 
 Downstream consumers (e.g. Nanopub Query) mirror the registry's trust state as immutable snapshots keyed by `trustStateHash`.
 To let them load a given trust state atomically and side-by-side with earlier states, the registry persists a structured snapshot each time the hash transitions.
@@ -413,6 +416,18 @@ To let them load a given trust state atomically and side-by-side with earlier st
 Snapshot writes happen inside `PUBLISH_TRUST_STATE`, which `RELEASE_DATA` queues as the very next task after it has renamed the `_loading` collections into place, so that what is published is the state the cycle computed and not one the loading chain has meanwhile worked on.
 The task reads the accounts and edges once, takes the trust state hash over them, and compares it with the one recorded.
 Because the hash is that of the content itself, anything a snapshot contains is covered by it: a changed status, ratio, quota, name or edge is a new trust state, with no list of cases to keep complete.
+The snapshot is written before the new hash is recorded, so a consumer that sees the hash finds the snapshot.
+
+Two situations publish nothing although the content differs from what is recorded:
+
+- On a fresh registry, nothing is published until a cycle finds the initial full load complete, so that the first trust state is not a near-empty one.
+- When a cycle has handed newly approved accounts to the loader, and publishing would add no account to the recorded trust state, a changed state is held back for that one cycle.
+  Such an account is left out until it is loaded, but the scores of the accounts next to it move at once, because an endorser's share is divided among all it endorses.
+  Published as they come, that would be two trust states for one event, and consumers rebuild on each.
+  The next cycle publishes the account and the moved scores together.
+  An account that has been loaded is never kept waiting by this: a state that adds an account is published at once, so each account appears in the cycle after the one that approved it, also while others keep arriving.
+  Nor does it happen two cycles in a row, and an account holds things back only in the cycle that hands it to the loader: one that takes long to load, or that the loader passes over, delays nothing after that.
+
 For each hash transition, a single document is upserted into the `trustStateSnapshots` collection:
 
     trustStateSnapshots:

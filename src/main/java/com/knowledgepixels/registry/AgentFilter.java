@@ -211,6 +211,18 @@ public final class AgentFilter {
     }
 
     /**
+     * Returns true if the full load attends to an account of the given pubkey once the trust
+     * calculation has approved it, as opposed to passing it over as not covered.
+     * <p>
+     * This is {@link #isAllowed} for an account that is about to be released as approved,
+     * answered before the release, when the accounts collection does not hold it yet: such
+     * an account carries a quota, so it is covered whenever the trust network is.
+     */
+    public static boolean loadsApprovedAccount(String pubkeyHash) {
+        return !enforceQuota || viaSetting || explicitPubkeys.containsKey(pubkeyHash);
+    }
+
+    /**
      * Returns true if the given pubkey is allowed to publish (has a quota >= 0).
      * Always returns true if quota enforcement is disabled.
      */
