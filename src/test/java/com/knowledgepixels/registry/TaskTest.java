@@ -12,10 +12,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.nanopub.Nanopub;
 import org.nanopub.NanopubCreator;
 import net.trustyuri.TrustyUriUtils;
 import org.nanopub.NanopubImpl;
+import org.nanopub.NanopubUtils;
 import org.nanopub.SimpleTimestampPattern;
 import org.nanopub.extra.index.IndexUtils;
 import org.nanopub.extra.security.KeyDeclaration;
@@ -47,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 
 /**
@@ -490,6 +493,22 @@ class TaskTest {
      * time, with the given name (or none) and creation time.
      */
     private Nanopub storeIntro(String name, long createdAt) throws Exception {
+        return storeIntro(name, creator -> creator.addTimestamp(new Date(createdAt)));
+    }
+
+    /**
+     * Adds the creation time to an introduction that {@link #storeIntro(String, Timestamping)}
+     * makes.
+     */
+    private interface Timestamping {
+        void addTo(NanopubCreator creator) throws Exception;
+    }
+
+    /**
+     * Stores an introduction of {@link #INTRODUCED} that declares one and the same key each
+     * time, with the given name (or none), and its creation time written as given.
+     */
+    private Nanopub storeIntro(String name, Timestamping timestamping) throws Exception {
         if (introducedKey == null) {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
@@ -507,7 +526,7 @@ class TaskTest {
         }
         creator.addProvenanceStatement(vf.createIRI("http://www.w3.org/ns/prov#wasAttributedTo"), INTRODUCED);
         creator.addPubinfoStatement(vf.createIRI("http://purl.org/dc/terms/creator"), INTRODUCED);
-        creator.addTimestamp(new Date(createdAt));
+        timestamping.addTo(creator);
         Nanopub intro = SignNanopub.signAndTransform(creator.finalizeNanopub(),
                 new TransformContext(SignatureAlgorithm.RSA, introducedKey, INTRODUCED, false, false, false));
         assertTrue(RegistryDB.loadNanopub(session, intro));
@@ -553,6 +572,43 @@ class TaskTest {
 
         assertTakenFrom(later, "Later Name", accountDeclaredBy(earlier, later));
         assertTakenFrom(later, "Later Name", accountDeclaredBy(later, earlier));
+    }
+
+    /**
+     * The registry stores an introduction whose creation time is typed {@code xsd:dateTime}
+     * but does not parse. Reading that time throws, and an endorsement of such an
+     * introduction must not stop the trust calculation (issue #244): the introduction counts
+     * as undated instead.
+     */
+    @Test
+    void loadDeclarationsTakesAnIntroductionWithAMalformedTimestampAsUndated() throws Exception {
+        prepareLoadingCollections();
+        SimpleValueFactory vf = SimpleValueFactory.getInstance();
+        Nanopub malformed;
+        // nanopub-java refuses to sign a nanopublication with an ill-typed literal, but ones
+        // signed before it did, or signed by other tools, exist, and the registry stores them.
+        // Signing here is made to skip that check to get one.
+        try (MockedStatic<NanopubUtils> utils = mockStatic(NanopubUtils.class, Mockito.CALLS_REAL_METHODS)) {
+            utils.when(() -> NanopubUtils.getIllTypedLiteralStatements(any())).thenReturn(List.of());
+            malformed = storeIntro("Malformed Name", creator -> creator.addPubinfoStatement(
+                    vf.createIRI("http://purl.org/dc/terms/created"),
+                    vf.createLiteral("the day before yesterday", vf.createIRI("http://www.w3.org/2001/XMLSchema#dateTime"))));
+        }
+        assertThrows(IllegalArgumentException.class, () -> SimpleTimestampPattern.getCreationTime(malformed),
+                "the timestamp does not parse");
+
+        Document account = accountDeclaredBy(malformed);
+        assertEquals(malformed.getUri().stringValue(), account.getString("introNanopub"));
+        assertEquals("Malformed Name", account.getString("name"));
+        assertNull(account.get("nameCreatedAt"), "the introduction counts as undated");
+        assertEquals(EntryStatus.retrieved.getValue(),
+                one("endorsements_loading", new Document()).getString("status"),
+                "the endorsement is processed like any other");
+
+        // As undated, it ranks behind a dated introduction, whatever the order.
+        Nanopub dated = storeIntro("Dated Name", 1_600_000_000_000L);
+        assertTakenFrom(dated, "Dated Name", accountDeclaredBy(malformed, dated));
+        assertTakenFrom(dated, "Dated Name", accountDeclaredBy(dated, malformed));
     }
 
     @Test

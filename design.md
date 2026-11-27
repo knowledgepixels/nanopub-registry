@@ -441,7 +441,7 @@ Both are stored in the order they are hashed in: accounts by agent and pubkey, e
 `createdAt`, `trustStateCounter` and `trustNetworkHash` describe the snapshot and are not part of the hash.
 Retention is capped at the 100 most recent snapshots; older entries are pruned in the same task.
 
-An account can have several introductions. Its `name`, `nameCreatedAt` and `introNanopub` all come from one of them, chosen by a rule that does not depend on the order they are met in: an introduction with a name before one without, then the one created later (a dated one before an undated one), then the one with the smaller URI.
+An account can have several introductions. Its `name`, `nameCreatedAt` and `introNanopub` all come from one of them, chosen by a rule that does not depend on the order they are met in: an introduction with a name before one without, then the one created later (a dated one before an undated one), then the one with the smaller URI. An introduction whose timestamp cannot be read counts as undated.
 
 The hash is taken over a text with one line per account and per edge, each a JSON array of the values in a fixed order, after a first line naming the format (`trust-state-1`).
 See `calculateTrustStateHash` in [RegistryDB.java](src/main/java/com/knowledgepixels/registry/RegistryDB.java) for the exact form.

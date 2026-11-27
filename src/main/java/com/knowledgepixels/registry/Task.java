@@ -358,7 +358,7 @@ public enum Task implements Serializable {
                     // foaf:name + dct:created of the intro nanopub. Same name applies to every
                     // KeyDeclaration in the intro, so resolve once outside the inner loop.
                     String introName = Utils.extractIntroName(agentIntro);
-                    Calendar introCreatedCal = SimpleTimestampPattern.getCreationTime(agentIntro.getNanopub());
+                    Calendar introCreatedCal = getIntroCreationTime(agentIntro.getNanopub());
                     Date introCreatedAt = (introCreatedCal == null) ? null : introCreatedCal.getTime();
                     // The authorizing introduction for this (agent, pubkey): it carries the
                     // KeyDeclaration for the pubkey. Recorded alongside the name and kept in sync
@@ -1875,6 +1875,22 @@ public enum Task implements Serializable {
                     logger.debug("cleanTransactionWithRetry sleep interrupted");
                 }
             }
+        }
+    }
+
+    /**
+     * The creation time of an agent introduction, or null if it has none that can be read. The
+     * registry stores a nanopublication whose timestamp does not parse, and reading it throws;
+     * the endorsement of an introduction like that must not stop the trust calculation (issue
+     * #244), so it counts as undated, which {@link #introTakesPrecedence} ranks behind every
+     * dated introduction.
+     */
+    private static Calendar getIntroCreationTime(Nanopub intro) {
+        try {
+            return SimpleTimestampPattern.getCreationTime(intro);
+        } catch (RuntimeException ex) {
+            logger.warn("Agent introduction {} has a malformed timestamp; taking it as undated", intro.getUri());
+            return null;
         }
     }
 
