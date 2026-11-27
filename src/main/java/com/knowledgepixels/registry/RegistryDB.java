@@ -1,5 +1,7 @@
 package com.knowledgepixels.registry;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.knowledgepixels.registry.db.IndexInitializer;
 import com.mongodb.ErrorCategory;
 import com.mongodb.MongoNamespace;
@@ -37,8 +39,11 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -1145,79 +1150,149 @@ public class RegistryDB {
     }
 
     /**
-     * Calculates a hash representing the current state of the trust paths in the loading collection.
+     * Calculates the trust network hash: a hash over the trust paths and nothing else.
+     *
+     * <p>
+     * It answers whether two registries compute the same trust network from the same
+     * setting, so it must not depend on anything local to one of them: not on quotas, however
+     * they were set, not on how far an account has been loaded, not on whether a quota has
+     * been reached. Those are covered by the trust state hash
+     * ({@link #calculateTrustStateHash(List, List)}), which decides what gets published
+     * (issue #223).
+     *
+     * <p>
+     * The line format is the one the trust state hash had while it was computed from the
+     * trust paths. A registry on an older version that has no granted quotas and no capped
+     * or still loading accounts therefore reports, as its trust state hash, the very value
+     * this method returns for the same network, which keeps the two comparable while
+     * registries are on different versions.
      *
      * @param mongoSession the MongoDB client session
-     * @return the calculated trust state hash
+     * @return the trust network hash, or null if there are no trust paths, as on a registry
+     * that does not calculate the trust network
      */
-    public static String calculateTrustStateHash(ClientSession mongoSession) {
-        // Accounts still in the 'toLoad' staging status are not yet servable and must not enter the
-        // public trust state: a path's head account flips 'toLoad' -> 'loaded' between UPDATE cycles
-        // (in LOAD_FULL) without changing any trust path, so if those paths were hashed, a leaf
-        // account's promotion would never change the hash and never trigger a new snapshot, leaving
-        // it published as 'toLoad' indefinitely (see issue #119). By excluding 'toLoad' paths here,
-        // crossing out of 'toLoad' is itself a membership change -> hash change -> emission.
-        Set<String> toLoadAccounts = new HashSet<>();
-        try (MongoCursor<Document> ac = collection("accounts_loading")
-                .find(mongoSession, new Document("status", EntryStatus.toLoad.getValue()))
-                .projection(new Document("agent", 1).append("pubkey", 1))
-                .cursor()) {
-            while (ac.hasNext()) {
-                Document a = ac.next();
-                toLoadAccounts.add(a.getString("agent") + "|" + a.getString("pubkey"));
-            }
-        }
-
-        String s;
-        try (MongoCursor<Document> tp = collection("trustPaths_loading").find(mongoSession).sort(ascending("_id")).cursor()) {
-            // TODO Improve this so we don't create the full string just for calculating its hash:
-            s = "";
+    public static String calculateTrustNetworkHash(ClientSession mongoSession) {
+        StringBuilder s = new StringBuilder();
+        try (MongoCursor<Document> tp = collection("trustPaths").find(mongoSession).sort(ascending("_id")).cursor()) {
             while (tp.hasNext()) {
                 Document d = tp.next();
-                if (toLoadAccounts.contains(d.getString("agent") + "|" + d.getString("pubkey"))) {
-                    continue;
-                }
-                s += d.getString("_id") + " (" + d.getString("type") + ")\n";
+                s.append(d.getString("_id")).append(" (").append(d.getString("type")).append(")\n");
             }
         }
-
-        // Reaching a quota changes an account's published status without changing a single trust
-        // path, so without this a 'loaded' -> 'capped' transition would leave the hash alone, no
-        // new snapshot would be emitted, and the published state would keep calling a capped
-        // account 'loaded' (the same trap as issue #119, from the other side). Nothing is appended
-        // while no account is capped — which is every registry that does not enforce quotas — so
-        // this does not move any hash that exists today.
-        try (MongoCursor<Document> ac = collection("accounts_loading")
-                .find(mongoSession, new Document("status", EntryStatus.capped.getValue()))
-                .projection(new Document("agent", 1).append("pubkey", 1))
-                .sort(ascending("agent", "pubkey"))
-                .cursor()) {
-            while (ac.hasNext()) {
-                Document d = ac.next();
-                s += "capped " + d.getString("agent") + "|" + d.getString("pubkey") + "\n";
-            }
+        if (s.isEmpty()) {
+            logger.debug("No trust paths; there is no trust network hash");
+            return null;
         }
+        String hash = Utils.getHash(s.toString());
+        logger.debug("Calculated trust network hash: {}", hash);
+        return hash;
+    }
 
-        // The same trap once more, for a quota set by a grant (issue #220): it changes the
-        // published state without touching a trust path. Accounts still in 'toLoad' are left
-        // out as above, so that becoming servable is itself a change. Explicit quotas are
-        // deliberately not covered, as they never were: nothing is appended on a registry
-        // without grants, which leaves its hash where it is.
-        try (MongoCursor<Document> ac = collection("accounts_loading")
-                .find(mongoSession, new Document("quotaSource", "grant")
-                        .append("status", new Document("$ne", EntryStatus.toLoad.getValue())))
-                .projection(new Document("agent", 1).append("pubkey", 1).append("quota", 1))
-                .sort(ascending("agent", "pubkey"))
-                .cursor()) {
-            while (ac.hasNext()) {
-                Document d = ac.next();
-                s += "granted " + d.getString("agent") + "|" + d.getString("pubkey") + " " + d.get("quota") + "\n";
-            }
+    /**
+     * First line of the text the trust state hash is taken over. Names the format, so that a
+     * change to it is a deliberate one that moves every hash, never an accident.
+     */
+    static final String TRUST_STATE_HASH_FORMAT = "trust-state-1";
+
+    /**
+     * The order in which the accounts of a trust state are hashed and stored.
+     */
+    static final Comparator<Document> TRUST_STATE_ACCOUNT_ORDER = Comparator
+            .comparing((Document a) -> a.getString("agent"), Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(a -> a.getString("pubkey"), Comparator.nullsFirst(Comparator.naturalOrder()));
+
+    /**
+     * The order in which the endorsement edges of a trust state are hashed and stored.
+     */
+    static final Comparator<Document> TRUST_STATE_EDGE_ORDER = Comparator
+            .comparing((Document e) -> e.getString("fromAgent"), Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(e -> e.getString("fromPubkey"), Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(e -> e.getString("toAgent"), Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(e -> e.getString("toPubkey"), Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(e -> e.getString("viaNanopub"), Comparator.nullsFirst(Comparator.naturalOrder()));
+
+    private static final Gson trustStateHashGson = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
+
+    /**
+     * Calculates the trust state hash: a hash over everything a trust state snapshot
+     * publishes about the accounts and the endorsement edges between them.
+     *
+     * <p>
+     * Consumers fetch a new snapshot when this value changes, so whatever a snapshot
+     * contains has to be covered by it. It used to be computed from the trust paths plus a
+     * hand-picked list of additions, and each thing missing from that list was a published
+     * change no consumer ever saw (issue #119, capped accounts, granted quotas, and the
+     * ratios and quotas a change to the scoring moves). Hashing the published content itself
+     * covers all of it by construction (issue #223).
+     *
+     * <p>
+     * The value depends on what one registry publishes, including its local configuration,
+     * and is not meant to be compared between registries; that is what
+     * {@link #calculateTrustNetworkHash(ClientSession)} is for. It does not depend on the
+     * order of the given lists, nor on when or as which state the content is published.
+     *
+     * @param accounts the accounts as published in the snapshot
+     * @param edges    the endorsement edges as published in the snapshot
+     * @return the trust state hash
+     */
+    public static String calculateTrustStateHash(List<Document> accounts, List<Document> edges) {
+        List<Document> sortedAccounts = new ArrayList<>(accounts);
+        sortedAccounts.sort(TRUST_STATE_ACCOUNT_ORDER);
+        List<Document> sortedEdges = new ArrayList<>(edges);
+        sortedEdges.sort(TRUST_STATE_EDGE_ORDER);
+
+        // One JSON array per line, with the values in a fixed order: unambiguous whatever a
+        // name contains, and independent of how the documents happen to be laid out.
+        StringBuilder s = new StringBuilder(TRUST_STATE_HASH_FORMAT).append('\n');
+        for (Document a : sortedAccounts) {
+            s.append(trustStateHashGson.toJson(Arrays.asList("account",
+                    a.getString("agent"),
+                    a.getString("pubkey"),
+                    a.getString("status"),
+                    hashableNumber(a.get("depth")),
+                    hashableNumber(a.get("pathCount")),
+                    hashableNumber(a.get("ratio")),
+                    hashableNumber(a.get("quota")),
+                    a.getString("name"),
+                    hashableTime(a.get("nameCreatedAt")),
+                    a.getString("introNanopub")))).append('\n');
         }
-
-        String hash = Utils.getHash(s);
+        for (Document e : sortedEdges) {
+            s.append(trustStateHashGson.toJson(Arrays.asList("edge",
+                    e.getString("fromAgent"),
+                    e.getString("fromPubkey"),
+                    e.getString("toAgent"),
+                    e.getString("toPubkey"),
+                    e.getString("viaNanopub")))).append('\n');
+        }
+        String hash = Utils.getHash(s.toString());
         logger.debug("Calculated trust state hash: {}", hash);
         return hash;
+    }
+
+    /**
+     * Returns a number in the form it is hashed in: a whole number as it is, and a
+     * floating-point one as its bits, which does not depend on how a JVM prints it.
+     */
+    private static Long hashableNumber(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Double || value instanceof Float) {
+            return Double.doubleToLongBits(((Number) value).doubleValue());
+        }
+        return ((Number) value).longValue();
+    }
+
+    /**
+     * Returns a point in time in the form it is hashed in: milliseconds since the epoch,
+     * which does not depend on the time zone of the JVM.
+     */
+    private static Object hashableTime(Object value) {
+        if (value instanceof Date date) {
+            return date.getTime();
+        }
+        return value == null ? null : value.toString();
     }
 
 }

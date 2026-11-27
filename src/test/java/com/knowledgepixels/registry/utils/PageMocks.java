@@ -51,6 +51,7 @@ public final class PageMocks {
             new Document("_id", "trustStateCounter").append("value", 0L),
             new Document("_id", "lastTrustStateUpdate").append("value", "2026-04-15T12:00:00.123Z"),
             new Document("_id", "trustStateHash").append("value", "abcdef1234567890"),
+            new Document("_id", "trustNetworkHash").append("value", "fedcba0987654321"),
             new Document("_id", "testInstance").append("value", false)
     );
 

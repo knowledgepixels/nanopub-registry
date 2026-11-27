@@ -110,6 +110,10 @@ public class TrustStatePage extends Page {
                             .append("trustStateHash", d.getString("_id"))
                             .append("trustStateCounter", d.get("trustStateCounter"))
                             .append("createdAt", d.get("createdAt"));
+                    // Absent on snapshots recorded before the field existed (issue #223).
+                    if (d.get("trustNetworkHash") != null) {
+                        out.append("trustNetworkHash", d.get("trustNetworkHash"));
+                    }
                     print(out.toJson());
                     println(it.hasNext() ? "," : "");
                     listed++;
@@ -164,8 +168,13 @@ public class TrustStatePage extends Page {
             Document output = new Document()
                     .append("trustStateHash", snapshot.getString("_id"))
                     .append("trustStateCounter", snapshot.get("trustStateCounter"))
-                    .append("createdAt", snapshot.get("createdAt"))
-                    .append("accounts", snapshot.get("accounts"));
+                    .append("createdAt", snapshot.get("createdAt"));
+            // The network this state was computed from. Additive, and absent on snapshots
+            // recorded before the field existed (issue #223).
+            if (snapshot.get("trustNetworkHash") != null) {
+                output.append("trustNetworkHash", snapshot.get("trustNetworkHash"));
+            }
+            output.append("accounts", snapshot.get("accounts"));
             // Additive field (nanopub-query#184): snapshots recorded before it exist
             // without the array; keep the envelope free of an explicit null for those.
             Object edges = snapshot.get("edges");
@@ -190,6 +199,9 @@ public class TrustStatePage extends Page {
         println("<h3>Metadata</h3>");
         println("<ul>");
         println("<li><em>trustStateCounter:</em> " + snapshot.get("trustStateCounter") + "</li>");
+        if (snapshot.get("trustNetworkHash") != null) {
+            println("<li><em>trustNetworkHash:</em> <code>" + snapshot.get("trustNetworkHash") + "</code></li>");
+        }
         Object createdAt = snapshot.get("createdAt");
         if (createdAt != null) {
             println("<li><em>createdAt:</em> " + createdAt.toString().replaceFirst("\\.[^.]*$", "") + "</li>");

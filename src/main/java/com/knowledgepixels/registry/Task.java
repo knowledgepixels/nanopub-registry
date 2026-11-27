@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -361,7 +362,7 @@ public enum Task implements Serializable {
                     Date introCreatedAt = (introCreatedCal == null) ? null : introCreatedCal.getTime();
                     // The authorizing introduction for this (agent, pubkey): it carries the
                     // KeyDeclaration for the pubkey. Recorded alongside the name and kept in sync
-                    // with it (latest-dct:created wins), so it reflects one authorizing intro —
+                    // with it (see introTakesPrecedence), so it reflects one authorizing intro —
                     // the name-winning one — not the complete set of intros for this account.
                     String introNp = agentIntro.getNanopub().getUri().stringValue();
 
@@ -396,18 +397,13 @@ public enum Task implements Serializable {
                                     .append("name", introName)
                                     .append("nameCreatedAt", introCreatedAt)
                                     .append("introNanopub", introNp));
-                        } else if (introName != null) {
-                            // Per-(agent, pubkey) name policy: keep the name from the intro
-                            // with the latest dct:created. First write wins when no current
-                            // timestamp exists; otherwise compare and replace iff strictly newer.
-                            Date currentCreatedAt = existing.getDate("nameCreatedAt");
-                            if (currentCreatedAt == null
-                                    || (introCreatedAt != null && introCreatedAt.after(currentCreatedAt))) {
-                                set(s, "accounts_loading", existing
-                                        .append("name", introName)
-                                        .append("nameCreatedAt", introCreatedAt)
-                                        .append("introNanopub", introNp));
-                            }
+                        } else if (introTakesPrecedence(introName, introCreatedAt, introNp, existing)) {
+                            // Name, timestamp and introduction always come from the same one
+                            // introduction, the one introTakesPrecedence ranks first.
+                            set(s, "accounts_loading", existing
+                                    .append("name", introName)
+                                    .append("nameCreatedAt", introCreatedAt)
+                                    .append("introNanopub", introNp));
                         }
                     }
 
@@ -803,8 +799,8 @@ public enum Task implements Serializable {
                         .append("pathCount", pathCount)
                         .append("quota", quota);
                 if (explicitQuota == null && grantedQuota != null) {
-                    // Marked so that the trust state hash covers it: a granted quota changes
-                    // what this registry publishes without changing a single trust path.
+                    // Records where the quota comes from. It is not needed for the grant to be
+                    // published: the trust state hash covers every published quota (issue #223).
                     d.append("quotaSource", "grant");
                 }
                 set(s, "accounts_loading", d);
@@ -914,6 +910,11 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running DETERMINE_UPDATES task");
 
+            // How many accounts this cycle hands to the loader: approved accounts that will be
+            // staged as 'toLoad' without having been so before. PUBLISH_TRUST_STATE holds a
+            // changed trust state back for one cycle on their account (see there).
+            int newlyToLoad = 0;
+
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(s,
                     new DbEntryWrapper(approved).getDocument())) {
@@ -934,9 +935,16 @@ public enum Task implements Serializable {
                 } else {
                     // Either not loaded yet, or capped under a quota that has since grown — in
                     // which case LOAD_FULL picks it up again and loads the rest.
+                    // An account that was waiting already has had a cycle's worth of time to be
+                    // loaded, and one the loader passes over will not get any further by waiting.
+                    if (!has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", toLoad.getValue()))
+                            && AgentFilter.loadsApprovedAccount(pubkeyHash)) {
+                        newlyToLoad++;
+                    }
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
                 }
             }
+            setValue(s, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad", newlyToLoad);
             warnAboutQuotaAuthoritiesNotLoadedInFull(s);
             logger.info("DETERMINE_UPDATES complete");
             schedule(s, FINALIZE_TRUST_STATE);
@@ -945,16 +953,15 @@ public enum Task implements Serializable {
 
     },
     FINALIZE_TRUST_STATE {
-        // We do this is a separate task/transaction, because if we do it at the beginning of RELEASE_DATA, that task hangs and cannot
-        // properly re-run (as some renaming outside of transactions will have taken place).
+        // The trust state hash used to be computed here, from the loading collections. It is now
+        // taken in PUBLISH_TRUST_STATE, from the very data that is stored as the snapshot (issue
+        // #223), which leaves this task with recording when the calculation finished. It stays a
+        // step of its own because a document of it may sit in the queue across an upgrade.
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running FINALIZE_TRUST_STATE task");
-            String newTrustStateHash = RegistryDB.calculateTrustStateHash(s);
-            String previousTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");  // may be null
-            logger.info("Computed new trust state hash {} (previous: {})", newTrustStateHash, previousTrustStateHash);
             setValue(s, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate", ZonedDateTime.now().toString());
 
-            schedule(s, RELEASE_DATA.with("newTrustStateHash", newTrustStateHash).append("previousTrustStateHash", previousTrustStateHash));
+            schedule(s, RELEASE_DATA);
         }
 
     },
@@ -975,16 +982,20 @@ public enum Task implements Serializable {
         public void run(ClientSession s, Document taskDoc) {
             logger.info("Running RELEASE_DATA task (current status: {})", getServerStatus(s));
 
-            String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
-            String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
-
             // Renaming collections is run outside of a transaction, but is idempotent operation, so can safely be retried if task fails:
             logger.debug("Renaming loading collections into live collections");
             promoteLoadingCollections();
 
-            schedule(s, PUBLISH_TRUST_STATE
-                    .with("newTrustStateHash", newTrustStateHash)
-                    .append("previousTrustStateHash", previousTrustStateHash));
+            // What gets published has to be the state this cycle computed. The runner picks the
+            // task with the smallest 'not-before' across the trust cycle and the loading chain, so
+            // without the line below a LOAD_FULL could run first and move an account on (to
+            // 'loaded', or to 'skipped' on a registry that covers only some agents), and the
+            // published content, and with it the trust state hash, would depend on that timing
+            // (issue #223). This task was the one with the smallest value when it was picked, so
+            // one below its own puts the successor ahead of everything queued.
+            Long ownNotBefore = taskDoc.getLong("not-before");
+            long notBefore = (ownNotBefore == null ? System.currentTimeMillis() : ownNotBefore) - 1;
+            schedule(s, PUBLISH_TRUST_STATE.asDocument().append("not-before", notBefore));
         }
 
         @Override
@@ -1002,32 +1013,63 @@ public enum Task implements Serializable {
         private static final int TRUST_STATE_SNAPSHOT_RETENTION = 100;
 
         /**
-         * Records the newly released trust state: the counter, the debug row,
-         * the hash-keyed snapshot, the retention pruning and the server status
-         * transition. Transactional — every write here is an ordinary document
-         * write on collections {@link #RELEASE_DATA} has already renamed into
-         * place.
+         * Records the newly released trust state: the trust network hash, and,
+         * if what this registry publishes has changed, the trust state hash,
+         * the counter, the debug row, the snapshot stored under that hash and
+         * the retention pruning; then the server status transition. Every
+         * write here is an ordinary document write on collections
+         * {@link #RELEASE_DATA} has already renamed into place.
+         *
+         * <p>
+         * The trust state hash is taken over the content of the snapshot
+         * itself, so whatever is published is covered by it, and comparing it
+         * with the recorded one is all it takes to tell whether there is
+         * something new to publish (issue #223).
          *
          * <p>
          * The very first state of a fresh registry is held back: nothing is
          * recorded until a cycle finds the initial full load complete, so
          * consumers never see the near-empty bootstrap state (see below).
+         * A changed state is also held back, for one cycle, when the cycle
+         * has handed newly approved accounts to the loader and publishing
+         * would add no account, so that such an account and the scores it
+         * moves are published as one state.
          */
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
             logger.info("Running PUBLISH_TRUST_STATE task (current status: {})", status);
 
-            String newTrustStateHash = taskDoc.get("newTrustStateHash").toString();
-            String previousTrustStateHash = taskDoc.getString("previousTrustStateHash");  // may be null
-            String storedTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");  // null until the first publication
+            // The trust network hash says which network this registry computed, whatever it then
+            // publishes about it, so it is recorded on every cycle, also while the first trust
+            // state is still held back. A registry without trust paths has none, and must not
+            // keep showing the one from a time when it had.
+            String trustNetworkHash = RegistryDB.calculateTrustNetworkHash(s);
+            if (trustNetworkHash == null) {
+                collection(Collection.SERVER_INFO.toString()).deleteOne(s, new Document("_id", "trustNetworkHash"));
+            } else {
+                setValue(s, Collection.SERVER_INFO.toString(), "trustNetworkHash", trustNetworkHash);
+            }
 
+            // Read once, and used for both the hash and the snapshot, so the hash is exactly that
+            // of the content stored under it (issue #223).
+            List<Document> snapshotAccounts = readPublishedAccounts(s);
+            List<Document> snapshotEdges = readPublishedEdges(s, snapshotAccounts);
+            String newTrustStateHash = RegistryDB.calculateTrustStateHash(snapshotAccounts, snapshotEdges);
+            String storedTrustStateHash = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHash");  // null until the first publication
+            logger.info("Computed trust state hash {} (published: {}); trust network hash {}", newTrustStateHash, storedTrustStateHash, trustNetworkHash);
+
+            boolean changed = !newTrustStateHash.equals(storedTrustStateHash);
+            boolean fullLoad = !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null));
+            // Identifies the cycle this run belongs to; set by FINALIZE_TRUST_STATE.
+            String cycle = (String) getValue(s, Collection.SERVER_INFO.toString(), "lastTrustStateUpdate");
+            String heldBackAt = (String) getValue(s, Collection.SERVER_INFO.toString(), "trustStateHeldBackAt");
             if (storedTrustStateHash == null
-                    && !"false".equals(Utils.getEnv("REGISTRY_PERFORM_FULL_LOAD", null))
+                    && fullLoad
                     && has(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument())) {
                 // Bootstrap: nothing has ever been published and the just-released accounts are
                 // still waiting for their initial full load, so the computed state is the
-                // near-empty bootstrap one — every account still 'toLoad' is excluded from the
-                // hash and the snapshot (issue #119, calculateTrustStateHash). Publishing it would
+                // near-empty bootstrap one — every account still 'toLoad' is left out of what is
+                // published (issue #119, readPublishedAccounts). Publishing it would
                 // hand consumers a trust state containing essentially nobody, replaced as soon as
                 // loading finishes without any change in the network. Hold off instead until a
                 // cycle finds the initial load complete. Checked against the database rather than
@@ -1036,140 +1078,101 @@ public enum Task implements Serializable {
                 // Once something has been published, 'toLoad' accounts are normal between-cycles
                 // state (#119) and must not suppress publication.
                 logger.info("Initial full load not complete yet; not publishing bootstrap trust state {}", newTrustStateHash);
-            } else if (previousTrustStateHash == null || !previousTrustStateHash.equals(newTrustStateHash)) {
-                logger.info("Trust state changed ({} -> {}); recording new state and snapshot", previousTrustStateHash, newTrustStateHash);
-                // Bump the counter and record the hash only once per distinct trust state. This
-                // task is transactional, so it cannot half-apply — but RELEASE_DATA is not, and an
-                // interrupted run of it enqueues this task a second time with the same hashes. The
-                // check has to be against the stored hash rather than against
-                // previousTrustStateHash from the task document, which still holds the value from
-                // before the first run and would let the counter drift on every duplicate.
-                if (newTrustStateHash.equals(storedTrustStateHash)) {
-                    logger.info("Trust state {} was already recorded by an earlier run of this task; not bumping the counter again", newTrustStateHash);
-                } else {
-                    increaseStateCounter(s);
-                    setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
+            } else if (changed && fullLoad && awaitsNewlyApprovedAccounts(s, cycle, heldBackAt)
+                    && addsNoAccount(s, storedTrustStateHash, snapshotAccounts)) {
+                // A newly approved account is left out of what is published until it is loaded,
+                // but the scores of the accounts next to it move in the cycle that approves it:
+                // an endorser's share is divided among all it endorses. Publishing now would
+                // make two trust states of one event, this one with the moved scores and the
+                // next with the account, and consumers rebuild on each. So this cycle publishes
+                // nothing and leaves the account to the loader; the next one publishes both
+                // together (issue #223).
+                //
+                // Only if publishing now would add no account, though: one that has been loaded
+                // in the meantime is not kept waiting because the next one has arrived, so
+                // while accounts keep arriving, each is published in the cycle after its own,
+                // as it would be without any of this. Never for two cycles in a row either. And
+                // an account holds things back only in the cycle that hands it to the loader,
+                // so one that takes long, or cannot be loaded at all, delays nothing after that.
+                logger.info("Newly approved accounts are waiting to be loaded; holding trust state {} back for one cycle", newTrustStateHash);
+                setValue(s, Collection.SERVER_INFO.toString(), "trustStateHeldBackAt", cycle);
+            } else {
+                if (heldBackAt != null) {
+                    collection(Collection.SERVER_INFO.toString()).deleteOne(s, new Document("_id", "trustStateHeldBackAt"));
                 }
-                Object trustStateCounter = getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter");
-                // Keyed on the counter, which is stable across retries thanks to the guard above,
-                // so a retry replaces this row instead of appending a duplicate. The
-                // trustStateCounter field is kept because DebugPage queries on it.
-                collection("debug_trustPaths").replaceOne(s,
-                        new Document("_id", trustStateCounter),
-                        new Document("_id", trustStateCounter)
-                                .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
-                                .append("trustStateHash", newTrustStateHash)
-                                .append("trustStateCounter", trustStateCounter),
-                        new ReplaceOptions().upsert(true));
+                if (changed || !has(s, Collection.TRUST_STATE_SNAPSHOTS.toString(), new Document("_id", newTrustStateHash))) {
+                    Long recordedCounter = (Long) getValue(s, Collection.SERVER_INFO.toString(), "trustStateCounter");
+                    long trustStateCounter;
+                    if (changed) {
+                        logger.info("Trust state changed ({} -> {}); recording new state and snapshot", storedTrustStateHash, newTrustStateHash);
+                        // The value increaseStateCounter gives it below.
+                        trustStateCounter = recordedCounter == null ? 0L : recordedCounter + 1;
+                    } else {
+                        // The hash is recorded but there is no snapshot under it. The order of
+                        // the writes below does not leave that behind, but an earlier version
+                        // recorded the hash first and could. Consumers would be pointed at a
+                        // snapshot that does not exist, so write it.
+                        logger.warn("Trust state {} is recorded but has no snapshot; writing it", newTrustStateHash);
+                        trustStateCounter = recordedCounter == null ? 0L : recordedCounter;
+                    }
+                    // Keyed on the counter, so a retry replaces this row instead of appending a
+                    // duplicate. The trustStateCounter field is kept because DebugPage queries on it.
+                    collection("debug_trustPaths").replaceOne(s,
+                            new Document("_id", trustStateCounter),
+                            new Document("_id", trustStateCounter)
+                                    .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
+                                    .append("trustStateHash", newTrustStateHash)
+                                    .append("trustStateCounter", trustStateCounter),
+                            new ReplaceOptions().upsert(true));
 
-                // Structured hash-keyed snapshot for consumer mirroring (#107).
-                // Reads the accounts collection just renamed from accounts_loading above (:697).
-                List<Document> snapshotAccounts = new ArrayList<>();
-                for (Document a : collection(Collection.ACCOUNTS.toString()).find(s)) {
-                    String pubkey = a.getString("pubkey");
-                    if ("$".equals(pubkey)) {
-                        continue;
+                    // Structured hash-keyed snapshot for consumer mirroring (#107).
+                    Document snapshot = new Document()
+                            .append("_id", newTrustStateHash)
+                            .append("trustStateCounter", trustStateCounter)
+                            .append("createdAt", ZonedDateTime.now().toString())
+                            .append("trustNetworkHash", trustNetworkHash)
+                            .append("accounts", snapshotAccounts)
+                            .append("edges", snapshotEdges);
+                    collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).replaceOne(
+                            s,
+                            new Document("_id", newTrustStateHash),
+                            snapshot,
+                            new ReplaceOptions().upsert(true));
+                    logger.debug("Saved trust state snapshot {} with {} account(s) and {} edge(s)", newTrustStateHash, snapshotAccounts.size(), snapshotEdges.size());
+
+                    if (changed) {
+                        // Recorded only now that the snapshot is there: consumers fetch it as
+                        // soon as they see the hash, and this task's writes do not commit
+                        // together. Comparing with the stored hash is also what makes a second
+                        // run harmless: an interrupted RELEASE_DATA enqueues this task again,
+                        // and that run then finds the state it computes already recorded and
+                        // does not bump the counter again. A run that stops before this point
+                        // is repeated in full and writes the same snapshot under the same counter.
+                        increaseStateCounter(s);
+                        setValue(s, Collection.SERVER_INFO.toString(), "trustStateHash", newTrustStateHash);
                     }
-                    // 'toLoad' is an internal-only staging status (not yet servable). Excluding it here
-                    // — together with the matching exclusion in calculateTrustStateHash — keeps transient
-                    // 'toLoad' accounts out of the published snapshot, so an account enters the public
-                    // trust state exactly when it becomes loaded, never stuck at 'toLoad' (issue #119).
-                    if (toLoad.getValue().equals(a.getString("status"))) {
-                        continue;
-                    }
-                    snapshotAccounts.add(new Document()
-                            .append("pubkey", pubkey)
-                            .append("agent", a.getString("agent"))
-                            .append("name", a.getString("name"))
-                            .append("nameCreatedAt", a.get("nameCreatedAt"))
-                            .append("introNanopub", a.getString("introNanopub"))
-                            .append("status", a.getString("status"))
-                            .append("depth", a.get("depth"))
-                            .append("pathCount", a.get("pathCount"))
-                            .append("ratio", a.get("ratio"))
-                            .append("quota", a.get("quota")));
-                }
-                // Agent-level endorsement edges between published accounts
-                // (nanopub-query#184). trustEdges is cumulative across cycles and
-                // never rebuilt, so membership in this state comes from filtering:
-                // only non-invalidated edges whose endpoints are both in the account
-                // set published above. The bootstrap seed rows (agent "$") fall out
-                // of the same filter, as "$" accounts are excluded from the snapshot.
-                // Additive envelope field, like 'name' (#113) and 'introNanopub'
-                // (#117/#118): older consumers ignore it.
-                Set<String> publishedAccountKeys = new HashSet<>();
-                for (Document a : snapshotAccounts) {
-                    publishedAccountKeys.add(a.getString("agent") + "|" + a.getString("pubkey"));
-                }
-                List<Document> publishedEdges = new ArrayList<>();
-                Set<String> edgeSourceAcs = new HashSet<>();
-                for (Document e : collection("trustEdges").find(s, new Document("invalidated", false))) {
-                    if (!publishedAccountKeys.contains(e.getString("fromAgent") + "|" + e.getString("fromPubkey"))
-                            || !publishedAccountKeys.contains(e.getString("toAgent") + "|" + e.getString("toPubkey"))) {
-                        continue;
-                    }
-                    publishedEdges.add(e);
-                    edgeSourceAcs.add(e.getString("source"));
-                }
-                // An edge's 'source' is the endorsement nanopub's artifact code; the
-                // envelope carries its full URI (matching the introNanopub field),
-                // resolved from the local nanopub store. An endorsement was by
-                // definition loaded, so the fallback for a missing local copy is a
-                // resolver-form URI rather than dropping the edge.
-                Map<String, String> sourceUriByAc = new HashMap<>();
-                if (!edgeSourceAcs.isEmpty()) {
-                    for (Document d : collection(Collection.NANOPUBS.toString())
-                            .find(s, new Document("_id", new Document("$in", new ArrayList<>(edgeSourceAcs))))
-                            .projection(new Document("fullId", 1))) {
-                        if (d.getString("fullId") != null) {
-                            sourceUriByAc.put(d.getString("_id"), d.getString("fullId"));
+
+                    // Prune beyond retention: collect _ids of snapshots past the Nth most recent, delete them.
+                    // trustStateCounter is monotonically increasing (see increaseStateCounter above), so ordering is well-defined.
+                    List<Object> toPrune = new ArrayList<>();
+                    try (MongoCursor<Document> stale = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
+                            .find(s)
+                            .sort(descending("trustStateCounter"))
+                            .skip(TRUST_STATE_SNAPSHOT_RETENTION)
+                            .projection(new Document("_id", 1))
+                            .cursor()) {
+                        while (stale.hasNext()) {
+                            toPrune.add(stale.next().get("_id"));
                         }
                     }
-                }
-                List<Document> snapshotEdges = new ArrayList<>(publishedEdges.size());
-                for (Document e : publishedEdges) {
-                    String sourceAc = e.getString("source");
-                    snapshotEdges.add(new Document()
-                            .append("fromAgent", e.getString("fromAgent"))
-                            .append("fromPubkey", e.getString("fromPubkey"))
-                            .append("toAgent", e.getString("toAgent"))
-                            .append("toPubkey", e.getString("toPubkey"))
-                            .append("viaNanopub", sourceUriByAc.getOrDefault(sourceAc, "https://w3id.org/np/" + sourceAc)));
-                }
-
-                Document snapshot = new Document()
-                        .append("_id", newTrustStateHash)
-                        .append("trustStateCounter", trustStateCounter)
-                        .append("createdAt", ZonedDateTime.now().toString())
-                        .append("accounts", snapshotAccounts)
-                        .append("edges", snapshotEdges);
-                collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).replaceOne(
-                        s,
-                        new Document("_id", newTrustStateHash),
-                        snapshot,
-                        new ReplaceOptions().upsert(true));
-                logger.debug("Saved trust state snapshot {} with {} account(s) and {} edge(s)", newTrustStateHash, snapshotAccounts.size(), snapshotEdges.size());
-
-                // Prune beyond retention: collect _ids of snapshots past the Nth most recent, delete them.
-                // trustStateCounter is monotonically increasing (see increaseStateCounter above), so ordering is well-defined.
-                List<Object> toPrune = new ArrayList<>();
-                try (MongoCursor<Document> stale = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
-                        .find(s)
-                        .sort(descending("trustStateCounter"))
-                        .skip(TRUST_STATE_SNAPSHOT_RETENTION)
-                        .projection(new Document("_id", 1))
-                        .cursor()) {
-                    while (stale.hasNext()) {
-                        toPrune.add(stale.next().get("_id"));
+                    if (!toPrune.isEmpty()) {
+                        logger.info("Pruning {} trust state snapshot(s) beyond retention limit of {}", toPrune.size(), TRUST_STATE_SNAPSHOT_RETENTION);
+                        collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).deleteMany(
+                                s, new Document("_id", new Document("$in", toPrune)));
                     }
+                } else {
+                    logger.info("Trust state unchanged ({}); skipping snapshot and pruning", newTrustStateHash);
                 }
-                if (!toPrune.isEmpty()) {
-                    logger.info("Pruning {} trust state snapshot(s) beyond retention limit of {}", toPrune.size(), TRUST_STATE_SNAPSHOT_RETENTION);
-                    collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).deleteMany(
-                            s, new Document("_id", new Document("$in", toPrune)));
-                }
-            } else {
-                logger.info("Trust state unchanged ({}); skipping snapshot and pruning", newTrustStateHash);
             }
 
             if (status == coreLoading) {
@@ -1915,6 +1918,198 @@ public enum Task implements Serializable {
             throw new RuntimeException("Illegal DB state: serverInfo status unavailable");
         }
         return ServerStatus.valueOf(status.toString());
+    }
+
+    /**
+     * Decides whether an introduction replaces the one an account currently takes its name,
+     * name timestamp and authorizing introduction from.
+     *
+     * <p>
+     * An account can have several introductions, and they are met in an order that depends
+     * on how the endorsements happen to be listed. The choice must not depend on that order:
+     * the three values are published in the trust state, so a choice that flips from one
+     * cycle to the next would publish a new state each time (issue #223). This is therefore a
+     * total order: an introduction with a name comes before one without, then the one created
+     * later (a dated one before an undated one), then the one with the smaller URI.
+     *
+     * @param name      the name the candidate introduction gives, or null
+     * @param createdAt when the candidate introduction was created, or null
+     * @param nanopub   the URI of the candidate introduction
+     * @param current   the account as recorded so far
+     * @return true if the candidate comes before the introduction recorded on the account
+     */
+    static boolean introTakesPrecedence(String name, Date createdAt, String nanopub, Document current) {
+        boolean currentHasName = current.getString("name") != null;
+        if ((name != null) != currentHasName) {
+            return name != null;
+        }
+        Date currentCreatedAt = current.getDate("nameCreatedAt");
+        if (!Objects.equals(createdAt, currentCreatedAt)) {
+            if (createdAt == null || currentCreatedAt == null) {
+                return createdAt != null;
+            }
+            return createdAt.after(currentCreatedAt);
+        }
+        String currentNanopub = current.getString("introNanopub");
+        if (nanopub == null || currentNanopub == null) {
+            return nanopub != null && currentNanopub == null;
+        }
+        return nanopub.compareTo(currentNanopub) < 0;
+    }
+
+    /**
+     * Whether a changed trust state is to be held back in this cycle because the cycle has
+     * handed newly approved accounts to the loader (see {@link #PUBLISH_TRUST_STATE}).
+     *
+     * @param s          the MongoDB client session
+     * @param cycle      what identifies the current cycle, or null if unknown
+     * @param heldBackAt the cycle a trust state was last held back in, if the run before
+     *                   this one did so, otherwise null
+     * @return true if nothing is to be published in this cycle
+     */
+    private static boolean awaitsNewlyApprovedAccounts(ClientSession s, String cycle, String heldBackAt) {
+        if (cycle == null) {
+            return false;
+        }
+        if (heldBackAt != null && !heldBackAt.equals(cycle)) {
+            // The cycle before this one held back already. (A value equal to this cycle is
+            // from an earlier run of this task in the same cycle, which decides the same.)
+            return false;
+        }
+        Object newlyToLoad = getValue(s, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad");
+        if (!(newlyToLoad instanceof Number n) || n.intValue() <= 0) {
+            return false;
+        }
+        // The count is from DETERMINE_UPDATES, which a registry without trust calculation
+        // does not run, so make sure it is about accounts that are in fact waiting.
+        return has(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument());
+    }
+
+    /**
+     * Whether every one of the given accounts is already part of the trust state recorded
+     * under the given hash, so that publishing them would not add an account to it.
+     *
+     * @param s            the MongoDB client session
+     * @param recordedHash the hash of the recorded trust state, or null if there is none
+     * @param accounts     the accounts that would be published
+     * @return true if no account would be added; false also if that cannot be told, for want
+     * of the recorded snapshot
+     */
+    private static boolean addsNoAccount(ClientSession s, String recordedHash, List<Document> accounts) {
+        if (recordedHash == null) {
+            return false;
+        }
+        Document recorded = collection(Collection.TRUST_STATE_SNAPSHOTS.toString())
+                .find(s, new Document("_id", recordedHash))
+                .projection(new Document("accounts.agent", 1).append("accounts.pubkey", 1))
+                .first();
+        if (recorded == null || recorded.get("accounts") == null) {
+            return false;
+        }
+        Set<String> recordedKeys = new HashSet<>();
+        for (Document a : recorded.getList("accounts", Document.class)) {
+            recordedKeys.add(a.getString("agent") + "|" + a.getString("pubkey"));
+        }
+        for (Document a : accounts) {
+            if (!recordedKeys.contains(a.getString("agent") + "|" + a.getString("pubkey"))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Reads the accounts a trust state publishes, in the order they are hashed and stored in.
+     *
+     * <p>
+     * Left out are the synthetic root and every account still in {@code toLoad}, which is an
+     * internal staging status for accounts that cannot be served yet: an account enters the
+     * published trust state when it becomes loaded, which is then a change of that state
+     * (issue #119).
+     *
+     * @param s the MongoDB client session
+     * @return the published accounts
+     */
+    private static List<Document> readPublishedAccounts(ClientSession s) {
+        List<Document> accounts = new ArrayList<>();
+        for (Document a : collection(Collection.ACCOUNTS.toString()).find(s)) {
+            String pubkey = a.getString("pubkey");
+            if ("$".equals(pubkey)) {
+                continue;
+            }
+            if (toLoad.getValue().equals(a.getString("status"))) {
+                continue;
+            }
+            accounts.add(new Document()
+                    .append("pubkey", pubkey)
+                    .append("agent", a.getString("agent"))
+                    .append("name", a.getString("name"))
+                    .append("nameCreatedAt", a.get("nameCreatedAt"))
+                    .append("introNanopub", a.getString("introNanopub"))
+                    .append("status", a.getString("status"))
+                    .append("depth", a.get("depth"))
+                    .append("pathCount", a.get("pathCount"))
+                    .append("ratio", a.get("ratio"))
+                    .append("quota", a.get("quota")));
+        }
+        accounts.sort(RegistryDB.TRUST_STATE_ACCOUNT_ORDER);
+        return accounts;
+    }
+
+    /**
+     * Reads the agent-level endorsement edges a trust state publishes, in the order they are
+     * hashed and stored in (nanopub-query#184).
+     *
+     * <p>
+     * trustEdges is cumulative across cycles and never rebuilt, so membership in a state
+     * comes from filtering: only non-invalidated edges whose endpoints are both among the
+     * published accounts. The bootstrap seed rows (agent "$") fall out of the same filter.
+     *
+     * @param s        the MongoDB client session
+     * @param accounts the published accounts
+     * @return the published edges
+     */
+    private static List<Document> readPublishedEdges(ClientSession s, List<Document> accounts) {
+        Set<String> publishedAccountKeys = new HashSet<>();
+        for (Document a : accounts) {
+            publishedAccountKeys.add(a.getString("agent") + "|" + a.getString("pubkey"));
+        }
+        List<Document> publishedEdges = new ArrayList<>();
+        Set<String> edgeSourceAcs = new HashSet<>();
+        for (Document e : collection("trustEdges").find(s, new Document("invalidated", false))) {
+            if (!publishedAccountKeys.contains(e.getString("fromAgent") + "|" + e.getString("fromPubkey"))
+                    || !publishedAccountKeys.contains(e.getString("toAgent") + "|" + e.getString("toPubkey"))) {
+                continue;
+            }
+            publishedEdges.add(e);
+            edgeSourceAcs.add(e.getString("source"));
+        }
+        // An edge's 'source' is the endorsement nanopub's artifact code; the envelope carries
+        // its full URI (matching the introNanopub field), resolved from the local nanopub
+        // store. An endorsement was by definition loaded, so the fallback for a missing local
+        // copy is a resolver-form URI rather than dropping the edge.
+        Map<String, String> sourceUriByAc = new HashMap<>();
+        if (!edgeSourceAcs.isEmpty()) {
+            for (Document d : collection(Collection.NANOPUBS.toString())
+                    .find(s, new Document("_id", new Document("$in", new ArrayList<>(edgeSourceAcs))))
+                    .projection(new Document("fullId", 1))) {
+                if (d.getString("fullId") != null) {
+                    sourceUriByAc.put(d.getString("_id"), d.getString("fullId"));
+                }
+            }
+        }
+        List<Document> edges = new ArrayList<>(publishedEdges.size());
+        for (Document e : publishedEdges) {
+            String sourceAc = e.getString("source");
+            edges.add(new Document()
+                    .append("fromAgent", e.getString("fromAgent"))
+                    .append("fromPubkey", e.getString("fromPubkey"))
+                    .append("toAgent", e.getString("toAgent"))
+                    .append("toPubkey", e.getString("toPubkey"))
+                    .append("viaNanopub", sourceUriByAc.getOrDefault(sourceAc, "https://w3id.org/np/" + sourceAc)));
+        }
+        edges.sort(RegistryDB.TRUST_STATE_EDGE_ORDER);
+        return edges;
     }
 
     private static void schedule(ClientSession mongoSession, Task task) {

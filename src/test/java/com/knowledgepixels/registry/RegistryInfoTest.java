@@ -21,6 +21,7 @@ class RegistryInfoTest {
     public static final Long TRUST_STATE_COUNTER = 0L;
     public static final String LAST_TRUST_STATE_UPDATE = "test_state";
     public static final String TRUST_STATE_HASH = "hash_value";
+    public static final String TRUST_NETWORK_HASH = "network_hash_value";
     public static final String STATUS = "test_running";
     // What a registry stored at first launch, before the coverage settings were reported from
     // the running configuration. Such values can still sit in a database and must be ignored.
@@ -102,6 +103,7 @@ class RegistryInfoTest {
                     new org.bson.Document("_id", "trustStateCounter").append("value", TRUST_STATE_COUNTER),
                     new org.bson.Document("_id", "lastTrustStateUpdate").append("value", LAST_TRUST_STATE_UPDATE),
                     new org.bson.Document("_id", "trustStateHash").append("value", TRUST_STATE_HASH),
+                    new org.bson.Document("_id", "trustNetworkHash").append("value", TRUST_NETWORK_HASH),
                     new org.bson.Document("_id", "status").append("value", STATUS),
                     new org.bson.Document("_id", "coverageTypes").append("value", STALE_COVERAGE_TYPES),
                     new org.bson.Document("_id", "coverageAgents").append("value", STALE_COVERAGE_AGENTS),
@@ -129,6 +131,7 @@ class RegistryInfoTest {
                                   + "\"trustStateCounter\":" + TRUST_STATE_COUNTER + ","
                                   + "\"lastTrustStateUpdate\":\"" + LAST_TRUST_STATE_UPDATE + "\","
                                   + "\"trustStateHash\":\"" + TRUST_STATE_HASH + "\","
+                                  + "\"trustNetworkHash\":\"" + TRUST_NETWORK_HASH + "\","
                                   + "\"status\":\"" + STATUS + "\","
                                   + "\"coverageTypes\":\"" + COVERAGE_TYPES + "\","
                                   + "\"coverageAgents\":\"" + COVERAGE_AGENTS + "\","

@@ -13,7 +13,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -104,6 +107,7 @@ class PageOutputTest {
             verify(ctx.response).putHeader("Nanopub-Registry-Setup-Id", "1");
             verify(ctx.response).putHeader("Nanopub-Registry-Trust-State-Counter", "0");
             verify(ctx.response).putHeader("Nanopub-Registry-Trust-State-Hash", "abcdef1234567890");
+            verify(ctx.response).putHeader("Nanopub-Registry-Trust-Network-Hash", "fedcba0987654321");
             verify(ctx.response).putHeader("Nanopub-Registry-Load-Counter", "0");
             verify(ctx.response).putHeader("Nanopub-Registry-Nanopub-Count", "0");
             verify(ctx.response).putHeader("Nanopub-Registry-Test-Instance", "false");
@@ -158,6 +162,9 @@ class PageOutputTest {
 
             verify(ctx.response).putHeader("Nanopub-Registry-Status", "null");
             verify(ctx.response).putHeader("Nanopub-Registry-Test-Instance", "false");
+            // Without a network hash the header is left out, not sent as "null": its absence is
+            // what tells a reader to fall back to the trust state hash, as for an older registry.
+            verify(ctx.response, never()).putHeader(eq("Nanopub-Registry-Trust-Network-Hash"), anyString());
         }
     }
 

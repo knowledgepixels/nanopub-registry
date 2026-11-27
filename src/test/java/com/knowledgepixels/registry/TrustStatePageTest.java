@@ -42,6 +42,7 @@ class TrustStatePageTest {
         return new Document("_id", HASH)
                 .append("trustStateCounter", 42L)
                 .append("createdAt", "2026-04-15T12:00:00Z")
+                .append("trustNetworkHash", "fedcba654321")
                 .append("accounts", accounts)
                 .append("edges", edges);
     }
@@ -60,6 +61,7 @@ class TrustStatePageTest {
             assertTrue(fullBody.contains("\"trustStateHash\""), "envelope includes trustStateHash");
             assertTrue(fullBody.contains(HASH), "envelope echoes the hash");
             assertTrue(fullBody.contains("\"trustStateCounter\""), "envelope includes counter");
+            assertTrue(fullBody.contains("\"trustNetworkHash\": \"fedcba654321\""), "envelope names the network the state was computed from");
             assertTrue(fullBody.contains("\"accounts\""), "envelope includes accounts array");
             assertTrue(fullBody.contains("pk1") && fullBody.contains("pk2"), "accounts are serialized");
             assertTrue(fullBody.contains("\"edges\""), "envelope includes edges array (nanopub-query#184)");
@@ -80,6 +82,21 @@ class TrustStatePageTest {
             verify(response, atLeastOnce()).write(body.capture());
             String fullBody = String.join("", body.getAllValues());
             assertFalse(fullBody.contains("\"edges\""), "no edges key for a pre-#184 snapshot");
+        }
+    }
+
+    @Test
+    void omitsTheTrustNetworkHashForSnapshotsRecordedBeforeIt() {
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            Document legacy = makeSnapshot();
+            legacy.remove("trustNetworkHash");
+            HttpServerResponse response = setupMocks(dbMock, "/trust-state/" + HASH + ".json", legacy);
+
+            ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+            verify(response, atLeastOnce()).write(body.capture());
+            String fullBody = String.join("", body.getAllValues());
+            assertFalse(fullBody.contains("trustNetworkHash"), "no key, rather than an explicit null");
+            assertTrue(fullBody.contains("\"accounts\""), "the rest of the envelope is unaffected");
         }
     }
 

@@ -96,6 +96,7 @@ class MainPageTest {
             assertTrue(body.contains("<em>lastTrustStateUpdate:</em> 2026-04-15T12:00:00"), "timestamp is trimmed");
             assertFalse(body.contains("12:00:00.123"), "fractional seconds are not shown");
             assertTrue(body.contains("<em>trustStateHash:</em> abcdef1234"), "hash is truncated to 10 chars");
+            assertTrue(body.contains("<em>trustNetworkHash:</em> fedcba0987"), "the network hash is shown the same way");
             assertTrue(body.contains("Count: 3"), "agent count is rendered");
             assertTrue(body.contains("Accounts: 7"), "account count is rendered");
             assertTrue(body.contains("Retained snapshots: 2"), "snapshot count is rendered");

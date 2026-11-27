@@ -105,6 +105,11 @@ public class MainPage extends Page {
                 trustStateHash = trustStateHash.toString().substring(0, 10);
             }
             println("<li><em>trustStateHash:</em> " + trustStateHash + "</li>");
+            Object trustNetworkHash = serverInfo.get("trustNetworkHash");
+            if (trustNetworkHash != null) {
+                trustNetworkHash = trustNetworkHash.toString().substring(0, 10);
+            }
+            println("<li><em>trustNetworkHash:</em> " + trustNetworkHash + "</li>");
             String oSetting = getValue(mongoSession, Collection.SETTING.toString(), "original").toString();
             println("<li><em>originalSetting:</em> <a href=\"/np/" + oSetting + "\"><code>" + oSetting.substring(0, 10) + "</code></a></li>");
             String cSetting = getValue(mongoSession, Collection.SETTING.toString(), "current").toString();

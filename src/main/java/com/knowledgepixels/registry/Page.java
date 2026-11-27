@@ -51,6 +51,13 @@ public abstract class Page {
         context.response().putHeader("Nanopub-Registry-Trust-State-Counter", serverInfo.get("trustStateCounter") + "");
         context.response().putHeader("Nanopub-Registry-Last-Trust-State-Update", serverInfo.get("lastTrustStateUpdate") + "");
         context.response().putHeader("Nanopub-Registry-Trust-State-Hash", serverInfo.get("trustStateHash") + "");
+        // Sent only if there is one: a registry on an older version does not send this header
+        // either, and whoever compares registries falls back to the trust state hash by its
+        // absence (issue #223).
+        Object trustNetworkHash = serverInfo.get("trustNetworkHash");
+        if (trustNetworkHash != null) {
+            context.response().putHeader("Nanopub-Registry-Trust-Network-Hash", trustNetworkHash.toString());
+        }
         Object maxCounter = getMaxValue(mongoSession, Collection.NANOPUBS.toString(), "counter");
         context.response().putHeader("Nanopub-Registry-Load-Counter", maxCounter + "");
         context.response().putHeader("Nanopub-Registry-Nanopub-Count", collection(Collection.NANOPUBS.toString()).estimatedDocumentCount() + "");
