@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.knowledgepixels.registry.db.IndexInitializer;
 import com.mongodb.ErrorCategory;
+import com.mongodb.MongoCommandException;
 import com.mongodb.MongoNamespace;
 import com.mongodb.MongoWriteException;
 import com.mongodb.ServerAddress;
@@ -67,6 +68,11 @@ public class RegistryDB {
     private static MongoDatabase mongoDB;
 
     /**
+     * Whether the database can run multi-document transactions. Set by {@link #init()}.
+     */
+    private static boolean transactionsSupported;
+
+    /**
      * Returns the MongoDB database instance.
      *
      * @return the MongoDatabase instance
@@ -82,6 +88,47 @@ public class RegistryDB {
      */
     public static MongoClient getClient() {
         return mongoClient;
+    }
+
+    /**
+     * Whether the database can run multi-document transactions, which a replica set and a
+     * sharded cluster can and a standalone server cannot. The task runner runs the tasks that
+     * ask for a transaction without one if it cannot (issue #238).
+     *
+     * @return true if transactions are available
+     */
+    public static boolean transactionsSupported() {
+        return transactionsSupported;
+    }
+
+    /**
+     * Whether a server that answered the {@code hello} command with the given response can run
+     * transactions: a replica set member names its set, and a router of a sharded cluster says
+     * {@code isdbgrid}.
+     *
+     * @param helloResponse the response to {@code hello} (or {@code isMaster})
+     * @return true if transactions are available
+     */
+    static boolean supportsTransactions(Document helloResponse) {
+        return helloResponse.get("setName") != null || "isdbgrid".equals(helloResponse.get("msg"));
+    }
+
+    private static boolean checkTransactionSupport(String host, int port) {
+        Document hello;
+        try {
+            hello = mongoDB.runCommand(new Document("hello", 1));
+        } catch (MongoCommandException ex) {
+            // Servers before 4.4.2 know the command only by its old name.
+            hello = mongoDB.runCommand(new Document("isMaster", 1));
+        }
+        if (supportsTransactions(hello)) {
+            logger.info("MongoDB at {}:{} supports transactions", host, port);
+            return true;
+        }
+        logger.error("MongoDB at {}:{} is a standalone server, which cannot run transactions. Tasks are therefore"
+                + " run without them, and a task that fails leaves what it wrote before failing behind. Run MongoDB"
+                + " as a replica set to fix this: start it with --replSet rs0 and run rs.initiate() once.", host, port);
+        return false;
     }
 
     /**
@@ -107,6 +154,7 @@ public class RegistryDB {
         logger.info("Initializing RegistryDB connection to database '{}' at {}:{}", REGISTRY_DB_NAME, REGISTRY_DB_HOST, REGISTRY_DB_PORT);
         mongoClient = MongoClients.create("mongodb://" + REGISTRY_DB_HOST + ":" + REGISTRY_DB_PORT);
         mongoDB = mongoClient.getDatabase(REGISTRY_DB_NAME);
+        transactionsSupported = checkTransactionSupport(REGISTRY_DB_HOST, REGISTRY_DB_PORT);
 
         try (ClientSession mongoSession = mongoClient.startSession()) {
             logger.debug("MongoDB client session started for initialization");

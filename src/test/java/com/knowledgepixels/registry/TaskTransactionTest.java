@@ -99,12 +99,20 @@ class TaskTransactionTest {
         try (MockedStatic<RegistryDB> ignored = mockStatic(RegistryDB.class)) {
             // Exactly these tasks opt out, because they do something a MongoDB transaction cannot
             // hold: DDL (collection drops, indexes, renames), network fetches from peers that would
-            // blow the transaction timeout, or worker threads that each open their own session.
-            // See #128. Every other task must stay transactional.
+            // blow the transaction timeout, or worker threads that each open their own session
+            // (#128). Or because they go through every account of the trust network, which takes
+            // seconds, grows with the network, and would reach the transaction time limit; they
+            // are written to be run again on top of a failed run instead (#238). Every other task
+            // must stay transactional.
             Set<Task> exempt = EnumSet.of(
                     Task.INIT_COLLECTIONS,
                     Task.LOAD_DECLARATIONS,
+                    Task.EXPAND_TRUST_PATHS,
                     Task.LOAD_CORE,
+                    Task.CALCULATE_TRUST_SCORES,
+                    Task.AGGREGATE_AGENTS,
+                    Task.ASSIGN_PUBKEYS,
+                    Task.DETERMINE_UPDATES,
                     Task.RELEASE_DATA,
                     Task.LOAD_FULL,
                     Task.RUN_OPTIONAL_LOAD,
