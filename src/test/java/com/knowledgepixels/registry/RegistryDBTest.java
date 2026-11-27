@@ -918,7 +918,7 @@ class RegistryDBTest {
 
             RegistryDB.insert(session, Collection.ACCOUNTS.toString(),
                     new Document("agent", "agentA").append("pubkey", "pkA").append("status", EntryStatus.capped.getValue())
-                            .append("quota", 20000).append("quotaSource", "grant"));
+                            .append("quota", 20000));
             // The path of an account that is still loading counts as well: the network is the
             // same network before and after its nanopublications have arrived.
             RegistryDB.insert(session, Collection.ACCOUNTS.toString(),

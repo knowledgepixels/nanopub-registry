@@ -798,11 +798,6 @@ public enum Task implements Serializable {
                         .append("ratio", ratio)
                         .append("pathCount", pathCount)
                         .append("quota", quota);
-                if (explicitQuota == null && grantedQuota != null) {
-                    // Records where the quota comes from. It is not needed for the grant to be
-                    // published: the trust state hash covers every published quota (issue #223).
-                    d.append("quotaSource", "grant");
-                }
                 set(s, "accounts_loading", d);
             }
             // A grant waiting for its account to be approved is in order, and one with a
@@ -1117,11 +1112,16 @@ public enum Task implements Serializable {
                     }
                     // Keyed on the counter, so a retry replaces this row instead of appending a
                     // duplicate. The trustStateCounter field is kept because DebugPage queries on it.
+                    // The text lists the trust paths as they are when this trust state is
+                    // published. The trust state hash names the state the row belongs to, but is
+                    // taken over the snapshot, not over these paths; the trust network hash is
+                    // the one taken over them (issue #245).
                     collection("debug_trustPaths").replaceOne(s,
                             new Document("_id", trustStateCounter),
                             new Document("_id", trustStateCounter)
                                     .append("trustStateTxt", DebugPage.getTrustPathsTxt(s))
                                     .append("trustStateHash", newTrustStateHash)
+                                    .append("trustNetworkHash", trustNetworkHash)
                                     .append("trustStateCounter", trustStateCounter),
                             new ReplaceOptions().upsert(true));
 

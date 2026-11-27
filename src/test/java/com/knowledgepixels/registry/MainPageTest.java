@@ -119,6 +119,32 @@ class MainPageTest {
         }
     }
 
+    /**
+     * A registry without trust paths has no network hash. The page then leaves the line out,
+     * as the response header is left out, rather than showing "null" (issue #245).
+     */
+    @Test
+    void htmlLeavesOutAMissingNetworkHash() {
+        try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {
+            List<Document> serverInfo = new ArrayList<>(PageMocks.DEFAULT_SERVER_INFO);
+            serverInfo.removeIf(d -> "trustNetworkHash".equals(d.getString("_id")));
+
+            PageMocks.Db db = PageMocks.mockDb(dbMock, serverInfo);
+            dbMock.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "original")).thenReturn(SETTING_ID);
+            dbMock.when(() -> RegistryDB.getValue(db.session, Collection.SETTING.toString(), "current")).thenReturn(SETTING_ID);
+            when(db.collection(Collection.AGENTS.toString()).countDocuments(db.session)).thenReturn(0L);
+            when(db.collection(Collection.ACCOUNTS.toString()).countDocuments(db.session)).thenReturn(0L);
+            when(db.collection(Collection.TRUST_STATE_SNAPSHOTS.toString()).countDocuments(db.session)).thenReturn(0L);
+
+            PageMocks.MockContext ctx = PageMocks.contextAccepting("/", "text/html");
+            MainPage.show(ctx.context);
+
+            String body = ctx.body();
+            assertTrue(body.contains("<em>trustStateHash:</em> abcdef1234"), "the trust state hash is shown");
+            assertFalse(body.contains("trustNetworkHash"), "the missing network hash is not");
+        }
+    }
+
     @Test
     void htmlFlagsTestInstances() {
         try (MockedStatic<RegistryDB> dbMock = mockStatic(RegistryDB.class)) {

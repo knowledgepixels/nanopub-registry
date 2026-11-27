@@ -1053,7 +1053,6 @@ class TaskTest {
 
         Document account = one("accounts_loading", new Document("agent", GRANTEE_AGENT));
         assertEquals(20000, account.getInteger("quota"), "the granted quota replaces the ratio-derived one");
-        assertEquals("grant", account.getString("quotaSource"), "and is marked, for the trust state hash to cover it");
     }
 
     @Test
@@ -1068,7 +1067,6 @@ class TaskTest {
         Document account = one("accounts_loading", new Document("agent", GRANTEE_AGENT));
         assertEquals(250000, account.getInteger("quota"),
                 "the operator's own configuration has the final say on their instance");
-        assertNull(account.getString("quotaSource"));
     }
 
     /**
@@ -1085,7 +1083,6 @@ class TaskTest {
 
         Document account = one("accounts_loading", new Document("agent", GRANTEE_AGENT));
         assertEquals(1000, account.getInteger("quota"), "the ratio-derived quota, here the minimum, stays");
-        assertNull(account.getString("quotaSource"));
     }
 
     /**
@@ -1474,6 +1471,10 @@ class TaskTest {
         String networkHash = Utils.getHash("$ A|P (primary)\n");
         assertEquals(networkHash, getValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash"));
         assertEquals(networkHash, snapshot.getString("trustNetworkHash"));
+        // So does the debug row, whose text lists those paths (#245).
+        Document debugRow = all("debug_trustPaths").getFirst();
+        assertEquals(hash, debugRow.getString("trustStateHash"), "the debug row names the trust state it belongs to");
+        assertEquals(networkHash, debugRow.getString("trustNetworkHash"), "and the network its trust paths make up");
 
         // Core loading is finished, but the full backlog has not been fetched yet.
         assertEquals(ServerStatus.coreReady.toString(), getValue(session, Collection.SERVER_INFO.toString(), "status"));
