@@ -244,7 +244,7 @@ public enum Task implements Serializable {
     },
     SEED_TRUST_STATE {
 
-        // DB read from: nanopubs, setting
+        // DB read from: nanopubs, setting (accounts and lists without trust calculation)
         // DB write to:  trustPaths, endorsements, accounts
         /**
          * Seeds the loading collections for a fresh cycle, from data that
@@ -262,14 +262,19 @@ public enum Task implements Serializable {
                     int quota = entry.getValue();
                     Document account = new Document("agent", "")
                             .append("pubkey", pubkeyHash)
-                            .append("status", toLoad.getValue())
                             .append("depth", 0)
                             .append("quota", quota);
                     if (!has(s, "accounts_loading", new Document("pubkey", pubkeyHash))) {
-                        insert(s, "accounts_loading", account);
-                        logger.debug("Seeded explicit pubkey as account: {} (quota={})", pubkeyHash, quota);
+                        // Staged as DETERMINE_UPDATES stages an approved account, so that one
+                        // LOAD_FULL has loaded stays 'loaded'. Seeded as 'toLoad' on every cycle,
+                        // all of them were that again after every release, which replaces what
+                        // LOAD_FULL made of them, and an account in 'toLoad' is left out of the
+                        // published trust state: none was ever published (issue #241).
+                        insert(s, "accounts_loading", stageApprovedAccount(s, account));
+                        logger.debug("Seeded explicit pubkey as account: {} (quota={}, status={})", pubkeyHash, quota, account.getString("status"));
                     }
                 }
+                recordAccountsNewlyToLoad(s);
                 scheduleUnlessQueued(s, FINALIZE_TRUST_STATE.asDocument());
                 return;
             }
@@ -992,51 +997,10 @@ public enum Task implements Serializable {
             // TODO Handle contested accounts properly:
             for (Document d : collection("accounts_loading").find(s,
                     new DbEntryWrapper(approved).getDocument())) {
-                String pubkeyHash = d.get("pubkey").toString();
-                Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", pubkeyHash);
-                if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", loaded.getValue()))) {
-                    set(s, "accounts_loading", d.append("status", loaded.getValue()));
-                } else if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", capped.getValue()))) {
-                    // Loaded as far as its quota allows, which makes it servable, so it stays
-                    // 'capped', and in the published trust state, also when the quota computed in
-                    // this cycle leaves room again. Staged as 'toLoad', the status of accounts
-                    // that are not servable yet, it would drop out of that state until loaded
-                    // (issue #242). The mark has LOAD_FULL load the rest.
-                    if (hasQuotaRoom(s, pubkeyHash, d.getInteger("quota"))) {
-                        d.append(RESUME_LOAD, true);
-                    }
-                    set(s, "accounts_loading", d.append("status", capped.getValue()));
-                } else if ("$".equals(pubkeyHash) || AgentFilter.loadsApprovedAccount(pubkeyHash)) {
-                    // Not loaded yet. (The synthetic root is attended to by LOAD_FULL whatever
-                    // the agent filter says.)
-                    set(s, "accounts_loading", d.append("status", toLoad.getValue()));
-                } else {
-                    // Under quota enforcement, an approved account that REGISTRY_COVERAGE_AGENTS
-                    // does not cover is not loaded: LOAD_FULL would mark it 'skipped'. Staged as
-                    // 'toLoad' instead, it would be that again after every release, which
-                    // replaces what LOAD_FULL made of it, and an account that is always 'toLoad'
-                    // keeps a fresh registry from ever publishing its first trust state (issue
-                    // #242).
-                    set(s, "accounts_loading", d.append("status", skipped.getValue()));
-                }
+                set(s, "accounts_loading", stageApprovedAccount(s, d));
             }
 
-            // How many accounts this cycle hands to the loader: approved accounts staged as
-            // 'toLoad', and capped ones marked to resume, that were not waiting for it already.
-            // PUBLISH_TRUST_STATE holds a changed trust state back for one cycle on their account
-            // (see there). Counted over what is staged rather than along the way, so that the
-            // accounts an earlier, failed run staged count too. An account that was waiting
-            // already has had a cycle's worth of time to be loaded, and one the loader would pass
-            // over is staged as 'skipped' above.
-            int newlyToLoad = 0;
-            for (Document d : collection("accounts_loading").find(s, awaitingFullLoad())) {
-                Document accountId = new Document("agent", d.get("agent").toString())
-                        .append("pubkey", d.get("pubkey").toString());
-                if (!has(s, Collection.ACCOUNTS.toString(), and(accountId, awaitingFullLoad()))) {
-                    newlyToLoad++;
-                }
-            }
-            setValue(s, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad", newlyToLoad);
+            recordAccountsNewlyToLoad(s);
             warnAboutQuotaAuthoritiesNotLoadedInFull(s);
             logger.info("DETERMINE_UPDATES complete");
             scheduleUnlessQueued(s, FINALIZE_TRUST_STATE.asDocument());
@@ -2111,6 +2075,73 @@ public enum Task implements Serializable {
     }
 
     /**
+     * Gives an account this cycle approves the status it is staged with, from what the live
+     * accounts say about its load: it stays 'loaded' or 'capped' if it is that already, and is
+     * otherwise handed to the loader, or marked 'skipped' if the loader would pass it over.
+     * Used by {@link #DETERMINE_UPDATES}, and by {@link #SEED_TRUST_STATE} for the explicit
+     * pubkeys of a registry without trust calculation.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param account      the account to stage, with the quota computed for it in this cycle
+     * @return the same document, with its status set
+     */
+    private static Document stageApprovedAccount(ClientSession mongoSession, Document account) {
+        String pubkeyHash = account.get("pubkey").toString();
+        Document accountId = new Document("agent", account.get("agent").toString()).append("pubkey", pubkeyHash);
+        if (has(mongoSession, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", loaded.getValue()))) {
+            return account.append("status", loaded.getValue());
+        }
+        if (has(mongoSession, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", capped.getValue()))) {
+            // Loaded as far as its quota allows, which makes it servable, so it stays 'capped',
+            // and in the published trust state, also when the quota computed in this cycle
+            // leaves room again. Staged as 'toLoad', the status of accounts that are not
+            // servable yet, it would drop out of that state until loaded (issue #242). The mark
+            // has LOAD_FULL load the rest.
+            if (hasQuotaRoom(mongoSession, pubkeyHash, account.getInteger("quota"))) {
+                account.append(RESUME_LOAD, true);
+            }
+            return account.append("status", capped.getValue());
+        }
+        if ("$".equals(pubkeyHash) || AgentFilter.loadsApprovedAccount(pubkeyHash)) {
+            // Not loaded yet. (The synthetic root is attended to by LOAD_FULL whatever the agent
+            // filter says.)
+            return account.append("status", toLoad.getValue());
+        }
+        // Under quota enforcement, an approved account that REGISTRY_COVERAGE_AGENTS does not
+        // cover is not loaded: LOAD_FULL would mark it 'skipped'. Staged as 'toLoad' instead, it
+        // would be that again after every release, which replaces what LOAD_FULL made of it, and
+        // an account that is always 'toLoad' keeps a fresh registry from ever publishing its
+        // first trust state (issue #242).
+        return account.append("status", skipped.getValue());
+    }
+
+    /**
+     * Records how many accounts this cycle hands to the loader: staged accounts in 'toLoad',
+     * and capped ones marked to resume, that were not waiting for it already.
+     * {@link #PUBLISH_TRUST_STATE} holds a changed trust state back for one cycle on their
+     * account (see there).
+     *
+     * <p>
+     * Counted over what is staged rather than along the way, so that the accounts an earlier,
+     * failed run staged count too. An account that was waiting already has had a cycle's worth
+     * of time to be loaded, and one the loader would pass over is staged as 'skipped' (see
+     * {@link #stageApprovedAccount}).
+     *
+     * @param mongoSession the MongoDB client session
+     */
+    private static void recordAccountsNewlyToLoad(ClientSession mongoSession) {
+        int newlyToLoad = 0;
+        for (Document d : collection("accounts_loading").find(mongoSession, awaitingFullLoad())) {
+            Document accountId = new Document("agent", d.get("agent").toString())
+                    .append("pubkey", d.get("pubkey").toString());
+            if (!has(mongoSession, Collection.ACCOUNTS.toString(), and(accountId, awaitingFullLoad()))) {
+                newlyToLoad++;
+            }
+        }
+        setValue(mongoSession, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad", newlyToLoad);
+    }
+
+    /**
      * The field that marks a capped account whose quota has grown, for {@link #LOAD_FULL} to
      * load the rest of its nanopubs. Set by {@link #DETERMINE_UPDATES}, and only together with
      * the status {@code capped}: such an account is servable, and stays in the published trust
@@ -2222,8 +2253,9 @@ public enum Task implements Serializable {
         if (!(newlyToLoad instanceof Number n) || n.intValue() <= 0) {
             return false;
         }
-        // The count is from DETERMINE_UPDATES, which a registry without trust calculation
-        // does not run, so make sure it is about accounts that are in fact waiting.
+        // A count left behind by an earlier version, which did not record it on a registry
+        // without trust calculation, must hold nothing back, so make sure it is about accounts
+        // that are in fact waiting.
         return has(s, Collection.ACCOUNTS.toString(), awaitingFullLoad());
     }
 
