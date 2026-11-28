@@ -2254,6 +2254,66 @@ class TaskTest {
         assertEquals(List.of(Task.INIT_DB.name()), queuedActions());
     }
 
+    // ----------------------------------------------------- restart (issue #250)
+
+    private Document queue(Task task, long notBefore) {
+        Document taskDoc = new Document("not-before", notBefore).append("action", task.name());
+        collection(Collection.TASKS.toString()).insertOne(session, taskDoc);
+        return taskDoc;
+    }
+
+    private List<String> queuedActionsByDueTime() {
+        return collection(Collection.TASKS.toString()).find(session).sort(Sorts.ascending("not-before"))
+                .map(d -> d.getString("action")).into(new ArrayList<>());
+    }
+
+    @Test
+    void aRestartKeepsOneCopyOfTheLoadingLoop() {
+        clearQueue();
+        long now = System.currentTimeMillis();
+        Document dueFirst = queue(Task.CHECK_NEW, now);
+        queue(Task.UPDATE, now + 50);
+        queue(Task.LOAD_FULL, now + 100);
+        queue(Task.LOAD_CORE, now + 150);
+        queue(Task.CHECK_NEW, now + 200);
+        queue(Task.RUN_OPTIONAL_LOAD, now + 300);
+
+        Task.dropDuplicateLoadingLoops(session);
+
+        // The tasks of the trust cycle are not part of the loop and stay.
+        assertEquals(List.of(Task.CHECK_NEW.name(), Task.UPDATE.name(), Task.LOAD_CORE.name()), queuedActionsByDueTime());
+        assertEquals(dueFirst.get("_id"), queuedTask(Task.CHECK_NEW).get("_id"), "the copy due first is kept");
+    }
+
+    @Test
+    void aRestartLeavesASingleLoadingLoopAlone() {
+        clearQueue();
+        long now = System.currentTimeMillis();
+        queue(Task.LOAD_FULL, now);
+        queue(Task.UPDATE, now + 50);
+
+        Task.dropDuplicateLoadingLoops(session);
+
+        assertEquals(List.of(Task.LOAD_FULL.name(), Task.UPDATE.name()), queuedActionsByDueTime());
+    }
+
+    @Test
+    void aLoopTaskStoppedAfterQueuingItsSuccessorRunsAgainAsTheOnlyCopy() throws Exception {
+        prepareLoadingCollections();
+        Document checkNew = queue(Task.CHECK_NEW, System.currentTimeMillis());
+        // Run, but not removed from the queue: the process stopped in between.
+        try (MockedStatic<LegacyConnector> legacy = mockStatic(LegacyConnector.class)) {
+            Task.CHECK_NEW.run(session, checkNew);
+        }
+        assertEquals(List.of(Task.CHECK_NEW.name(), Task.LOAD_FULL.name()), queuedActionsByDueTime(),
+                "two copies of the loop");
+
+        Task.dropDuplicateLoadingLoops(session);
+
+        assertEquals(List.of(Task.CHECK_NEW.name()), queuedActionsByDueTime());
+        assertEquals(checkNew.get("_id"), queuedTask(Task.CHECK_NEW).get("_id"));
+    }
+
     // ------------------------------------------------------------------ UPDATE
 
     @Test

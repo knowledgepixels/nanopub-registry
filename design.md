@@ -229,6 +229,8 @@ On a standalone server the registry logs an error at startup and runs every task
 A task that stays non-transactional is re-executed after a crash and must be idempotent, since its writes are not atomic with its own removal from the queue.
 On startup, a trust state cycle (steps 2–4) interrupted that way is therefore not resumed but restarted: the queued cycle tasks are dropped and `INIT_COLLECTIONS` is scheduled afresh, which discards the `_loading` collections and rebuilds them.
 The exception is the tail of the cycle, `RELEASE_DATA` and `PUBLISH_TRUST_STATE`: the computation is complete by then and both are idempotent, so they are kept and left to finish rather than recomputed.
+The loading loop (step 5) is kept to a single copy instead: a loop task stopped after it had queued its successor is still queued next to that successor, and both would carry the loop on, polling the peers twice as often.
+So on startup, when more than one loop task is queued, the one due first is kept and the others are dropped ([#250](https://github.com/knowledgepixels/nanopub-registry/issues/250)).
 
 A task that fails while the process keeps running stays first in the queue and is run again right away.
 A transactional task then starts from where the failed run started, as nothing it wrote was kept.
@@ -236,7 +238,7 @@ Any other task runs on top of whatever it wrote before failing, so the non-trans
 their writes leave or replace what an earlier run wrote, they take their work by a status that a finished piece of work no longer has (an account whose trust path is marked as expanded is not expanded again), and they queue their successor only if it is not queued already.
 `SEED_TRUST_STATE` is written the same way, for a MongoDB that cannot run transactions.
 
-See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`recoverInterruptedCycle`).
+See [Task.java](src/main/java/com/knowledgepixels/registry/Task.java) (`recoverInterruptedCycle`, `dropDuplicateLoadingLoops`).
 
 
 ## Updating from peers

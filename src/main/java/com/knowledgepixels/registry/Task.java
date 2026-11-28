@@ -1771,6 +1771,14 @@ public enum Task implements Serializable {
      */
     private static final Set<Task> TRUST_CYCLE_TAIL_TASKS = EnumSet.of(RELEASE_DATA, PUBLISH_TRUST_STATE);
 
+    /**
+     * The tasks of the loading loop, which {@link #LOAD_SETTING} starts once and in which each
+     * task queues the next.
+     *
+     * @see #dropDuplicateLoadingLoops
+     */
+    private static final Set<Task> LOADING_LOOP_TASKS = EnumSet.of(LOAD_FULL, RUN_OPTIONAL_LOAD, CHECK_NEW);
+
     private static volatile String currentTaskName;
     private static volatile long currentTaskStartTime;
 
@@ -1845,6 +1853,35 @@ public enum Task implements Serializable {
     }
 
     /**
+     * Keeps a single copy of the loading loop in the queue (issue #250).
+     *
+     * <p>
+     * {@link #LOAD_SETTING} starts the loop once, and each of its tasks queues exactly one
+     * successor, so one of them is queued at any time. They are not transactional, though: a
+     * loop task stopped after it had queued its successor but before it was removed from the
+     * queue is still queued on restart, next to that successor. Both would carry the loop on,
+     * each copy polling the peers and the legacy source, and nothing would ever merge them, so
+     * every such restart would add a copy. The task due first is therefore kept and the others
+     * are dropped. That is the stopped task, which then runs again, as it would have without a
+     * copy.
+     *
+     * @param mongoSession the MongoDB client session
+     */
+    static void dropDuplicateLoadingLoops(ClientSession mongoSession) {
+        List<String> loopNames = LOADING_LOOP_TASKS.stream().map(Task::name).toList();
+        List<Document> queued = tasksCollection.find(mongoSession, in("action", loopNames))
+                .sort(ascending("not-before", "_id"))
+                .into(new ArrayList<>());
+        if (queued.size() < 2) {
+            return;
+        }
+        List<Object> duplicates = queued.subList(1, queued.size()).stream().map(d -> d.get("_id")).toList();
+        long removed = tasksCollection.deleteMany(mongoSession, in("_id", duplicates)).getDeletedCount();
+        logger.info("Found {} copies of the loading loop in the queue: kept {}, dropped {} queued task(s)",
+                queued.size(), queued.getFirst().getString("action"), removed);
+    }
+
+    /**
      * The super important base entry point!
      */
     static void runTasks() {
@@ -1854,6 +1891,7 @@ public enum Task implements Serializable {
             } else {
                 DataRepair.runIfNeeded(s);
                 recoverInterruptedCycle(s);
+                dropDuplicateLoadingLoops(s);
             }
 
             logger.info("Task runner started");
