@@ -61,11 +61,6 @@ import static org.mockito.Mockito.mockStatic;
  * writes, and which task it hands over to. Peer URLs are pinned to an empty list, which
  * makes {@code retrieveNanopubsFromPeers} return an empty stream — the tasks therefore
  * run their full logic without any network access.
- * <p>
- * Branches gated on {@code System.getenv} directly (rather than the injectable
- * {@code Utils.getEnv}) are not reachable from here: {@code REGISTRY_ENABLE_TRUST_CALCULATION},
- * {@code REGISTRY_ENABLE_OPTIONAL_LOAD}, {@code REGISTRY_PERFORM_FULL_LOAD} and
- * {@code REGISTRY_PRIORITIZE_ALL_PUBKEYS}.
  */
 @Testcontainers
 class TaskTest {
@@ -411,6 +406,39 @@ class TaskTest {
         runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
 
         assertEquals(1, all("accounts_loading").size());
+    }
+
+    /**
+     * Seeded as 'toLoad' on every cycle, explicit pubkeys were that again after every release,
+     * and none was ever published (issue #241).
+     */
+    @Test
+    void seedTrustStateKeepsWhatTheLoaderMadeOfExplicitPubkeysWhenTrustCalculationIsDisabled() throws Exception {
+        bootstrap();
+        fakeEnv.addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false")
+                .addVariable("REGISTRY_COVERAGE_AGENTS", "PK1:500 PK2:900 PK3:100").build();
+        AgentFilter.init();
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "").append("pubkey", "PK1")
+                .append("status", EntryStatus.loaded.getValue()).append("depth", 0).append("quota", 500));
+        // PK2 holds ten nanopubs, which was its quota until it was configured higher.
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "").append("pubkey", "PK2")
+                .append("status", EntryStatus.capped.getValue()).append("depth", 0).append("quota", 10));
+        seed("lists", new Document("pubkey", "PK2").append("type", "$").append("maxPosition", 9L));
+        setStatus(ServerStatus.updating);
+        clearQueue();
+
+        Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
+
+        assertEquals(EntryStatus.loaded.getValue(), one("accounts_loading", new Document("pubkey", "PK1")).getString("status"));
+        Document pk2 = one("accounts_loading", new Document("pubkey", "PK2"));
+        assertEquals(EntryStatus.capped.getValue(), pk2.getString("status"));
+        assertEquals(900, pk2.getInteger("quota"));
+        assertEquals(true, pk2.get(Task.RESUME_LOAD), "the rest of PK2 is to be loaded");
+        assertEquals(EntryStatus.toLoad.getValue(), one("accounts_loading", new Document("pubkey", "PK3")).getString("status"));
+        assertEquals(2, getValue(session, Collection.SERVER_INFO.toString(), "accountsNewlyToLoad"),
+                "PK2 and PK3 are handed to the loader");
+        assertEquals(List.of(Task.FINALIZE_TRUST_STATE.name()), queuedActions());
     }
 
     @Test
@@ -2219,6 +2247,55 @@ class TaskTest {
     }
 
     /**
+     * Runs a whole trust cycle on a registry without trust calculation.
+     */
+    private void runCycleWithoutTrustCalculation() throws Exception {
+        clearQueue();
+        Task.runTask(Task.INIT_COLLECTIONS, Task.INIT_COLLECTIONS.asDocument());
+        runQueuedSuccessor(Task.INIT_COLLECTIONS, Task.SEED_TRUST_STATE);
+        runQueuedSuccessor(Task.SEED_TRUST_STATE, Task.FINALIZE_TRUST_STATE);
+        runQueuedSuccessor(Task.FINALIZE_TRUST_STATE, Task.RELEASE_DATA);
+        runQueuedSuccessor(Task.RELEASE_DATA, Task.PUBLISH_TRUST_STATE);
+        clearQueue();
+    }
+
+    /**
+     * Without trust calculation, the explicit pubkeys were seeded as 'toLoad' on every cycle,
+     * so whenever a trust state was published, all of them were left out of it, and a fresh
+     * registry published none at all (issue #241).
+     */
+    @Test
+    void aRegistryWithoutTrustCalculationPublishesItsExplicitPubkeysOnceLoaded() throws Exception {
+        bootstrap();
+        fakeEnv.addVariable("REGISTRY_ENABLE_TRUST_CALCULATION", "false")
+                .addVariable("REGISTRY_COVERAGE_AGENTS", "PK1:500 PK2:900").build();
+        AgentFilter.init();
+        setStatus(ServerStatus.coreLoading);
+
+        runCycleWithoutTrustCalculation();
+        assertNull(publishedHash(), "the initial full load has yet to be done");
+
+        runFullLoadPass();
+        setStatus(ServerStatus.updating);
+        runCycleWithoutTrustCalculation();
+
+        assertNotNull(publishedHash(), "the first trust state is published once the pubkeys are loaded");
+        List<Document> published = snapshotAccounts(publishedHash());
+        assertEquals(List.of("PK1", "PK2"), published.stream().map(d -> d.getString("pubkey")).toList());
+        assertEquals(List.of(EntryStatus.loaded.getValue(), EntryStatus.loaded.getValue()),
+                published.stream().map(d -> d.getString("status")).toList());
+        assertEquals(List.of(500, 900), published.stream().map(d -> d.getInteger("quota")).toList());
+        Object counter = publishedCounter();
+
+        setStatus(ServerStatus.updating);
+        runCycleWithoutTrustCalculation();
+
+        assertEquals(counter, publishedCounter(), "an unchanged cycle publishes nothing new");
+        assertEquals(EntryStatus.loaded.getValue(),
+                one(Collection.ACCOUNTS.toString(), new Document("pubkey", "PK1")).getString("status"));
+    }
+
+    /**
      * The runner picks the queued task with the smallest 'not-before'. A LOAD_FULL that got in
      * between would move accounts on before they are published, and what is published would
      * depend on that timing.
@@ -2245,9 +2322,9 @@ class TaskTest {
     @Test
     void theTrustNetworkHashIsRemovedWhenThereAreNoTrustPaths() throws Exception {
         prepareLoadingCollections();
-        fakeEnv.addVariable("REGISTRY_PERFORM_FULL_LOAD", "false").build();
         RegistryDB.setValue(session, Collection.SERVER_INFO.toString(), "trustNetworkHash", "from-an-earlier-configuration");
         IndexInitializer.initLoadingCollections(session);
+        // An explicit pubkey of a registry without trust calculation, as it is staged once loaded.
         seed("accounts_loading", new Document("agent", "").append("pubkey", "PK1")
                 .append("status", EntryStatus.loaded.getValue()).append("depth", 0).append("quota", 500));
 

@@ -203,7 +203,7 @@ Tasks are scheduled and executed sequentially from a `tasks` collection. The mai
 3. `FINISH_ITERATION` — repeats step 2 until no more changes
 4. `CALCULATE_TRUST_SCORES` → `AGGREGATE_AGENTS` → `ASSIGN_PUBKEYS` → `DETERMINE_UPDATES` → `FINALIZE_TRUST_STATE` → `RELEASE_DATA` → `PUBLISH_TRUST_STATE` — compute trust scores and quotas, swap in new data
 
-Steps 2–4 can be skipped with `REGISTRY_ENABLE_TRUST_CALCULATION=false`, which makes `SEED_TRUST_STATE` jump straight to `FINALIZE_TRUST_STATE`. Useful when only explicit `REGISTRY_COVERAGE_AGENTS` pubkeys are needed.
+Steps 2–4 can be skipped with `REGISTRY_ENABLE_TRUST_CALCULATION=false`, which makes `SEED_TRUST_STATE` jump straight to `FINALIZE_TRUST_STATE`. Useful when only explicit `REGISTRY_COVERAGE_AGENTS` pubkeys are needed. `SEED_TRUST_STATE` then stages those pubkeys as accounts with an empty agent, the way `DETERMINE_UPDATES` stages approved accounts: one that is `loaded` or `capped` stays so, and the others are handed to `LOAD_FULL` as `toLoad`. Once loaded, they are published in the trust state (issue #241).
 5. `LOAD_FULL` → `RUN_OPTIONAL_LOAD` → `CHECK_NEW` — continuous cycle: load nanopubs for trusted accounts, then optionally load for non-approved pubkeys (one per cycle), then check peers for new nanopubs and discover new pubkeys, then loop back to `LOAD_FULL`. Optional loading can be disabled with `REGISTRY_ENABLE_OPTIONAL_LOAD=false`
 6. `UPDATE` (by default 10min after the previous recalculation finished, `REGISTRY_UPDATE_INTERVAL`) → `INIT_COLLECTIONS` — triggers a trust state recalculation (steps 2–4); the `LOAD_FULL` cycle (step 5) continues running during updates
 
