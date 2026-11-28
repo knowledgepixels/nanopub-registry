@@ -67,8 +67,8 @@ Quotas:
   network approves it, and has no effect before that or for any other agent declaring the same key. Approval stays
   with introductions and endorsements, so a registry that does not compute the trust network applies no grants. The
   same holds for the authorities: being listed makes a key's grants count, but only an approved account is loaded in
-  full from the peers, so an authority should be an agent the trust network approves (the trust cycle logs a warning
-  for one that is not)
+  full from the peers, so an authority should be an agent the trust network approves and the registry covers (the
+  trust cycle logs a warning for one that is not)
 - A quota, however it was set (computed, explicit, or by a grant), is part of what a registry publishes about an
   account, and so of its trust state hash (see [Trust State Snapshots](#trust-state-snapshots)): a changed quota is
   published as a new trust state. Registries with different authorities or explicit quotas therefore differ in their
@@ -79,7 +79,10 @@ Quotas:
   not applied
 - Under enforcement, an account that has reached its quota is marked `capped`: loading stops for it and further
   publishing is refused, but it stays a loaded, servable account and stays in the published trust state. A later cycle
-  that computes a larger quota for it resumes loading
+  that computes a larger quota for it resumes loading: the account stays `capped`, and in the published trust state,
+  marked `resumeLoad` until `LOAD_FULL` has loaded the rest (issue #242)
+- Under enforcement, an approved account that `REGISTRY_COVERAGE_AGENTS` does not cover (no `viaSetting`, and its pubkey
+  not listed) is not loaded. The trust cycle stages it as `skipped` rather than `toLoad`, and it is published as such
 - Unapproved pubkeys are rationed rather than refused, so that the trust network stays enterable — see
   [Publishing responses](#publishing-responses)
 
@@ -338,6 +341,7 @@ Field type legend: primary# / unique* / combined-unique** / indexed^ (all with p
     accounts:
       { pubkey**:a83, agent**:JohnDoe, ratio:0.1362, type^:base, depth:1, pathCount:3, quota:1362000, status:loaded }
       { pubkey**:d28, agent**:JohnDoe, ... }
+      { pubkey**:f04, agent**:SueRich, ..., quota:20000, status:capped, resumeLoad:true }  (capped under a quota that has since grown)
       ...
     agents:
       { agent**:JohnDoe, totalRatio^:0.1732, accountCount:3, avgPathCount:2.5 }
@@ -438,7 +442,8 @@ Two situations publish nothing although the content differs from what is recorde
   Published as they come, that would be two trust states for one event, and consumers rebuild on each.
   The next cycle publishes the account and the moved scores together.
   An account that has been loaded is never kept waiting by this: a state that adds an account is published at once, so each account appears in the cycle after the one that approved it, also while others keep arriving.
-  Nor does it happen two cycles in a row, and an account holds things back only in the cycle that hands it to the loader: one that takes long to load, or that the loader passes over, delays nothing after that.
+  Nor does it happen two cycles in a row, and an account holds things back only in the cycle that hands it to the loader: one that takes long to load delays nothing after that, and one the loader would pass over is not handed to it.
+  A capped account whose quota has grown counts as handed to the loader too. It stays in the published state, as `capped`, and the next cycle publishes its new quota together with the status the load ends in.
 
 For each hash transition, a single document is upserted into the `trustStateSnapshots` collection:
 

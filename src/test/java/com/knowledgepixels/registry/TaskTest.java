@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 
@@ -1519,24 +1520,40 @@ class TaskTest {
     }
 
     /**
-     * Under quota enforcement the loader passes over an account it does not cover, cycle after
-     * cycle. Waiting for it would hold every other trust state back for nothing.
+     * Under quota enforcement the loader passes over an approved account that the agent filter
+     * does not cover. Staged as 'toLoad', the status of an account that is not servable yet,
+     * it would be that again in every cycle, and a fresh registry would never publish its first
+     * trust state (issue #242). Nor is it a reason to hold any other state back.
      */
     @Test
-    void determineUpdatesDoesNotCountAnAccountTheLoaderPassesOver() throws Exception {
+    void determineUpdatesStagesAnAccountTheLoaderPassesOverAsSkipped() throws Exception {
         prepareLoadingCollections();
         TestUtils.clearStaticFields(AgentFilter.class, Map.of("enforceQuota", true, "viaSetting", false));
         seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()).append("quota", 1000));
+
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertEquals(EntryStatus.skipped.getValue(),
+                one("accounts_loading", new Document("agent", "A")).getString("status"));
+        assertEquals(0, newlyToLoad());
+    }
+
+    /**
+     * LOAD_FULL attends to the synthetic root whatever the agent filter says, so it is staged
+     * for loading as before.
+     */
+    @Test
+    void determineUpdatesStagesTheRootForLoadingOnARegistryThatCoversOnlySomeAgents() throws Exception {
+        prepareLoadingCollections();
+        TestUtils.clearStaticFields(AgentFilter.class, Map.of("enforceQuota", true, "viaSetting", false));
+        seed("accounts_loading", new Document("agent", "$").append("pubkey", "$")
                 .append("status", EntryStatus.approved.getValue()));
-        // What LOAD_FULL made of it after the previous cycle.
-        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
-                .append("status", EntryStatus.skipped.getValue()));
 
         Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
 
         assertEquals(EntryStatus.toLoad.getValue(),
-                one("accounts_loading", new Document("agent", "A")).getString("status"));
-        assertEquals(0, newlyToLoad());
+                one("accounts_loading", new Document("agent", "$")).getString("status"));
     }
 
     @Test
@@ -1572,10 +1589,17 @@ class TaskTest {
 
         Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
 
-        assertEquals(EntryStatus.capped.getValue(),
-                one("accounts_loading", new Document("agent", "A")).getString("status"));
+        Document staged = one("accounts_loading", new Document("agent", "A"));
+        assertEquals(EntryStatus.capped.getValue(), staged.getString("status"));
+        assertFalse(staged.containsKey(Task.RESUME_LOAD), "there is nothing more to load");
+        assertEquals(0, newlyToLoad());
     }
 
+    /**
+     * A capped account whose quota has grown stays capped, and so in the published trust
+     * state, while LOAD_FULL loads the rest. Staged as 'toLoad' it dropped out of that state
+     * until it was loaded (issue #242).
+     */
     @Test
     void determineUpdatesLetsACappedAccountResumeOnceItsQuotaGrows() throws Exception {
         prepareLoadingCollections();
@@ -1588,10 +1612,27 @@ class TaskTest {
 
         Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
 
-        assertEquals(EntryStatus.toLoad.getValue(),
-                one("accounts_loading", new Document("agent", "A")).getString("status"),
+        Document staged = one("accounts_loading", new Document("agent", "A"));
+        assertEquals(EntryStatus.capped.getValue(), staged.getString("status"));
+        assertEquals(true, staged.get(Task.RESUME_LOAD),
                 "there is room again, so LOAD_FULL has to pick it up and load the rest");
         assertEquals(1, newlyToLoad(), "which makes it an account handed to the loader in this cycle");
+    }
+
+    @Test
+    void determineUpdatesDoesNotCountAResumedAccountTwice() throws Exception {
+        prepareLoadingCollections();
+        seed("accounts_loading", new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.approved.getValue()).append("quota", 50));
+        // The previous cycle marked it, and LOAD_FULL has not got to it yet.
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.capped.getValue()).append("quota", 50).append(Task.RESUME_LOAD, true));
+        seed("lists", new Document("pubkey", "P").append("type", "$").append("maxPosition", 9L));
+
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+
+        assertEquals(true, one("accounts_loading", new Document("agent", "A")).get(Task.RESUME_LOAD));
+        assertEquals(0, newlyToLoad());
     }
 
     @Test
@@ -2088,6 +2129,96 @@ class TaskTest {
     }
 
     /**
+     * Runs the end of a trust cycle from DETERMINE_UPDATES on, for the given accounts as the
+     * trust calculation has approved them.
+     */
+    private void runCycleEnd(String cycle, Document... approvedAccounts) throws Exception {
+        seedCycle(cycle, 0, approvedAccounts);
+        Task.runTask(Task.DETERMINE_UPDATES, Task.DETERMINE_UPDATES.asDocument());
+        clearQueue();
+        releaseAndPublish();
+        clearQueue();
+    }
+
+    /**
+     * Runs LOAD_FULL until it has attended to every account waiting for it.
+     */
+    private void runFullLoadPass() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            clearQueue();
+            Task.runTask(Task.LOAD_FULL, Task.LOAD_FULL.asDocument());
+            if (queuedActions().contains(Task.RUN_OPTIONAL_LOAD.name())) {
+                clearQueue();
+                return;
+            }
+        }
+        fail("the full load pass does not complete");
+    }
+
+    private static Document approved(Document account) {
+        return account.append("status", EntryStatus.approved.getValue());
+    }
+
+    /**
+     * Under quota enforcement, a registry that covers only some agents does not load the
+     * others. Staged as 'toLoad' in every cycle, they kept a fresh registry from ever
+     * publishing its first trust state (issue #242).
+     */
+    @Test
+    void aFreshRegistryThatCoversOnlySomeAgentsPublishesItsFirstTrustState() throws Exception {
+        prepareLoadingCollections();
+        setStatus(ServerStatus.coreLoading);
+        fakeEnv.addVariable("REGISTRY_COVERAGE_AGENTS", "Q:500").build();
+        AgentFilter.init();
+        TestUtils.clearStaticFields(AgentFilter.class, Map.of("enforceQuota", true));
+
+        // A is approved but not covered; B's pubkey Q is.
+        runCycleEnd("cycle 1", approved(accountA()), accountB(EntryStatus.approved).append("quota", 500));
+        assertNull(publishedHash(), "the initial full load has yet to be done");
+
+        runFullLoadPass();
+        runCycleEnd("cycle 2", approved(accountA()), accountB(EntryStatus.approved).append("quota", 500));
+
+        assertNotNull(publishedHash(), "the first trust state is published once B is loaded");
+        assertEquals(List.of(EntryStatus.skipped.getValue(), EntryStatus.loaded.getValue()),
+                snapshotAccounts(publishedHash()).stream().map(d -> d.getString("status")).toList());
+    }
+
+    /**
+     * A capped account whose quota grows is servable all along, so it has to stay in the
+     * published trust state while the rest of it is loaded. Staged as 'toLoad', it dropped out
+     * of that state whenever the one-cycle hold-back did not cover the load (issue #242).
+     */
+    @Test
+    void aCappedAccountStaysInTheTrustStateWhileTheRestOfItIsLoaded() throws Exception {
+        prepareLoadingCollections();
+        TestUtils.clearStaticFields(AgentFilter.class, Map.of("enforceQuota", true));
+        seed("lists", new Document("pubkey", "P").append("type", "$").append("maxPosition", 9L));
+        // A holds ten nanopubs, which is its quota.
+        seedCycle("cycle 1", 0, accountA().append("status", EntryStatus.capped.getValue()).append("quota", 10));
+        releaseAndPublish();
+        clearQueue();
+        assertEquals(1L, publishedCounter());
+
+        // The quota grows to fifty, which hands A to the loader and holds this state back.
+        runCycleEnd("cycle 2", approved(accountA()).append("quota", 50));
+        assertEquals(1L, publishedCounter());
+
+        // The load takes longer than a cycle.
+        runCycleEnd("cycle 3", approved(accountA()).append("quota", 50));
+        assertEquals(2L, publishedCounter());
+        Document published = snapshotAccounts(publishedHash()).getFirst();
+        assertEquals(EntryStatus.capped.getValue(), published.getString("status"), "A is still served");
+        assertEquals(50, published.getInteger("quota"));
+
+        runFullLoadPass();
+        runCycleEnd("cycle 4", approved(accountA()).append("quota", 50));
+        assertEquals(3L, publishedCounter());
+        assertEquals(EntryStatus.loaded.getValue(), snapshotAccounts(publishedHash()).getFirst().getString("status"),
+                "the peers had no more, which leaves A below its new quota");
+    }
+
+    /**
      * The runner picks the queued task with the smallest 'not-before'. A LOAD_FULL that got in
      * between would move accounts on before they are published, and what is published would
      * depend on that timing.
@@ -2527,6 +2658,62 @@ class TaskTest {
         // 'capped' distinguishes "allowed but full" from "not allowed at all".
         assertEquals(EntryStatus.capped.getValue(), account.getString("status"));
         assertEquals(0, account.getInteger("quota"), "the effective quota is recorded on the account");
+    }
+
+    /**
+     * A capped account under a quota that has since grown, as DETERMINE_UPDATES marks it.
+     */
+    private static Document resumedAccount() {
+        return new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.capped.getValue()).append("quota", 50).append(Task.RESUME_LOAD, true);
+    }
+
+    @Test
+    void loadFullResumesACappedAccountWhoseQuotaHasGrown() throws Exception {
+        prepareLoadingCollections();
+        setStatus(ServerStatus.ready);
+        TestUtils.clearStaticFields(AgentFilter.class, Map.of("enforceQuota", true));
+        seed(Collection.ACCOUNTS.toString(), resumedAccount());
+        // Ten nanopubs held, under the earlier quota of ten.
+        seed("lists", new Document("pubkey", "P").append("type", "$").append("maxPosition", 9L));
+
+        Task.runTask(Task.LOAD_FULL, Task.LOAD_FULL.asDocument());
+
+        Document account = one(Collection.ACCOUNTS.toString(), new Document("agent", "A"));
+        // The peers have no more, which leaves it below its new quota.
+        assertEquals(EntryStatus.loaded.getValue(), account.getString("status"));
+        assertFalse(account.containsKey(Task.RESUME_LOAD), "the load it was marked for is done");
+        assertEquals(List.of(Task.LOAD_FULL.name()), queuedActions());
+    }
+
+    @Test
+    void loadFullLoadsAccountsThatAreNotServedYetFirst() throws Exception {
+        prepareLoadingCollections();
+        setStatus(ServerStatus.ready);
+        seed(Collection.ACCOUNTS.toString(), resumedAccount());
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "B").append("pubkey", "Q")
+                .append("status", EntryStatus.toLoad.getValue()));
+
+        Task.runTask(Task.LOAD_FULL, Task.LOAD_FULL.asDocument());
+
+        assertEquals(EntryStatus.loaded.getValue(),
+                one(Collection.ACCOUNTS.toString(), new Document("agent", "B")).getString("status"));
+        assertEquals(true, one(Collection.ACCOUNTS.toString(), new Document("agent", "A")).get(Task.RESUME_LOAD),
+                "the account that is served already comes next");
+    }
+
+    @Test
+    void loadFullLeavesACappedAccountWithoutTheMarkAlone() throws Exception {
+        prepareLoadingCollections();
+        setStatus(ServerStatus.ready);
+        seed(Collection.ACCOUNTS.toString(), new Document("agent", "A").append("pubkey", "P")
+                .append("status", EntryStatus.capped.getValue()).append("quota", 10));
+
+        Task.runTask(Task.LOAD_FULL, Task.LOAD_FULL.asDocument());
+
+        assertEquals(EntryStatus.capped.getValue(),
+                one(Collection.ACCOUNTS.toString(), new Document("agent", "A")).getString("status"));
+        assertEquals(List.of(Task.RUN_OPTIONAL_LOAD.name()), queuedActions(), "the full load pass is complete");
     }
 
 }

@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.Validate;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Statement;
 import org.nanopub.Nanopub;
@@ -74,8 +75,10 @@ import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Filters.in;
+import static com.mongodb.client.model.Filters.or;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.UpdateOptions;
 import static com.mongodb.client.model.Sorts.ascending;
@@ -991,37 +994,45 @@ public enum Task implements Serializable {
                     new DbEntryWrapper(approved).getDocument())) {
                 String pubkeyHash = d.get("pubkey").toString();
                 Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", pubkeyHash);
-                if (collection(Collection.ACCOUNTS.toString()) == null) {
-                    set(s, "accounts_loading", d.append("status", toLoad.getValue()));
-                    continue;
-                }
                 if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", loaded.getValue()))) {
                     set(s, "accounts_loading", d.append("status", loaded.getValue()));
-                } else if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", capped.getValue()))
-                        && !hasQuotaRoom(s, pubkeyHash, d.getInteger("quota"))) {
-                    // Still full, so there is nothing to load and no reason to stage this account
-                    // as 'toLoad': that status is for accounts that are not servable yet, and it
-                    // would drop a perfectly servable account out of the published trust state.
+                } else if (has(s, Collection.ACCOUNTS.toString(), new Document(accountId).append("status", capped.getValue()))) {
+                    // Loaded as far as its quota allows, which makes it servable, so it stays
+                    // 'capped', and in the published trust state, also when the quota computed in
+                    // this cycle leaves room again. Staged as 'toLoad', the status of accounts
+                    // that are not servable yet, it would drop out of that state until loaded
+                    // (issue #242). The mark has LOAD_FULL load the rest.
+                    if (hasQuotaRoom(s, pubkeyHash, d.getInteger("quota"))) {
+                        d.append(RESUME_LOAD, true);
+                    }
                     set(s, "accounts_loading", d.append("status", capped.getValue()));
-                } else {
-                    // Either not loaded yet, or capped under a quota that has since grown — in
-                    // which case LOAD_FULL picks it up again and loads the rest.
+                } else if ("$".equals(pubkeyHash) || AgentFilter.loadsApprovedAccount(pubkeyHash)) {
+                    // Not loaded yet. (The synthetic root is attended to by LOAD_FULL whatever
+                    // the agent filter says.)
                     set(s, "accounts_loading", d.append("status", toLoad.getValue()));
+                } else {
+                    // Under quota enforcement, an approved account that REGISTRY_COVERAGE_AGENTS
+                    // does not cover is not loaded: LOAD_FULL would mark it 'skipped'. Staged as
+                    // 'toLoad' instead, it would be that again after every release, which
+                    // replaces what LOAD_FULL made of it, and an account that is always 'toLoad'
+                    // keeps a fresh registry from ever publishing its first trust state (issue
+                    // #242).
+                    set(s, "accounts_loading", d.append("status", skipped.getValue()));
                 }
             }
 
             // How many accounts this cycle hands to the loader: approved accounts staged as
-            // 'toLoad' without having been so before. PUBLISH_TRUST_STATE holds a changed trust
-            // state back for one cycle on their account (see there). Counted over what is staged
-            // rather than along the way, so that the accounts an earlier, failed run staged count
-            // too. An account that was waiting already has had a cycle's worth of time to be
-            // loaded, and one the loader passes over will not get any further by waiting.
+            // 'toLoad', and capped ones marked to resume, that were not waiting for it already.
+            // PUBLISH_TRUST_STATE holds a changed trust state back for one cycle on their account
+            // (see there). Counted over what is staged rather than along the way, so that the
+            // accounts an earlier, failed run staged count too. An account that was waiting
+            // already has had a cycle's worth of time to be loaded, and one the loader would pass
+            // over is staged as 'skipped' above.
             int newlyToLoad = 0;
-            for (Document d : collection("accounts_loading").find(s, new Document("status", toLoad.getValue()))) {
-                String pubkeyHash = d.get("pubkey").toString();
-                Document accountId = new Document("agent", d.get("agent").toString()).append("pubkey", pubkeyHash);
-                if (!has(s, Collection.ACCOUNTS.toString(), accountId.append("status", toLoad.getValue()))
-                        && AgentFilter.loadsApprovedAccount(pubkeyHash)) {
+            for (Document d : collection("accounts_loading").find(s, awaitingFullLoad())) {
+                Document accountId = new Document("agent", d.get("agent").toString())
+                        .append("pubkey", d.get("pubkey").toString());
+                if (!has(s, Collection.ACCOUNTS.toString(), and(accountId, awaitingFullLoad()))) {
                     newlyToLoad++;
                 }
             }
@@ -1122,7 +1133,8 @@ public enum Task implements Serializable {
          * A changed state is also held back, for one cycle, when the cycle
          * has handed newly approved accounts to the loader and publishing
          * would add no account, so that such an account and the scores it
-         * moves are published as one state.
+         * moves are published as one state. Capped accounts whose quota has
+         * grown count as handed to the loader as well.
          */
         public void run(ClientSession s, Document taskDoc) {
             ServerStatus status = getServerStatus(s);
@@ -1183,7 +1195,11 @@ public enum Task implements Serializable {
                 // as it would be without any of this. Never for two cycles in a row either. And
                 // an account holds things back only in the cycle that hands it to the loader,
                 // so one that takes long, or cannot be loaded at all, delays nothing after that.
-                logger.info("Newly approved accounts are waiting to be loaded; holding trust state {} back for one cycle", newTrustStateHash);
+                //
+                // A capped account whose quota has grown is handed to the loader too. It stays
+                // in what is published, as capped (issue #242), and holding back has the next
+                // cycle publish its new quota together with the status the load ends in.
+                logger.info("Accounts handed to the loader in this cycle are waiting to be loaded; holding trust state {} back for one cycle", newTrustStateHash);
                 setValue(s, Collection.SERVER_INFO.toString(), "trustStateHeldBackAt", cycle);
             } else {
                 if (heldBackAt != null) {
@@ -1322,7 +1338,12 @@ public enum Task implements Serializable {
 
             Document a = getOne(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument());
             if (a == null) {
-                logger.info("No accounts left with status={}; full load pass complete", toLoad);
+                // Then the capped accounts whose quota has grown (see DETERMINE_UPDATES), which
+                // are served already, as far as their earlier quota went.
+                a = getOne(s, Collection.ACCOUNTS.toString(), resumingLoad());
+            }
+            if (a == null) {
+                logger.info("No accounts left to load; full load pass complete");
                 if (status == coreReady) {
                     logger.info("Server status transitioning coreReady -> ready; full load finished");
                     setServerStatus(s, ready);
@@ -1336,7 +1357,7 @@ public enum Task implements Serializable {
                 if (!ph.equals("$")) {
                     if (!AgentFilter.isAllowed(s, ph)) {
                         logger.info("Pubkey {} is not covered by the agent filter; marking account as skipped", ph);
-                        set(s, Collection.ACCOUNTS.toString(), a.append("status", skipped.getValue()));
+                        recordLoadOutcome(s, a, skipped);
                         schedule(s, LOAD_FULL.withDelay(100));
                         return;
                     }
@@ -1397,7 +1418,7 @@ public enum Task implements Serializable {
                     a.append("quota", effectiveQuota);
                 }
                 logger.info("Pubkey {}: account load complete, status={}", ph, accountStatus);
-                set(s, Collection.ACCOUNTS.toString(), a.append("status", accountStatus.getValue()));
+                recordLoadOutcome(s, a, accountStatus);
 
                 schedule(s, LOAD_FULL.withDelay(100));
             }
@@ -1707,8 +1728,9 @@ public enum Task implements Serializable {
 
     /**
      * Warns about each quota authority whose nanopublications this registry does not load in
-     * full from the peers, as the cycle leaves it: one without an approved account, and one
-     * whose account is capped at its quota. Being listed as an authority makes a pubkey's
+     * full from the peers, as the cycle leaves it: one without an approved account, one that
+     * REGISTRY_COVERAGE_AGENTS does not cover, and one whose account is capped at its quota
+     * (unless that quota has just grown). Being listed as an authority makes a pubkey's
      * grants count, but it does not make the pubkey an account, and only an account with
      * quota room is loaded in full. The grants of any other key reach this registry only as
      * far as they happen to be published here or picked up among the recent
@@ -1717,15 +1739,17 @@ public enum Task implements Serializable {
      * @param s the MongoDB client session
      */
     static void warnAboutQuotaAuthoritiesNotLoadedInFull(ClientSession s) {
-        List<String> fullyLoadedStatuses = List.of(loaded.getValue(), toLoad.getValue());
         for (String authority : AgentFilter.getQuotaAuthorities()) {
-            if (has(s, "accounts_loading", new Document("pubkey", authority)
-                    .append("status", new Document("$in", fullyLoadedStatuses)))) {
+            if (has(s, "accounts_loading", and(eq("pubkey", authority),
+                    or(eq("status", loaded.getValue()), awaitingFullLoad())))) {
                 continue;
             }
             if (has(s, "accounts_loading", new Document("pubkey", authority).append("status", capped.getValue()))) {
                 logger.warn("Quota authority {} is capped at its quota, so its grants are not loaded in full from the peers;" +
                             " it needs a larger quota for its grants to be complete here", authority);
+            } else if (!AgentFilter.loadsApprovedAccount(authority)) {
+                logger.warn("Quota authority {} is not covered by REGISTRY_COVERAGE_AGENTS, so its grants are not loaded from the peers;" +
+                            " it has to be listed there for its grants to be complete here", authority);
             } else {
                 logger.warn("Quota authority {} has no approved account, so its grants are not loaded from the peers;" +
                             " it has to be approved through the trust network for its grants to be complete here", authority);
@@ -2086,6 +2110,46 @@ public enum Task implements Serializable {
         return AgentFilter.getPublishedCount(mongoSession, pubkeyHash) < stagedQuota;
     }
 
+    /**
+     * The field that marks a capped account whose quota has grown, for {@link #LOAD_FULL} to
+     * load the rest of its nanopubs. Set by {@link #DETERMINE_UPDATES}, and only together with
+     * the status {@code capped}: such an account is servable, and stays in the published trust
+     * state while it is loaded (issue #242).
+     */
+    static final String RESUME_LOAD = "resumeLoad";
+
+    /**
+     * Matches the capped accounts marked to resume loading (see {@link #RESUME_LOAD}).
+     */
+    private static Bson resumingLoad() {
+        return and(eq("status", capped.getValue()), eq(RESUME_LOAD, true));
+    }
+
+    /**
+     * Matches the accounts {@link #LOAD_FULL} has yet to attend to: the ones in {@code toLoad},
+     * and the capped ones marked to resume loading.
+     */
+    private static Bson awaitingFullLoad() {
+        return or(eq("status", toLoad.getValue()), resumingLoad());
+    }
+
+    /**
+     * Records what {@link #LOAD_FULL} made of an account, which also ends a resumed load of it.
+     * {@link RegistryDB#set} only adds and changes fields, so the mark is removed separately.
+     *
+     * @param mongoSession the MongoDB client session
+     * @param account      the account as LOAD_FULL picked it
+     * @param status       the status it ends up with
+     */
+    private static void recordLoadOutcome(ClientSession mongoSession, Document account, EntryStatus status) {
+        boolean resumed = account.remove(RESUME_LOAD) != null;
+        set(mongoSession, Collection.ACCOUNTS.toString(), account.append("status", status.getValue()));
+        if (resumed) {
+            collection(Collection.ACCOUNTS.toString()).updateOne(mongoSession,
+                    new Document("_id", account.get("_id")), new Document("$unset", new Document(RESUME_LOAD, "")));
+        }
+    }
+
     private static void setServerStatus(ClientSession mongoSession, ServerStatus status) {
         setValue(mongoSession, Collection.SERVER_INFO.toString(), "status", status.toString());
     }
@@ -2137,7 +2201,7 @@ public enum Task implements Serializable {
 
     /**
      * Whether a changed trust state is to be held back in this cycle because the cycle has
-     * handed newly approved accounts to the loader (see {@link #PUBLISH_TRUST_STATE}).
+     * handed accounts to the loader (see {@link #PUBLISH_TRUST_STATE}).
      *
      * @param s          the MongoDB client session
      * @param cycle      what identifies the current cycle, or null if unknown
@@ -2160,7 +2224,7 @@ public enum Task implements Serializable {
         }
         // The count is from DETERMINE_UPDATES, which a registry without trust calculation
         // does not run, so make sure it is about accounts that are in fact waiting.
-        return has(s, Collection.ACCOUNTS.toString(), new DbEntryWrapper(toLoad).getDocument());
+        return has(s, Collection.ACCOUNTS.toString(), awaitingFullLoad());
     }
 
     /**
